@@ -13,7 +13,7 @@
 
 ## 1. 摘要
 
-把 LLM 預設從 OpenAI 改為**內網 Ollama**（`gemma3n:e4b`），所有節點 / 應用 / 範例 workflow 預設指向地端 endpoint。雲端 provider（OpenAI / Anthropic / Gemini …）改為**選用**，需要 workspace owner 主動啟用、補 API key 才能用。Embedding（bge-m3）已是地端，本案把 LLM 對齊。
+把 LLM 預設從 OpenAI 改為**內網 Ollama**（`gemma4:e4b`），所有節點 / 應用 / 範例 workflow 預設指向地端 endpoint。雲端 provider（OpenAI / Anthropic / Gemini …）改為**選用**，需要 workspace owner 主動啟用、補 API key 才能用。Embedding（bge-m3）已是地端，本案把 LLM 對齊。
 
 ## 2. 動機
 
@@ -51,33 +51,34 @@
 
 | 角色 | 預設模型 | Provider | 大小 | 備註 |
 |------|---------|----------|------|------|
-| **LLM (chat / agent)** | `gemma3n:e4b` | Ollama | ~7.5 GB | Google Edge 優化、E4B 等效 4B 但能力近 8B、多語言、原生多模態 |
+| **LLM (chat / agent / vision)** | `gemma4:e4b` | Ollama | ~9.6 GB | Google Gemma 4 E4B、4.5B 有效 / 8B 含 embedding、140+ 語言、128K context、文/圖/音多模態、Apache-2.0 |
 | **Embedding** | `bge-m3` | Ollama | ~1.2 GB | 1024 維、多語言（已部署） |
 | **Reranker**（選用） | `bge-reranker-v2-m3` | TEI / 自架 HTTP | ~1.4 GB | 進 Phase 3 |
-| **Vision**（選用） | `gemma3n:e4b`（內建） | Ollama | 同上 | Gemma 3n 原生支援圖像；Phase 4 啟用 |
-| **STT**（選用） | `whisper-cpp / faster-whisper` | 自架 HTTP | varies | 進 Phase 4 |
+| **Vision**（選用） | `gemma4:e4b`（內建） | Ollama | 同上 | Gemma 4 原生支援圖像 + 音訊；Phase 4 啟用 |
+| **STT**（選用） | `whisper-cpp / faster-whisper` | 自架 HTTP | varies | 進 Phase 4；若 Gemma 4 音訊夠用可省 |
 | **TTS**（選用） | `coqui-tts` 或 OpenedAI-Speech | 自架 HTTP | varies | 進 Phase 4 |
 
-### 4.2 為何選 gemma3n:e4b
+### 4.2 為何選 gemma4:e4b
 
 | 候選模型 | 多語言 | Tools | Context | 多模態 | 大小 | 授權 | 結論 |
 |---------|:---:|:---:|:---:|:---:|:---:|------|------|
-| **gemma3n:e4b** | ⭐⭐⭐⭐ | ✅ | 32K | ✅（圖像） | 7.5 GB | Gemma | **採用** |
-| gemma3n:e2b | ⭐⭐⭐ | ✅ | 32K | ✅ | 5.6 GB | Gemma | 輕量替代 |
-| gemma3:4b | ⭐⭐⭐ | ✅ | 128K | ❌ | 3.3 GB | Gemma | 純文字場景 |
-| gemma3n:e4b | ⭐⭐⭐⭐⭐ | ✅ | 32K | ❌ | 4.7 GB | Apache-2.0 | 中文最強，列備援 |
-| llama3.2:3b | ⭐⭐ | ✅ | 128K | ❌ | 2 GB | Llama 3.2 | 英文場景 |
+| **gemma4:e4b** | ⭐⭐⭐⭐⭐ (140+) | ✅ | **128K** | ✅ 文/圖/音 | 9.6 GB | Apache-2.0 | **採用** |
+| gemma4:e2b | ⭐⭐⭐⭐ | ✅ | 128K | ✅ | 7.2 GB | Apache-2.0 | 輕量替代（hardware fallback） |
+| gemma4:26b | ⭐⭐⭐⭐⭐ | ✅ | 256K | ✅ | 18 GB | Apache-2.0 | 企業級升級選項 |
+| qwen2.5:7b | ⭐⭐⭐⭐⭐ | ✅ | 32K | ❌ | 4.7 GB | Apache-2.0 | 純文字 RAG，輕量替代 |
+| llama3.2:3b | ⭐⭐ | ✅ | 128K | ❌ | 2 GB | Llama 3.2 | 英文小型機 |
 | mistral-nemo:12b | ⭐⭐⭐ | ✅ | 128K | ❌ | 7.1 GB | Apache-2.0 | 中文偏弱 |
 
-選 **`gemma3n:e4b`** 的理由：
-- Google **Edge-Optimized 設計**：Per-Layer Embeddings (PLE) 架構，等效 4B 參數但記憶體佔用近 2B 的 footprint
-- **原生多模態**：圖像理解內建，省去未來 Phase 4 另開 Vision 容器
-- **多語言訓練**（含繁中）：MMLU-zh ≈ gemma3n:e4b
+選 **`gemma4:e4b`** 的理由：
+- **140+ 語言**：覆蓋繁體中文、簡體中文、英、日、韓、東南亞語系，行政文書最廣
+- **128K context**：可一次塞入長簽呈、規格書、會議記錄全文
+- **文/圖/音三模態原生支援**：未來 Phase 4 vision / 語音節點不用另開模型容器
+- **內建 thinking mode**：複雜推理品質提升（可動態開關，降低成本）
 - **Function calling 原生支援**：適合 workflow 工具節點
-- **mobile-first 架構**：對 ARM (Apple Silicon、Snapdragon)、CPU-only 環境最友善
-- **Google 維護**：長期支援預期穩定
+- **Apache 2.0 授權**：商用、私有化部署無顧慮
+- **Google 官方維護**：長期支援預期穩定
 
-`gemma3n:e4b` 列為**中文場景備援**（純文字 RAG 命中率略高），但 Gemma 3n 多模態 + Edge 優化的綜合價值更勝一籌。
+`qwen2.5:7b` 仍列為**輕量替代**選項（純文字場景效能較高、模型較小），但 Gemma 4 多模態 + 長 context + 多語言的整合價值在企業環境綜合勝出。
 
 ### 4.3 Architecture
 
@@ -104,7 +105,7 @@
         │  embedder (Ollama)  │    │ External LLM API │
         │ ┌─────────────────┐ │    │ (OpenAI / Claude │
         │ │ bge-m3 (embed)  │ │    │  / Gemini …)     │
-        │ │ gemma3n:e4b(LLM) │ │    │  ↑ 選用，需 key   │
+        │ │ gemma4:e4b(LLM) │ │    │  ↑ 選用，需 key   │
         │ └─────────────────┘ │    │  ↑ 預設不啟用     │
         │   ↑ 內網、預設       │    └──────────────────┘
         └─────────────────────┘
@@ -115,7 +116,7 @@
 ```bash
 # ── LLM (預設地端 Ollama) ─────────────────────
 LLM_PROVIDER=ollama
-LLM_MODEL=gemma3n:e4b
+LLM_MODEL=gemma4:e4b
 LLM_BASE_URL=http://embedder:11434/v1
 LLM_API_KEY=dummy
 
@@ -136,7 +137,7 @@ EMBEDDING_DIMENSION=1024
 1. Workflow Node 個別 config（最高）
 2. Application 設定
 3. Workspace 預設模型
-4. System 預設（LLM_MODEL）  ← gemma3n:e4b
+4. System 預設（LLM_MODEL）  ← gemma4:e4b
 ```
 
 ### 4.6 程式介面
@@ -171,7 +172,7 @@ def get_default_llm() -> BaseLLM:
 | 預設 Anthropic | 品質好 | 同樣外送 | 違反 G1 |
 | 預設 vLLM | 推論快 | 部署複雜、ARM 支援差 | Mac 開發機跑不動 |
 | 預設 LM Studio | UI 友善 | 不適合容器化部署 | 違反 docker-first |
-| **預設 Ollama gemma3n:e4b（本案）** | **ARM/x86、容器化、中文強** | 7b 推論速度有限 | **採用** |
+| **預設 Ollama gemma4:e4b（本案）** | **ARM/x86、容器化、中文強** | 7b 推論速度有限 | **採用** |
 
 ## 6. 風險與緩解
 
@@ -188,9 +189,9 @@ def get_default_llm() -> BaseLLM:
 
 - **既有 code**：`services/agent/app/config.py`、`services/agent/app/core/workflow/executor.py`、`apps/web/src/components/workflow/lf-nodes.ts`、`NodeConfigPanel.vue`、`ModelProviderView.vue` 都需改預設
 - **`.env` / `.env.example`**：刪除 `OPENAI_MODEL` default、新增 `LLM_*` 變數族
-- **docker-compose**：在現有 `embedder-init` 之後加 `llm-init` 把 gemma3n:e4b pull 下來
+- **docker-compose**：在現有 `embedder-init` 之後加 `llm-init` 把 gemma4:e4b pull 下來
 - **首次啟動**：多下載 4.7GB 模型（~30 分鐘 @ 中速網路）
-- **記憶體需求**：embedder 容器從 4GB 上修到 8GB（bge-m3 + gemma3n:e4b）
+- **記憶體需求**：embedder 容器從 4GB 上修到 8GB（bge-m3 + gemma4:e4b）
 
 ## 8. 推出計畫
 
@@ -204,7 +205,7 @@ def get_default_llm() -> BaseLLM:
 
 - **採用**：Stage 1 上線 30 天，>= 80% 新建 application 預設用地端
 - **品質**：地端 RAG 命中率（人工評估）≥ 75%（vs 雲端 ≥ 88%）
-- **效能**：gemma3n:e4b on Apple M3 / 16GB RAM：TTFT < 3s、tokens/s ≥ 25
+- **效能**：gemma4:e4b on Apple M3 / 16GB RAM：TTFT < 3s、tokens/s ≥ 25
 - **成本**：新用戶 30 天 OpenAI API 費用為 0（除非主動 opt-in）
 
 ## 10. 開放問題
