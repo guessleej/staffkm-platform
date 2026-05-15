@@ -1,0 +1,12 @@
+/** @staffkm/ui-kit — Vue 3 component library */
+export { default as SAlert }    from './components/SAlert.vue'
+export { default as SAvatar }   from './components/SAvatar.vue'
+export { default as SBadge }    from './components/SBadge.vue'
+export { default as SButton }   from './components/SButton.vue'
+export { default as SCard }     from './components/SCard.vue'
+export { default as SEmpty }    from './components/SEmpty.vue'
+export { default as SInput }    from './components/SInput.vue'
+export { default as SModal }    from './components/SModal.vue'
+export { default as SSpinner }  from './components/SSpinner.vue'
+export { default as STag }      from './components/STag.vue'
+export { default as STextarea } from './components/STextarea.vue'
