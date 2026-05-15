@@ -62,13 +62,19 @@
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="form-label">Model</label>
-            <select v-model="node.config.model" class="form-input">
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="gpt-4o-mini">gpt-4o-mini</option>
-              <option value="gpt-4-turbo">gpt-4-turbo</option>
-              <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
-            </select>
+            <label class="form-label">Model
+              <span class="text-emerald-600 font-normal ml-1">🔒 系統鎖定</span>
+            </label>
+            <div class="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <span class="text-base">🏠</span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-mono text-emerald-900 font-semibold">gemma3n:e4b</div>
+                <div class="text-[11px] text-emerald-700">Google Gemma 3n · Edge 優化 · 內網執行</div>
+              </div>
+            </div>
+            <!-- 確保 v-model 仍綁定（即便不顯示 select） -->
+            <input type="hidden" :value="node.config.model = 'gemma3n:e4b'" />
+            <p class="text-[11px] text-gray-400 mt-1">依 RFC-005 地端優先策略，本系統僅支援單一 LLM 模型，避免模型混用造成回應品質與權限稽核漂移。</p>
           </div>
           <div>
             <label class="form-label">Temperature</label>
