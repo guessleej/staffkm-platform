@@ -123,8 +123,8 @@ services:
   # ══════════════════════════════════════════════════════════════
   #  Ollama — 內網 AI 引擎（地端優先策略，RFC-005）
   #  跑兩個模型：
-  #    - bge-m3        (embedding, ~1.2 GB)
-  #    - gemma3n:e4b   (LLM, ~7.5 GB) ← Google Gemma 3n、Edge 優化、E4B 等效 4B
+  #    - bge-m3       (embedding, ~1.2 GB)
+  #    - gemma4:e4b   (LLM, ~9.6 GB) ← Google Gemma 4 E4B、4.5B 有效參數、128K context、多模態
   #  ARM64 / x86_64 雙平台原生
   # ══════════════════════════════════════════════════════════════
   embedder:
@@ -138,15 +138,15 @@ services:
       OLLAMA_KEEP_ALIVE: "24h"
       OLLAMA_MAX_LOADED_MODELS: "2"   # 同時載入 embedding + LLM
     healthcheck:
-      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q bge-m3 && ollama list 2>/dev/null | grep -q gemma3n || exit 1"]
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q bge-m3 && ollama list 2>/dev/null | grep -q gemma4 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 1800s   # 首次需下載 ~9GB 模型（bge-m3 + gemma3n:e4b）
+      start_period: 1800s   # 首次需下載 ~9GB 模型（bge-m3 + gemma4:e4b）
     deploy:
       resources:
         limits:
-          memory: 14g     # gemma3n:e4b 需 ~8GB + embedding ~2GB + buffer
+          memory: 16g     # gemma4:e4b 需 ~8GB + embedding ~2GB + buffer
           cpus: "4.0"
         reservations:
           memory: 6g
@@ -155,7 +155,7 @@ services:
       - backend
       - frontend  # 首次拉模型需連 ollama.com
 
-  # 一次性：拉取 bge-m3 + gemma3n:e4b（healthcheck 兩個都要在才通過）
+  # 一次性：拉取 bge-m3 + gemma4:e4b（healthcheck 兩個都要在才通過）
   embedder-init:
     image: ollama/ollama:latest
     container_name: staffkm-embedder-init
@@ -169,8 +169,8 @@ services:
         until ollama list >/dev/null 2>&1; do sleep 2; done
         echo "📦 拉取 bge-m3 (~1.2 GB) — Embedding 模型..."
         ollama pull bge-m3
-        echo "🧠 拉取 gemma3n:e4b (~7.5 GB) — Google Gemma 3n Edge LLM..."
-        ollama pull gemma3n:e4b
+        echo "🧠 拉取 gemma4:e4b (~9.6 GB) — Google Gemma 4 E4B 多模態 LLM..."
+        ollama pull gemma4:e4b
         echo "✅ AI 模型就緒（embedding + LLM）"
     environment:
       OLLAMA_HOST: "embedder:11434"
@@ -379,7 +379,7 @@ services:
       KNOWLEDGE_SERVICE_URL: http://knowledge:8001
       # ── LLM 地端優先 (RFC-005) ─────────────────────
       LLM_PROVIDER:    ${LLM_PROVIDER:-ollama}
-      LLM_MODEL:       ${LLM_MODEL:-gemma3n:e4b}
+      LLM_MODEL:       ${LLM_MODEL:-gemma4:e4b}
       LLM_BASE_URL:    ${LLM_BASE_URL:-http://embedder:11434/v1}
       LLM_API_KEY:     ${LLM_API_KEY:-dummy}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
@@ -389,7 +389,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GOOGLE_API_KEY:    ${GOOGLE_API_KEY:-}
       # legacy（v1 相容、後續移除）
-      OPENAI_MODEL:    ${OPENAI_MODEL:-gemma3n:e4b}
+      OPENAI_MODEL:    ${OPENAI_MODEL:-gemma4:e4b}
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
     healthcheck:
       <<: *api-healthcheck
