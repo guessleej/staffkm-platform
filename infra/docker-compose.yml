@@ -539,9 +539,9 @@ services:
 
   ui:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-      # context 限縮在 ui/ 即可，不需要 core
+      context: .
+      dockerfile: apps/web/Dockerfile
+      # context = project root，因為 apps/web 依賴 packages/ts/{design-tokens,ui-kit}
       args:
         VITE_API_BASE_URL: /api/v1
         VITE_APP_TITLE: StaffKM 行政知識管理系統

@@ -1,14 +1,40 @@
+/* @staffkm/design-tokens 由 main.ts 直接 import（ES module、Vite 處理）*/
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  html { font-family: 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', system-ui, sans-serif; }
-  body { @apply bg-gray-50 text-gray-900 antialiased; }
+  /* font 已由 design-tokens 設好；此處針對 long-form 區塊微調 */
+  body {
+    background: hsl(var(--color-surface-base));
+    color:      hsl(var(--color-text-primary));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   * { @apply box-border; }
+
+  /* 滾軸現代化 */
+  ::-webkit-scrollbar         { @apply w-2 h-2; }
+  ::-webkit-scrollbar-track   { background: transparent; }
+  ::-webkit-scrollbar-thumb   { @apply bg-neutral-300 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-neutral-400; }
 }
 
 @layer utilities {
   .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
   .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+
+  /* 玻璃態（給 modal / topbar 用）*/
+  .glass {
+    background: hsl(var(--color-surface-raised) / 0.8);
+    backdrop-filter: blur(8px) saturate(150%);
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+  }
 }
+
+/* 全域 Transition（用於 router-view 的 fade）*/
+.fade-enter-active, .fade-leave-active { transition: opacity 200ms var(--ease-out); }
+.fade-enter-from,   .fade-leave-to     { opacity: 0; }
