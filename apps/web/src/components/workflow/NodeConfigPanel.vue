@@ -67,11 +67,11 @@
             </label>
             <select v-model="node.config.model" class="form-input">
               <optgroup label="🏠 地端 Ollama（內網，推薦）">
-                <option value="qwen2.5:7b">qwen2.5:7b — 通用（4.7GB，預設）</option>
-                <option value="qwen2.5:14b">qwen2.5:14b — 進階（9GB，較強）</option>
-                <option value="qwen2.5:1.5b">qwen2.5:1.5b — 輕量（&lt; 1GB）</option>
-                <option value="llama3.2:3b">llama3.2:3b — 英文場景</option>
-                <option value="gemma2:9b">gemma2:9b</option>
+                <option value="gemma3n:e4b">gemma3n:e4b — Google Edge 優化（7.5GB，預設）</option>
+                <option value="gemma3n:e2b">gemma3n:e2b — 輕量 Edge（5.6GB）</option>
+                <option value="gemma3:4b">gemma3:4b — 標準（3.3GB）</option>
+                <option value="llama3.2:3b">llama3.2:3b — 英文場景（2GB）</option>
+                <option value="qwen2.5:7b">qwen2.5:7b — Alibaba 中文強（4.7GB）</option>
               </optgroup>
               <optgroup label="☁️ 雲端（需 API key、資料外送）">
                 <option value="gpt-4o">OpenAI gpt-4o</option>

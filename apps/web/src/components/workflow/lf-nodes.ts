@@ -44,7 +44,7 @@ export const NODE_META: Record<string, NodeMeta> = {
 export function getDefaultConfig(nodeType: string): Record<string, any> {
   const defaults: Record<string, Record<string, any>> = {
     start:               { user_input_var: 'user_input', system_prompt: '' },
-    llm:                 { model: 'qwen2.5:7b', temperature: 0.7, max_tokens: 2048, system_prompt: '', prompt_template: '{{user_input}}', stream: true },
+    llm:                 { model: 'gemma3n:e4b', temperature: 0.7, max_tokens: 2048, system_prompt: '', prompt_template: '{{user_input}}', stream: true },
     knowledge_retrieval: { kb_ids: [], top_k: 5, similarity_threshold: 0.5, vector_weight: 0.7, search_mode: 'hybrid', output_variable: 'knowledge_results' },
     condition:           { conditions: [{ variable: '', operator: 'contains', value: '' }], logic: 'AND' },
     variable:            { assignments: [{ variable: '', value: '' }] },

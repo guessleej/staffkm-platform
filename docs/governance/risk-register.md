@@ -18,7 +18,7 @@
 | TR-03 | 模型推論成本失控（OpenAI bill 超支） | 高 | 中 | **RFC-005 地端優先**（預設 0 雲端費）；Token quota + rate limit；硬上限 cut-off | 後端 | ⚫ 已關閉 |
 | TR-03b | 地端 LLM 推論慢，使用者體驗差 | 高 | 中 | UI 顯示「地端/雲端」切換 chip；提供「升級到 14b」CTA；streaming；GPU profile（Phase 4） | 後端 + UX | 🟢 |
 | TR-03c | 7B 地端模型對複雜 reasoning 不足 | 高 | 中 | 範本工作流提示「複雜推理可切 14b 或雲端」；reranker 補強 RAG；多 agent 拆解 | 後端 | 🟢 |
-| TR-03d | 用戶硬體跑不動 7B（< 16GB RAM） | 中 | 高 | 提供 `qwen2.5:1.5b` minimal preset；docs 註明硬體需求；自動偵測並降級 | DevOps | 🟢 |
+| TR-03d | 用戶硬體跑不動 E4B（< 12GB RAM） | 中 | 高 | 提供 `gemma3n:e2b` (5.6GB) minimal preset；docs 註明硬體需求；自動偵測並降級 | DevOps | 🟢 |
 | TR-04 | 35 節點品質參差不齊 | 高 | 中 | 每節點必須 unit test + E2E；BaseNodeView 抽象覆蓋 80% 共通邏輯 | 後端 | 🟢 |
 | TR-05 | 20 家 provider 維護成本 | 中 | 中 | 用 LiteLLM proxy 統一介面；自家只維護抽象層；社群 PR welcome | 架構師 | 🟢 |
 | TR-06 | Embedding 維度遷移破壞既有向量 | 中 | 高 | Bootstrap DDL 自動偵測 + 提示 truncate；雙寫過渡期 | 後端 | 🟢 |
