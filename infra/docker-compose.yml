@@ -165,12 +165,16 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        set -e   # 任何 pull 失敗都立即退出（避免假 "✅ 就緒" 訊息）
         echo "⏳ 等 Ollama 啟動..."
         until ollama list >/dev/null 2>&1; do sleep 2; done
         echo "📦 拉取 bge-m3 (~1.2 GB) — Embedding 模型..."
         ollama pull bge-m3
         echo "🧠 拉取 gemma4:e4b (~9.6 GB) — Google Gemma 4 E4B 多模態 LLM..."
         ollama pull gemma4:e4b
+        # 雙重確認模型在 list 中（防止 pull 假成功）
+        ollama list | grep -q bge-m3 || { echo "❌ bge-m3 not in list"; exit 1; }
+        ollama list | grep -q gemma4 || { echo "❌ gemma4 not in list"; exit 1; }
         echo "✅ AI 模型就緒（embedding + LLM）"
     environment:
       OLLAMA_HOST: "embedder:11434"
