@@ -130,19 +130,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware（注意：starlette 後加先跑，故順序由下而上）──────────────
-# 1) CORS — 永遠最外層
+# ── Middleware（starlette 規則：後加 = 外層 = 先跑）──────────────────
+# 期望執行順序（request 進來時）：
+#   LegacyURLBridge → GatewayHeaders → TenantContext → endpoint
+# 因此「後加 = 先跑」的規則下，加入順序要顛倒：
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-# 2) Legacy URL bridge — v1 → v2 重寫，這個要早於 tenant middleware 才能讓重寫後的 path 帶 workspace
-app.add_middleware(LegacyURLBridge)
-# 3) Gateway headers → request.state
-app.add_middleware(GatewayHeadersMiddleware)
-# 4) Tenant context — 讀 path 中的 workspace_id 並驗證成員
+# Tenant 必須在 GatewayHeaders 後跑，才能拿到 user_id
 app.add_middleware(
     TenantContextMiddleware,
-    session_factory=lambda: _db._session_factory,   # 延遲取（lifespan 後才 init）
+    session_factory=lambda: _db._session_factory,
     user_id_getter=_user_id_from_request,
 )
+# GatewayHeaders 必須在 LegacyBridge 後跑（先確定 user 才檢查 workspace）
+app.add_middleware(GatewayHeadersMiddleware)
+# LegacyBridge 最外層、最先跑：重寫 v1 path，後續 middleware 才能正確匹配 workspace_id
+app.add_middleware(LegacyURLBridge)
 
 # ── Routes（v2：workspace-scoped）─────────────────────────────────────
 _PREFIX = "/api/v1/workspace/{workspace_id}/knowledge"
