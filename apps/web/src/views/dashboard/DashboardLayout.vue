@@ -16,6 +16,11 @@
         </div>
       </div>
 
+      <!-- Workspace 切換器 -->
+      <div class="p-3 border-b border-gray-100">
+        <WorkspaceSwitcher />
+      </div>
+
       <!-- 導覽選單 -->
       <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
         <NavItem to="/chat" icon="💬" label="智慧問答" />
@@ -62,14 +67,24 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useWorkspaceStore } from '../../stores/workspace'
 import NavItem from '../../components/common/NavItem.vue'
+import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
 
 const auth = useAuthStore()
+const workspace = useWorkspaceStore()
 const router = useRouter()
 
+onMounted(() => {
+  // 載入使用者所屬的 workspace 清單
+  if (workspace.workspaces.length === 0) workspace.load()
+})
+
 async function handleLogout() {
+  workspace.reset()
   auth.logout()
   router.push('/login')
 }
