@@ -197,7 +197,7 @@ services:
 
   db-migrate:
     build:
-      context: ..
+      context: .
       dockerfile: services/knowledge/Dockerfile
       target: base
     container_name: staffkm-db-migrate
@@ -218,7 +218,7 @@ services:
 
   gateway:
     build:
-      context: ..
+      context: .
       dockerfile: services/gateway/Dockerfile
     image: staffkm/gateway:${TAG:-latest}
     container_name: staffkm-gateway
@@ -267,7 +267,7 @@ services:
 
   knowledge:
     build:
-      context: ..
+      context: .
       dockerfile: services/knowledge/Dockerfile
     image: staffkm/knowledge:${TAG:-latest}
     container_name: staffkm-knowledge
@@ -312,7 +312,7 @@ services:
   # Knowledge Celery Worker（背景文件處理）
   knowledge-worker:
     build:
-      context: ..
+      context: .
       dockerfile: services/knowledge/Dockerfile
     image: staffkm/knowledge:${TAG:-latest}
     container_name: staffkm-knowledge-worker
@@ -360,7 +360,7 @@ services:
 
   agent:
     build:
-      context: ..
+      context: .
       dockerfile: services/agent/Dockerfile
     image: staffkm/agent:${TAG:-latest}
     container_name: staffkm-agent
@@ -401,7 +401,7 @@ services:
 
   auth:
     build:
-      context: ..
+      context: .
       dockerfile: services/auth/Dockerfile
     image: staffkm/auth:${TAG:-latest}
     container_name: staffkm-auth
@@ -445,7 +445,7 @@ services:
 
   integration:
     build:
-      context: ..
+      context: .
       dockerfile: services/integration/Dockerfile
     image: staffkm/integration:${TAG:-latest}
     container_name: staffkm-integration
@@ -482,7 +482,7 @@ services:
 
   chat:
     build:
-      context: ..
+      context: .
       dockerfile: services/chat/Dockerfile
     image: staffkm/chat:${TAG:-latest}
     container_name: staffkm-chat
@@ -520,7 +520,7 @@ services:
 
   ui:
     build:
-      context: ../apps/web
+      context: ./apps/web
       dockerfile: Dockerfile
       # context 限縮在 ui/ 即可，不需要 core
       args:
