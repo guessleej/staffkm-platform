@@ -1,91 +1,101 @@
 <template>
-  <div class="flex h-screen bg-gray-50 overflow-hidden">
-    <!-- 側邊欄 -->
-    <aside class="w-60 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-      <!-- Logo -->
-      <div class="h-16 flex items-center px-5 border-b border-gray-200">
-        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center mr-3">
-          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  <div class="flex h-screen bg-surface-base text-neutral-900 overflow-hidden">
+
+    <!-- ════════════════════════════════════════
+         側欄
+    ════════════════════════════════════════ -->
+    <aside
+      class="bg-surface-raised border-r border-neutral-200 flex flex-col flex-shrink-0 transition-[width] duration-300 ease-out"
+      :class="ui.sidebarCollapsed ? 'w-[64px]' : 'w-[240px]'"
+    >
+      <!-- Brand -->
+      <div class="h-14 flex items-center border-b border-neutral-200 flex-shrink-0"
+           :class="ui.sidebarCollapsed ? 'justify-center px-3' : 'px-4 gap-2.5'">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+             style="background: linear-gradient(135deg, hsl(var(--color-brand-500)), hsl(var(--color-brand-700)))">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
         </div>
-        <div>
-          <p class="font-bold text-gray-900 text-sm leading-tight">StaffKM</p>
-          <p class="text-xs text-gray-400">行政知識管理</p>
+        <div v-if="!ui.sidebarCollapsed" class="min-w-0">
+          <p class="font-bold text-neutral-900 text-sm leading-tight">StaffKM</p>
+          <p class="text-[10px] text-neutral-400 leading-tight tracking-wide">Knowledge Platform</p>
         </div>
       </div>
 
-      <!-- Workspace 切換器 -->
-      <div class="p-3 border-b border-gray-100">
+      <!-- Workspace Switcher（折疊時隱藏） -->
+      <div v-if="!ui.sidebarCollapsed" class="p-2.5 border-b border-neutral-100">
         <WorkspaceSwitcher />
       </div>
 
-      <!-- 導覽選單 -->
-      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-        <NavItem to="/chat" icon="💬" label="智慧問答" />
-        <NavItem to="/applications" icon="🚀" label="AI 應用" />
-        <NavItem to="/knowledge" icon="📚" label="知識庫管理" />
-        <NavItem to="/agents" icon="🤖" label="AI 代理人" />
+      <!-- 主導覽 -->
+      <nav class="flex-1 overflow-y-auto py-3"
+           :class="ui.sidebarCollapsed ? 'px-2 space-y-1' : 'px-2.5 space-y-0.5'">
+        <p v-if="!ui.sidebarCollapsed" class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 pb-2">
+          工作區
+        </p>
+        <NavItem to="/chat"         icon="💬" label="智慧問答"   :collapsed="ui.sidebarCollapsed" />
+        <NavItem to="/applications" icon="🚀" label="AI 應用"    :collapsed="ui.sidebarCollapsed" />
+        <NavItem to="/knowledge"    icon="📚" label="知識庫管理" :collapsed="ui.sidebarCollapsed" />
+        <NavItem to="/agents"       icon="🤖" label="AI 代理人"  :collapsed="ui.sidebarCollapsed" />
 
-        <div v-if="auth.hasRole(['admin'])" class="pt-3 mt-3 border-t border-gray-100">
-          <p class="text-xs font-medium text-gray-400 px-3 pb-2">系統管理</p>
-          <NavItem to="/admin/users" icon="👥" label="使用者管理" />
-          <NavItem to="/admin/models" icon="🧠" label="模型供應商" />
-          <NavItem to="/admin/system" icon="⚙️" label="系統設定" />
-        </div>
+        <template v-if="auth.hasRole(['admin'])">
+          <div v-if="!ui.sidebarCollapsed" class="pt-4 mt-3 border-t border-neutral-100">
+            <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 pb-2">系統管理</p>
+          </div>
+          <div v-else class="my-3 mx-3 border-t border-neutral-100"></div>
+          <NavItem to="/admin/users"  icon="👥" label="使用者"   :collapsed="ui.sidebarCollapsed" />
+          <NavItem to="/admin/models" icon="🧠" label="模型供應商" :collapsed="ui.sidebarCollapsed" />
+          <NavItem to="/admin/system" icon="⚙️" label="系統設定" :collapsed="ui.sidebarCollapsed" />
+        </template>
       </nav>
 
-      <!-- 使用者資訊 -->
-      <div class="p-3 border-t border-gray-200">
-        <div class="flex items-center gap-3 px-2 py-2">
-          <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-medium text-sm">
-            {{ auth.user?.display_name?.charAt(0) || auth.user?.username?.charAt(0) || '?' }}
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-900 truncate">
-              {{ auth.user?.display_name || auth.user?.username }}
-            </p>
-            <p class="text-xs text-gray-400 truncate">{{ auth.user?.department || '' }}</p>
-          </div>
-          <button @click="handleLogout" title="登出"
-            class="text-gray-400 hover:text-red-500 transition">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
-        </div>
+      <!-- 折疊狀態的展開按鈕 -->
+      <div v-if="ui.sidebarCollapsed" class="px-2 py-2 border-t border-neutral-100">
+        <button
+          @click="ui.toggleSidebar()"
+          title="展開側欄"
+          class="w-full h-9 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
       </div>
     </aside>
 
-    <!-- 主內容區 -->
-    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <router-view />
-    </main>
+    <!-- ════════════════════════════════════════
+         主內容
+    ════════════════════════════════════════ -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <AppTopbar />
+      <main class="flex-1 overflow-y-auto bg-surface-base">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../../stores/auth'
-import { useWorkspaceStore } from '../../stores/workspace'
+
+import AppTopbar from '../../components/common/AppTopbar.vue'
 import NavItem from '../../components/common/NavItem.vue'
 import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
 
+import { useAuthStore } from '../../stores/auth'
+import { useUIStore } from '../../stores/ui'
+import { useWorkspaceStore } from '../../stores/workspace'
+
 const auth = useAuthStore()
+const ui = useUIStore()
 const workspace = useWorkspaceStore()
-const router = useRouter()
 
 onMounted(() => {
-  // 載入使用者所屬的 workspace 清單
   if (workspace.workspaces.length === 0) workspace.load()
 })
-
-async function handleLogout() {
-  workspace.reset()
-  auth.logout()
-  router.push('/login')
-}
 </script>
