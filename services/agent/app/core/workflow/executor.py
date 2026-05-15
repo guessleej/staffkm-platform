@@ -195,12 +195,25 @@ class WorkflowExecutor:
         return []
 
     def _build_llm_client(self, config: dict) -> tuple["AsyncOpenAI", str]:
-        """建立 LLM client；地端優先（RFC-005），node config 可覆寫。
-        回傳 (client, model_name)。"""
-        # 1. node config 最優先；2. system 預設（地端 Ollama）
-        base_url = config.get("base_url") or settings.LLM_BASE_URL
-        api_key  = config.get("api_key")  or settings.LLM_API_KEY or "dummy"
-        model    = config.get("model")    or settings.LLM_MODEL
+        """建立 LLM client；強制使用 settings.LLM_MODEL（RFC-005 唯一支援模型）。
+
+        即便 workflow config 寫了其他 model 也會被覆寫；同時把實際使用的
+        endpoint / api_key 鎖定為系統預設，避免使用者手動把流量導出去。
+        """
+        # 強制鎖定 — 不接受 node 層 override
+        base_url = settings.LLM_BASE_URL
+        api_key  = settings.LLM_API_KEY or "dummy"
+        model    = settings.LLM_MODEL
+
+        # 偵測 workflow config 試圖覆寫，留 audit log
+        node_model = config.get("model")
+        if node_model and node_model != model:
+            log.warning(
+                "llm_model_override_blocked",
+                requested=node_model, enforced=model,
+                reason="RFC-005 onprem-llm-first 政策：僅允許單一系統 LLM 模型",
+            )
+
         return AsyncOpenAI(api_key=api_key, base_url=base_url), model
 
     async def _exec_llm(self, config: dict, context: dict) -> AsyncIterator[str]:

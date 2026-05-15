@@ -63,23 +63,18 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Model
-              <span class="text-emerald-600 font-normal ml-1">🏠 預設地端</span>
+              <span class="text-emerald-600 font-normal ml-1">🔒 系統鎖定</span>
             </label>
-            <select v-model="node.config.model" class="form-input">
-              <optgroup label="🏠 地端 Ollama（內網，推薦）">
-                <option value="gemma3n:e4b">gemma3n:e4b — Google Edge 優化（7.5GB，預設）</option>
-                <option value="gemma3n:e2b">gemma3n:e2b — 輕量 Edge（5.6GB）</option>
-                <option value="gemma3:4b">gemma3:4b — 標準（3.3GB）</option>
-                <option value="llama3.2:3b">llama3.2:3b — 英文場景（2GB）</option>
-                <option value="qwen2.5:7b">qwen2.5:7b — Alibaba 中文強（4.7GB）</option>
-              </optgroup>
-              <optgroup label="☁️ 雲端（需 API key、資料外送）">
-                <option value="gpt-4o">OpenAI gpt-4o</option>
-                <option value="gpt-4o-mini">OpenAI gpt-4o-mini</option>
-                <option value="claude-3-5-sonnet-latest">Anthropic Claude 3.5 Sonnet</option>
-                <option value="gemini-2.0-flash">Google Gemini 2.0 Flash</option>
-              </optgroup>
-            </select>
+            <div class="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <span class="text-base">🏠</span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-mono text-emerald-900 font-semibold">gemma3n:e4b</div>
+                <div class="text-[11px] text-emerald-700">Google Gemma 3n · Edge 優化 · 內網執行</div>
+              </div>
+            </div>
+            <!-- 確保 v-model 仍綁定（即便不顯示 select） -->
+            <input type="hidden" :value="node.config.model = 'gemma3n:e4b'" />
+            <p class="text-[11px] text-gray-400 mt-1">依 RFC-005 地端優先策略，本系統僅支援單一 LLM 模型，避免模型混用造成回應品質與權限稽核漂移。</p>
           </div>
           <div>
             <label class="form-label">Temperature</label>
