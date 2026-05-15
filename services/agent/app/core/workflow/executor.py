@@ -194,23 +194,32 @@ class WorkflowExecutor:
             log.warning("workflow_knowledge_failed", error=str(e))
         return []
 
+    def _build_llm_client(self, config: dict) -> tuple["AsyncOpenAI", str]:
+        """建立 LLM client；地端優先（RFC-005），node config 可覆寫。
+        回傳 (client, model_name)。"""
+        # 1. node config 最優先；2. system 預設（地端 Ollama）
+        base_url = config.get("base_url") or settings.LLM_BASE_URL
+        api_key  = config.get("api_key")  or settings.LLM_API_KEY or "dummy"
+        model    = config.get("model")    or settings.LLM_MODEL
+        return AsyncOpenAI(api_key=api_key, base_url=base_url), model
+
     async def _exec_llm(self, config: dict, context: dict) -> AsyncIterator[str]:
         prompt = self._render_template(
             config.get("prompt_template", "{{user_input}}"), context
         )
         system = config.get("system_prompt", "你是一個助手，請根據提供資料回答問題。")
 
-        llm = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        llm, model = self._build_llm_client(config)
         full_response = ""
         stream = await llm.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
             stream=True,
-            temperature=float(config.get("temperature", 0.1)),
-            max_tokens=int(config.get("max_tokens", 2048)),
+            temperature=float(config.get("temperature", settings.LLM_TEMPERATURE)),
+            max_tokens=int(config.get("max_tokens", settings.LLM_MAX_TOKENS)),
         )
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
@@ -713,9 +722,9 @@ class WorkflowExecutor:
                 f"直接回傳 JSON，格式範例：{example}\n若無法提取某參數，使用預設值。"
             )
             try:
-                llm = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                llm, model = self._build_llm_client(config)
                 resp = await llm.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
+                    model=model,
                     messages=[
                         {"role": "system", "content": system},
                         {"role": "user", "content": prompt},
@@ -769,9 +778,9 @@ class WorkflowExecutor:
         )
         prompt = f"使用者輸入：{text}\n\n意圖清單：\n{intent_lines}\n\n請回傳最符合的意圖編號（數字）："
         try:
-            llm = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            llm, model = self._build_llm_client(config)
             resp = await llm.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=model,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
                 stream=False,
                 temperature=0.0,

@@ -62,12 +62,23 @@
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="form-label">Model</label>
+            <label class="form-label">Model
+              <span class="text-emerald-600 font-normal ml-1">🏠 預設地端</span>
+            </label>
             <select v-model="node.config.model" class="form-input">
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="gpt-4o-mini">gpt-4o-mini</option>
-              <option value="gpt-4-turbo">gpt-4-turbo</option>
-              <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+              <optgroup label="🏠 地端 Ollama（內網，推薦）">
+                <option value="qwen2.5:7b">qwen2.5:7b — 通用（4.7GB，預設）</option>
+                <option value="qwen2.5:14b">qwen2.5:14b — 進階（9GB，較強）</option>
+                <option value="qwen2.5:1.5b">qwen2.5:1.5b — 輕量（&lt; 1GB）</option>
+                <option value="llama3.2:3b">llama3.2:3b — 英文場景</option>
+                <option value="gemma2:9b">gemma2:9b</option>
+              </optgroup>
+              <optgroup label="☁️ 雲端（需 API key、資料外送）">
+                <option value="gpt-4o">OpenAI gpt-4o</option>
+                <option value="gpt-4o-mini">OpenAI gpt-4o-mini</option>
+                <option value="claude-3-5-sonnet-latest">Anthropic Claude 3.5 Sonnet</option>
+                <option value="gemini-2.0-flash">Google Gemini 2.0 Flash</option>
+              </optgroup>
             </select>
           </div>
           <div>

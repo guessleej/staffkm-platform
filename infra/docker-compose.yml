@@ -121,9 +121,11 @@ services:
       - backend
 
   # ══════════════════════════════════════════════════════════════
-  #  Embedding 服務 — 內網向量化（OpenAI API 相容）
-  #  使用 Ollama 跑 bge-m3（1024 維、多語言、中文檢索 SOTA、8K context）
-  #  ARM64 / x86_64 雙平台原生支援
+  #  Ollama — 內網 AI 引擎（地端優先策略，RFC-005）
+  #  跑兩個模型：
+  #    - bge-m3        (embedding, ~1.2 GB)
+  #    - qwen2.5:7b    (LLM, ~4.7 GB)  ← 預設 chat / agent 模型
+  #  ARM64 / x86_64 雙平台原生
   # ══════════════════════════════════════════════════════════════
   embedder:
     image: ollama/ollama:latest
@@ -134,25 +136,26 @@ services:
     environment:
       OLLAMA_HOST: "0.0.0.0:11434"
       OLLAMA_KEEP_ALIVE: "24h"
+      OLLAMA_MAX_LOADED_MODELS: "2"   # 同時載入 embedding + LLM
     healthcheck:
-      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q bge-m3 || exit 1"]
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q bge-m3 && ollama list 2>/dev/null | grep -q qwen2.5 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 600s   # 首次需下載 ~1.2GB 模型
+      start_period: 1800s   # 首次需下載 ~6GB 模型（bge-m3 + qwen2.5:7b）
     deploy:
       resources:
         limits:
-          memory: 4g
-          cpus: "2.0"
+          memory: 12g     # 7b LLM 需 ~6GB + embedding ~2GB + buffer
+          cpus: "4.0"
         reservations:
-          memory: 2g
+          memory: 6g
     logging: *default-logging
     networks:
       - backend
       - frontend  # 首次拉模型需連 ollama.com
 
-  # 一次性：拉取 bge-m3 模型（embedder healthcheck 才會通過）
+  # 一次性：拉取 bge-m3 + qwen2.5:7b（healthcheck 兩個都要在才通過）
   embedder-init:
     image: ollama/ollama:latest
     container_name: staffkm-embedder-init
@@ -164,9 +167,11 @@ services:
       - |
         echo "⏳ 等 Ollama 啟動..."
         until ollama list >/dev/null 2>&1; do sleep 2; done
-        echo "📦 拉取 bge-m3 (~1.2GB)..."
+        echo "📦 拉取 bge-m3 (~1.2 GB)..."
         ollama pull bge-m3
-        echo "✅ Embedding 模型就緒"
+        echo "🧠 拉取 qwen2.5:7b (~4.7 GB) — 地端 LLM 預設模型..."
+        ollama pull qwen2.5:7b
+        echo "✅ AI 模型就緒（embedding + LLM）"
     environment:
       OLLAMA_HOST: "embedder:11434"
     networks:
