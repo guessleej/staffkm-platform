@@ -1,0 +1,95 @@
+/* ─── Color tokens — HSL 三元組以利動態主題切換 ──────────────────────────
+ *
+ * 命名：--color-{role}[-{shade}]
+ * 角色：brand / neutral / success / warning / danger / info
+ * 階度：50 ~ 950（10 階）
+ *
+ * 使用：CSS `hsl(var(--color-brand-600))`
+ * Tailwind：透過 tailwind.preset.cjs 自動展開
+ */
+
+:root {
+  /* ── Brand（預設 indigo 家族；換主題只改這 11 行）──────────────── */
+  --color-brand-50:  238 100% 97%;
+  --color-brand-100: 240  95% 94%;
+  --color-brand-200: 241  90% 88%;
+  --color-brand-300: 240  85% 78%;
+  --color-brand-400: 239  78% 67%;
+  --color-brand-500: 239  72% 58%;   /* primary */
+  --color-brand-600: 240  64% 50%;   /* default action */
+  --color-brand-700: 242  58% 42%;
+  --color-brand-800: 244  52% 35%;
+  --color-brand-900: 246  47% 28%;
+  --color-brand-950: 250  60% 15%;
+
+  /* ── Neutral（warm gray）─────────────────────────────────────────── */
+  --color-neutral-50:  30 20% 98%;
+  --color-neutral-100: 30 16% 95%;
+  --color-neutral-200: 30 14% 90%;
+  --color-neutral-300: 30 12% 80%;
+  --color-neutral-400: 30 10% 65%;
+  --color-neutral-500: 30  8% 50%;
+  --color-neutral-600: 30  9% 38%;
+  --color-neutral-700: 30 10% 28%;
+  --color-neutral-800: 30 12% 18%;
+  --color-neutral-900: 30 14% 12%;
+  --color-neutral-950: 30 18%  6%;
+
+  /* ── Semantic ───────────────────────────────────────────────────── */
+  --color-success-50:  151 78% 95%;
+  --color-success-500: 152 70% 38%;
+  --color-success-600: 154 75% 30%;
+  --color-success-700: 156 75% 23%;
+
+  --color-warning-50:  45 100% 95%;
+  --color-warning-500: 36  92% 50%;
+  --color-warning-600: 32  92% 42%;
+  --color-warning-700: 28  90% 35%;
+
+  --color-danger-50:   0 88% 96%;
+  --color-danger-500:  0 78% 56%;
+  --color-danger-600:  0 75% 48%;
+  --color-danger-700:  0 72% 40%;
+
+  --color-info-50:    206 95% 95%;
+  --color-info-500:   210 85% 50%;
+  --color-info-600:   212 80% 42%;
+  --color-info-700:   214 75% 35%;
+
+  /* ── Surface（語意化背景；dark mode 翻轉 1↔900）───────────────── */
+  --color-surface-base:    var(--color-neutral-50);   /* 頁面底色 */
+  --color-surface-raised:  0 0% 100%;                 /* 卡片 */
+  --color-surface-overlay: 0 0% 100%;                 /* modal / popover */
+  --color-surface-sunken:  var(--color-neutral-100);  /* 凹陷區 */
+
+  /* ── Text ────────────────────────────────────────────────────────── */
+  --color-text-primary:    var(--color-neutral-900);
+  --color-text-secondary:  var(--color-neutral-600);
+  --color-text-tertiary:   var(--color-neutral-400);
+  --color-text-on-brand:   0 0% 100%;
+  --color-text-disabled:   var(--color-neutral-300);
+
+  /* ── Border ──────────────────────────────────────────────────────── */
+  --color-border-subtle:   var(--color-neutral-100);
+  --color-border-default:  var(--color-neutral-200);
+  --color-border-strong:   var(--color-neutral-400);
+  --color-border-focus:    var(--color-brand-500);
+}
+
+/* ── Dark mode（簡單翻轉，可後續細調）───────────────────────────── */
+:root.dark,
+[data-theme="dark"] {
+  --color-surface-base:    var(--color-neutral-950);
+  --color-surface-raised:  var(--color-neutral-900);
+  --color-surface-overlay: var(--color-neutral-800);
+  --color-surface-sunken:  var(--color-neutral-900);
+
+  --color-text-primary:    var(--color-neutral-50);
+  --color-text-secondary:  var(--color-neutral-300);
+  --color-text-tertiary:   var(--color-neutral-500);
+  --color-text-disabled:   var(--color-neutral-700);
+
+  --color-border-subtle:   var(--color-neutral-800);
+  --color-border-default:  var(--color-neutral-700);
+  --color-border-strong:   var(--color-neutral-500);
+}

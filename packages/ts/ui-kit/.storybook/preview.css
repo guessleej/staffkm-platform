@@ -1,0 +1,2 @@
+/* Storybook 預覽容器最低 Tailwind 樣式（避免 Storybook 額外打包整套 Tailwind）*/
+.sb-show-main { padding: 2rem; }

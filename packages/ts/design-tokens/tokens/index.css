@@ -1,0 +1,23 @@
+/* @staffkm/design-tokens — single CSS entry */
+@import "./colors.css";
+@import "./spacing-radius.css";
+@import "./typography.css";
+
+/* 全域 base styles（可選）─ 設定字型 + 預設背景 */
+:where(html) {
+  font-family: var(--font-sans);
+  color: hsl(var(--color-text-primary));
+  background: hsl(var(--color-surface-base));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:where(::selection) {
+  background: hsl(var(--color-brand-500) / 0.25);
+}
+
+:where(:focus-visible) {
+  outline: 2px solid hsl(var(--color-border-focus));
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
