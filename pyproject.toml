@@ -1,0 +1,37 @@
+# staffKM v2 — Monorepo root（uv workspace）
+[project]
+name = "staffkm-platform"
+version = "2.0.0-dev"
+description = "Enterprise AI knowledge management platform"
+requires-python = ">=3.12"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+
+[tool.uv.workspace]
+members = [
+    "services/*",
+    "packages/python/*",
+]
+
+[tool.uv.sources]
+staffkm-core = { workspace = true }
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = [".venv", "build", "dist", "node_modules", "apps/web", ".nuxt", ".output"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "TID"]
+ignore = ["E501"]   # line length handled by formatter
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+exclude = ["build", ".venv", "alembic"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+testpaths = ["services", "packages/python"]

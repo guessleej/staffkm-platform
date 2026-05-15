@@ -7,8 +7,8 @@ from app.config import settings
 from app.core.storage import upload_document, delete_document
 from app.models.knowledge_base import Document, DocStatus
 from app.tasks.process_document import process_document
-from core.schemas.response import ApiResponse
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

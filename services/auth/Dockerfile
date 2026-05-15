@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS runtime
 COPY --chown=staffkm:staffkm services/auth/app ./app
-COPY --chown=staffkm:staffkm core ./core
+COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core ./staffkm_core
 USER staffkm
 EXPOSE 8003
 HEALTHCHECK --interval=20s --timeout=5s --start-period=30s --retries=5 \

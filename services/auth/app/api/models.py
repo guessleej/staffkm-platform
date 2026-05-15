@@ -11,8 +11,8 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.schemas.response import ApiResponse, PagedResponse, PageMeta
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

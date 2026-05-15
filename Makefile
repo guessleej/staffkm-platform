@@ -28,13 +28,13 @@ help: ## 顯示此說明文字
 
 up: ## 啟動所有服務（正式模式）
 	@echo "$(CYAN)▶ 啟動 StaffKM 服務...$(RESET)"
-	docker compose -f docker-compose.yml up -d
+	docker compose -f infra/docker-compose.yml --project-directory . up -d
 	@echo "$(GREEN)✅ 服務已啟動，請瀏覽 http://localhost$(RESET)"
 
 dev: ## 啟動開發模式（熱重載，開放各服務端口）
 	@echo "$(CYAN)▶ 啟動開發模式...$(RESET)"
 	@[ -f .env ] || (cp .env.example .env && echo "$(YELLOW)⚠️  已建立 .env，請填寫必要設定$(RESET)")
-	docker compose up -d
+	docker compose -f infra/docker-compose.yml --project-directory . up -d
 	@echo "$(GREEN)✅ 開發服務已啟動$(RESET)"
 	@echo "  Gateway:    http://localhost:8000/api/docs"
 	@echo "  Knowledge:  http://localhost:8001/docs"
@@ -44,50 +44,50 @@ dev: ## 啟動開發模式（熱重載，開放各服務端口）
 
 down: ## 停止並移除所有容器
 	@echo "$(CYAN)▶ 停止服務...$(RESET)"
-	docker compose down
+	docker compose -f infra/docker-compose.yml --project-directory . down
 
 stop: ## 停止服務（保留容器）
-	docker compose stop
+	docker compose -f infra/docker-compose.yml --project-directory . stop
 
 ## ── 建置 ────────────────────────────────────────────────────────
 
 build: ## 建置所有映像
 	@echo "$(CYAN)▶ 建置所有映像...$(RESET)"
-	docker compose build --parallel
+	docker compose -f infra/docker-compose.yml --project-directory . build --parallel
 
 rebuild: ## 強制重新建置（不使用快取）
 	@echo "$(CYAN)▶ 強制重新建置...$(RESET)"
-	docker compose build --no-cache --parallel
+	docker compose -f infra/docker-compose.yml --project-directory . build --no-cache --parallel
 
 build-ui: ## 只建置前端映像
-	docker compose build ui
+	docker compose -f infra/docker-compose.yml --project-directory . build ui
 
 push: ## 推送所有映像到 Registry
 	@[ -n "$(REGISTRY)" ] || (echo "$(RED)❌ 請指定 REGISTRY=your.registry.com$(RESET)" && exit 1)
-	docker compose push
+	docker compose -f infra/docker-compose.yml --project-directory . push
 
 ## ── 日誌與監控 ──────────────────────────────────────────────────
 
 logs: ## 查看所有服務日誌（即時）
-	docker compose logs -f --tail=100
+	docker compose -f infra/docker-compose.yml --project-directory . logs -f --tail=100
 
 logs-gateway: ## 查看 Gateway 日誌
-	docker compose logs -f --tail=100 gateway
+	docker compose -f infra/docker-compose.yml --project-directory . logs -f --tail=100 gateway
 
 logs-knowledge: ## 查看 Knowledge Service 日誌
-	docker compose logs -f --tail=100 knowledge knowledge-worker
+	docker compose -f infra/docker-compose.yml --project-directory . logs -f --tail=100 knowledge knowledge-worker
 
 logs-agent: ## 查看 Agent Service 日誌
-	docker compose logs -f --tail=100 agent
+	docker compose -f infra/docker-compose.yml --project-directory . logs -f --tail=100 agent
 
 logs-auth: ## 查看 Auth Service 日誌
-	docker compose logs -f --tail=100 auth
+	docker compose -f infra/docker-compose.yml --project-directory . logs -f --tail=100 auth
 
 logs-chat: ## 查看 Chat Service 日誌
-	docker compose logs -f --tail=100 chat
+	docker compose -f infra/docker-compose.yml --project-directory . logs -f --tail=100 chat
 
 ps: ## 查看所有容器狀態
-	docker compose ps
+	docker compose -f infra/docker-compose.yml --project-directory . ps
 
 health: ## 快速健康檢查所有服務
 	@echo "$(CYAN)▶ 健康狀態檢查$(RESET)"
@@ -144,7 +144,7 @@ shell-agent: ## 進入 Agent Service 容器
 
 clean: ## 停止服務並清除 Volume（⚠️ 資料將被刪除）
 	@echo "$(RED)⚠️  這將刪除所有容器和資料，請確認後按 Enter$(RESET)"; read confirm
-	docker compose down -v --remove-orphans
+	docker compose -f infra/docker-compose.yml --project-directory . down -v --remove-orphans
 	@echo "$(GREEN)✅ 清除完成$(RESET)"
 
 prune: ## 清除未使用的 Docker 映像

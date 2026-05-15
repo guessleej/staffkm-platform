@@ -5,7 +5,7 @@ from sqlalchemy import String, Text, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.models.base import Base, UUIDPrimaryKeyMixin, AuditMixin
+from staffkm_core.models.base import Base, UUIDPrimaryKeyMixin, AuditMixin
 
 
 class Conversation(Base, UUIDPrimaryKeyMixin, AuditMixin):

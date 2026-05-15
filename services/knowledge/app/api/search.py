@@ -10,8 +10,8 @@ from app.config import settings
 from app.core.embedder import get_embedder
 from app.core.reranker import rerank
 from app.core.vectorstore import hybrid_search
-from core.schemas.response import ApiResponse
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

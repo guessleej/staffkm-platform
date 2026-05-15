@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import agents, chat_stream, applications, api_keys, workflows, public
-from core.utils.database import init_db
+from staffkm_core.utils.database import init_db
 from app.config import settings
 
 log = structlog.get_logger()

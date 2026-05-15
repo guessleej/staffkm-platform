@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
 from app.scenarios import SCENARIO_REGISTRY
-from core.utils.database import get_session
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

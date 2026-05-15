@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_base import Paragraph
-from core.schemas.response import ApiResponse
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

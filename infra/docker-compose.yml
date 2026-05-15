@@ -43,8 +43,8 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-      - ./infrastructure/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-staffkm} -d ${DB_NAME:-staffkm}"]
@@ -197,7 +197,7 @@ services:
 
   db-migrate:
     build:
-      context: .
+      context: ..
       dockerfile: services/knowledge/Dockerfile
       target: base
     container_name: staffkm-db-migrate
@@ -218,8 +218,8 @@ services:
 
   gateway:
     build:
-      context: .
-      dockerfile: gateway/Dockerfile
+      context: ..
+      dockerfile: services/gateway/Dockerfile
     image: staffkm/gateway:${TAG:-latest}
     container_name: staffkm-gateway
     restart: unless-stopped
@@ -267,7 +267,7 @@ services:
 
   knowledge:
     build:
-      context: .
+      context: ..
       dockerfile: services/knowledge/Dockerfile
     image: staffkm/knowledge:${TAG:-latest}
     container_name: staffkm-knowledge
@@ -312,7 +312,7 @@ services:
   # Knowledge Celery Worker（背景文件處理）
   knowledge-worker:
     build:
-      context: .
+      context: ..
       dockerfile: services/knowledge/Dockerfile
     image: staffkm/knowledge:${TAG:-latest}
     container_name: staffkm-knowledge-worker
@@ -360,7 +360,7 @@ services:
 
   agent:
     build:
-      context: .
+      context: ..
       dockerfile: services/agent/Dockerfile
     image: staffkm/agent:${TAG:-latest}
     container_name: staffkm-agent
@@ -401,7 +401,7 @@ services:
 
   auth:
     build:
-      context: .
+      context: ..
       dockerfile: services/auth/Dockerfile
     image: staffkm/auth:${TAG:-latest}
     container_name: staffkm-auth
@@ -445,7 +445,7 @@ services:
 
   integration:
     build:
-      context: .
+      context: ..
       dockerfile: services/integration/Dockerfile
     image: staffkm/integration:${TAG:-latest}
     container_name: staffkm-integration
@@ -482,7 +482,7 @@ services:
 
   chat:
     build:
-      context: .
+      context: ..
       dockerfile: services/chat/Dockerfile
     image: staffkm/chat:${TAG:-latest}
     container_name: staffkm-chat
@@ -520,7 +520,7 @@ services:
 
   ui:
     build:
-      context: ./ui
+      context: ../apps/web
       dockerfile: Dockerfile
       # context 限縮在 ui/ 即可，不需要 core
       args:
@@ -558,9 +558,9 @@ services:
       - "0.0.0.0:${HTTP_PORT:-80}:80"
       - "0.0.0.0:${HTTPS_PORT:-443}:443"
     volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infrastructure/nginx/conf.d/staffkm.conf:/etc/nginx/conf.d/staffkm.conf:ro
-      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/staffkm.conf:/etc/nginx/conf.d/staffkm.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     healthcheck:
       test: ["CMD-SHELL", "nginx -t && wget -qO- http://127.0.0.1/health || exit 1"]
@@ -596,7 +596,7 @@ services:
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
     volumes:
-      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     expose:
       - "9090"
@@ -620,8 +620,8 @@ services:
       GF_LOG_LEVEL: warn
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./infrastructure/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./infrastructure/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     ports:
       - "3000:3000"
     depends_on:

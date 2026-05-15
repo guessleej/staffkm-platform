@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from app.api.conversations import router as conv_router
-from core.utils.database import init_db
+from staffkm_core.utils.database import init_db
 from app.config import settings
 
 log = structlog.get_logger()

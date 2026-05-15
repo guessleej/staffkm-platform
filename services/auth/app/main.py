@@ -8,7 +8,7 @@ import structlog
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.models import router as models_router
-from core.utils.database import init_db
+from staffkm_core.utils.database import init_db
 from app.config import settings
 
 log = structlog.get_logger()

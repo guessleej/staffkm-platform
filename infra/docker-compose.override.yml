@@ -27,8 +27,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./gateway/app:/app/app        # 掛載原始碼，uvicorn --reload
-      - ./core:/app/core
+      - ../services/gateway/app:/app/app        # 掛載原始碼，uvicorn --reload
+      - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       ENV: development
@@ -39,16 +39,16 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ./services/knowledge/app:/app/app
-      - ./core:/app/core
+      - ../services/knowledge/app:/app/app
+      - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
     deploy:
       resources: {}
 
   knowledge-worker:
     volumes:
-      - ./services/knowledge/app:/app/app
-      - ./core:/app/core
+      - ../services/knowledge/app:/app/app
+      - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
     deploy:
       resources: {}
 
@@ -56,8 +56,8 @@ services:
     ports:
       - "8002:8002"
     volumes:
-      - ./services/agent/app:/app/app
-      - ./core:/app/core
+      - ../services/agent/app:/app/app
+      - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
     deploy:
       resources: {}
@@ -66,8 +66,8 @@ services:
     ports:
       - "8003:8003"
     volumes:
-      - ./services/auth/app:/app/app
-      - ./core:/app/core
+      - ../services/auth/app:/app/app
+      - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
     command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
     deploy:
       resources: {}
@@ -76,7 +76,7 @@ services:
     ports:
       - "8004:8004"
     volumes:
-      - ./services/integration/app:/app/app
+      - ../services/integration/app:/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload
     deploy:
       resources: {}
@@ -85,8 +85,8 @@ services:
     ports:
       - "8005:8005"
     volumes:
-      - ./services/chat/app:/app/app
-      - ./core:/app/core
+      - ../services/chat/app:/app/app
+      - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
     command: uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
     deploy:
       resources: {}
@@ -97,7 +97,7 @@ services:
 
   nginx:
     volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infrastructure/nginx/conf.d/dev.conf:/etc/nginx/conf.d/staffkm.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/dev.conf:/etc/nginx/conf.d/staffkm.conf:ro
     deploy:
       resources: {}

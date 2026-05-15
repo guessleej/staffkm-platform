@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from celery.result import AsyncResult
 
 from app.tasks.celery_app import celery_app
-from core.schemas.response import ApiResponse
+from staffkm_core.schemas.response import ApiResponse
 
 router = APIRouter()
 

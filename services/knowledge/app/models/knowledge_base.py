@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Any, Optional
 
-from core.models.base import Base, UUIDPrimaryKeyMixin, AuditMixin
+from staffkm_core.models.base import Base, UUIDPrimaryKeyMixin, AuditMixin
 
 
 class KBStatus(str, Enum):
