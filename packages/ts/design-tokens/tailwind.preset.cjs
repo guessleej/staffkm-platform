@@ -29,9 +29,15 @@ const brandScale = (role) => ({
 
 const semanticScale = (role) => ({
   50:  hsl(`${role}-50`),
+  100: hsl(`${role}-100`),
+  200: hsl(`${role}-200`),
+  300: hsl(`${role}-300`),
+  400: hsl(`${role}-400`),
   500: hsl(`${role}-500`),
   600: hsl(`${role}-600`),
   700: hsl(`${role}-700`),
+  800: hsl(`${role}-800`),
+  900: hsl(`${role}-900`),
 });
 
 module.exports = {

@@ -13,13 +13,11 @@
            :class="ui.sidebarCollapsed ? 'justify-center px-3' : 'px-4 gap-2.5'">
         <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
              style="background: linear-gradient(135deg, hsl(var(--color-brand-500)), hsl(var(--color-brand-700)))">
-          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
+          <span class="text-white text-[13px] font-bold tracking-tight">S</span>
         </div>
         <div v-if="!ui.sidebarCollapsed" class="min-w-0">
-          <p class="font-bold text-neutral-900 text-sm leading-tight">StaffKM</p>
-          <p class="text-[10px] text-neutral-400 leading-tight tracking-wide">Knowledge Platform</p>
+          <p class="font-semibold text-neutral-900 text-sm leading-tight">staffKM</p>
+          <p class="text-[10px] text-neutral-400 leading-tight tracking-wide uppercase">內部知識平台</p>
         </div>
       </div>
 
@@ -34,19 +32,33 @@
         <p v-if="!ui.sidebarCollapsed" class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 pb-2">
           工作區
         </p>
-        <NavItem to="/chat"         icon="💬" label="智慧問答"   :collapsed="ui.sidebarCollapsed" />
-        <NavItem to="/applications" icon="🚀" label="AI 應用"    :collapsed="ui.sidebarCollapsed" />
-        <NavItem to="/knowledge"    icon="📚" label="知識庫管理" :collapsed="ui.sidebarCollapsed" />
-        <NavItem to="/agents"       icon="🤖" label="AI 代理人"  :collapsed="ui.sidebarCollapsed" />
+        <NavItem to="/chat" label="對話" :collapsed="ui.sidebarCollapsed">
+          <template #icon><IconChat :size="16" /></template>
+        </NavItem>
+        <NavItem to="/applications" label="應用" :collapsed="ui.sidebarCollapsed">
+          <template #icon><IconApps :size="16" /></template>
+        </NavItem>
+        <NavItem to="/knowledge" label="知識庫" :collapsed="ui.sidebarCollapsed">
+          <template #icon><IconKnowledge :size="16" /></template>
+        </NavItem>
+        <NavItem to="/agents" label="代理人" :collapsed="ui.sidebarCollapsed">
+          <template #icon><IconAgent :size="16" /></template>
+        </NavItem>
 
         <template v-if="auth.hasRole(['admin'])">
           <div v-if="!ui.sidebarCollapsed" class="pt-4 mt-3 border-t border-neutral-100">
             <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 pb-2">系統管理</p>
           </div>
           <div v-else class="my-3 mx-3 border-t border-neutral-100"></div>
-          <NavItem to="/admin/users"  icon="👥" label="使用者"   :collapsed="ui.sidebarCollapsed" />
-          <NavItem to="/admin/models" icon="🧠" label="模型供應商" :collapsed="ui.sidebarCollapsed" />
-          <NavItem to="/admin/system" icon="⚙️" label="系統設定" :collapsed="ui.sidebarCollapsed" />
+          <NavItem to="/admin/users" label="使用者" :collapsed="ui.sidebarCollapsed">
+            <template #icon><IconUsers :size="16" /></template>
+          </NavItem>
+          <NavItem to="/admin/models" label="模型" :collapsed="ui.sidebarCollapsed">
+            <template #icon><IconCpu :size="16" /></template>
+          </NavItem>
+          <NavItem to="/admin/system" label="設定" :collapsed="ui.sidebarCollapsed">
+            <template #icon><IconSettings :size="16" /></template>
+          </NavItem>
         </template>
       </nav>
 
@@ -57,9 +69,7 @@
           title="展開側欄"
           class="w-full h-9 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
         >
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-          </svg>
+          <IconChevronRight :size="16" />
         </button>
       </div>
     </aside>
@@ -86,6 +96,10 @@ import { onMounted } from 'vue'
 import AppTopbar from '../../components/common/AppTopbar.vue'
 import NavItem from '../../components/common/NavItem.vue'
 import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
+import {
+  IconChat, IconApps, IconKnowledge, IconAgent,
+  IconUsers, IconCpu, IconSettings, IconChevronRight,
+} from '../../components/icons'
 
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
