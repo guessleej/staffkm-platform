@@ -1,121 +1,165 @@
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-gray-50">
+  <div class="flex flex-col h-full overflow-hidden bg-surface-base">
 
     <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
       <div class="flex items-center gap-3">
-        <button @click="$router.push('/knowledge')"
-                class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-          </svg>
+        <button
+          @click="$router.push('/knowledge')"
+          class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+          title="返回"
+        >
+          <IconArrowLeft :size="16" />
         </button>
         <div>
-          <h2 class="text-base font-semibold text-gray-900">文件管理</h2>
-          <p class="text-xs text-gray-400 font-mono">{{ kbId }}</p>
+          <h2 class="text-base font-semibold text-neutral-900">文件</h2>
+          <p class="text-[11px] text-neutral-400 font-mono">{{ kbId }}</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button @click="loadDocs" :disabled="loading"
-                class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-50">
-          🔄 重新整理
+        <button
+          @click="loadDocs"
+          :disabled="loading"
+          class="inline-flex items-center gap-1.5 h-8 px-3 text-xs text-neutral-600 bg-surface-raised border border-neutral-200 rounded-lg hover:border-brand-400 hover:text-brand-600 transition-colors disabled:opacity-50"
+        >
+          <IconRefresh :size="13" />
+          重新整理
         </button>
-        <button @click="$refs.fileInput.click()"
-                class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition">
-          + 上傳文件
+        <button
+          @click="($refs.fileInput as HTMLInputElement).click()"
+          class="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
+        >
+          <IconUpload :size="13" />
+          上傳
         </button>
-        <input ref="fileInput" type="file" class="hidden"
-               accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.csv"
-               @change="onFileSelected" />
+        <input
+          ref="fileInput"
+          type="file"
+          class="hidden"
+          accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.csv"
+          @change="onFileSelected"
+        />
       </div>
     </div>
 
     <!-- Body -->
-    <div class="flex-1 overflow-y-auto p-6"
-         @dragover.prevent="dragging = true"
-         @dragleave.prevent="dragging = false"
-         @drop.prevent="onDrop">
-
+    <div
+      class="flex-1 overflow-y-auto p-6"
+      @dragover.prevent="dragging = true"
+      @dragleave.prevent="dragging = false"
+      @drop.prevent="onDrop"
+    >
       <!-- Drag overlay -->
-      <div v-if="dragging"
-           class="fixed inset-0 bg-indigo-500/10 backdrop-blur-sm border-4 border-dashed border-indigo-400 rounded-3xl flex items-center justify-center z-50 m-12 pointer-events-none">
-        <div class="text-2xl font-semibold text-indigo-700">放開以上傳文件</div>
+      <div
+        v-if="dragging"
+        class="fixed inset-0 bg-brand-500/10 backdrop-blur-sm border-4 border-dashed border-brand-400 rounded-3xl flex items-center justify-center z-50 m-12 pointer-events-none"
+      >
+        <div class="flex flex-col items-center gap-3 text-brand-700">
+          <IconUpload :size="32" />
+          <p class="text-lg font-semibold">放開以上傳</p>
+        </div>
       </div>
 
       <!-- Empty -->
-      <div v-if="!loading && docs.length === 0"
-           class="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-16 text-center">
-        <div class="text-5xl mb-4 opacity-40">📂</div>
-        <p class="text-gray-500 mb-2">尚未上傳任何文件</p>
-        <p class="text-sm text-gray-400 mb-6">支援 PDF、DOCX、TXT、MD、XLSX、CSV，單檔上限 50MB</p>
-        <button @click="$refs.fileInput.click()"
-                class="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition">
-          選擇文件
+      <div
+        v-if="!loading && docs.length === 0"
+        class="bg-surface-raised border-2 border-dashed border-neutral-200 rounded-2xl py-16 px-8 text-center"
+      >
+        <div class="w-16 h-16 mx-auto rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 mb-4">
+          <IconFolder :size="28" :stroke-width="1.5" />
+        </div>
+        <p class="text-sm font-medium text-neutral-700 mb-1">尚未上傳文件</p>
+        <p class="text-xs text-neutral-500 mb-5">支援 PDF、DOCX、TXT、MD、XLSX、CSV，單檔上限 50 MB</p>
+        <button
+          @click="($refs.fileInput as HTMLInputElement).click()"
+          class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
+        >
+          <IconUpload :size="14" />
+          選擇檔案
         </button>
       </div>
 
       <!-- Loading -->
-      <div v-else-if="loading && docs.length === 0" class="text-center py-16 text-gray-400 text-sm">
-        載入中…
+      <div v-else-if="loading && docs.length === 0" class="flex items-center justify-center py-16 text-neutral-400 text-sm gap-2">
+        <IconSpinner :size="16" /> 載入中
       </div>
 
-      <!-- Document list -->
-      <div v-else class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+      <!-- Document table -->
+      <div v-else class="bg-surface-raised rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 border-b border-gray-100">
-            <tr class="text-left text-xs text-gray-500 uppercase tracking-wider">
+          <thead class="bg-neutral-50 border-b border-neutral-100">
+            <tr class="text-left text-[11px] text-neutral-500 uppercase tracking-wider">
               <th class="px-5 py-3 font-semibold">文件</th>
               <th class="px-5 py-3 font-semibold w-32">狀態</th>
               <th class="px-5 py-3 font-semibold w-48">處理進度</th>
-              <th class="px-5 py-3 font-semibold w-24">段落</th>
-              <th class="px-5 py-3 font-semibold w-24">大小</th>
+              <th class="px-5 py-3 font-semibold w-20 text-right">段落</th>
+              <th class="px-5 py-3 font-semibold w-24 text-right">大小</th>
               <th class="px-5 py-3 font-semibold w-12"></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="doc in docs" :key="doc.id"
-                class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
+            <tr
+              v-for="doc in docs"
+              :key="doc.id"
+              class="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/50 transition-colors"
+            >
               <td class="px-5 py-3">
                 <div class="flex items-center gap-3">
-                  <span class="text-lg">{{ fileTypeIcon(doc.file_type) }}</span>
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                       :class="fileTypeBg(doc.file_type)">
+                    <component :is="fileTypeIcon(doc.file_type)" :size="14" />
+                  </div>
                   <div class="min-w-0">
-                    <div class="text-sm text-gray-900 truncate" :title="doc.name">{{ doc.name }}</div>
-                    <div class="text-[11px] text-gray-400 font-mono">{{ doc.file_type }}</div>
+                    <div class="text-sm text-neutral-900 truncate max-w-[280px]" :title="doc.name">{{ doc.name }}</div>
+                    <div class="text-[11px] text-neutral-400 font-mono uppercase">{{ doc.file_type }}</div>
                   </div>
                 </div>
               </td>
               <td class="px-5 py-3">
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
-                      :class="statusChipClass(doc.status)">
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                  :class="statusChipClass(doc.status)"
+                >
                   <span class="w-1.5 h-1.5 rounded-full" :class="statusDotClass(doc.status)"></span>
                   {{ statusLabel(doc.status) }}
                 </span>
               </td>
               <td class="px-5 py-3">
                 <div v-if="doc.status === 'processing' || doc.status === 'pending'" class="space-y-1">
-                  <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div class="h-full bg-indigo-500 transition-all duration-500"
-                         :style="{ width: (doc.progress || 0) + '%' }"></div>
+                  <div class="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                    <div
+                      class="h-full bg-brand-500 transition-all duration-500"
+                      :style="{ width: (doc.progress || 0) + '%' }"
+                    />
                   </div>
-                  <p class="text-[11px] text-gray-500 truncate">{{ doc.progress_message || '等待中…' }}</p>
+                  <p class="text-[11px] text-neutral-500 truncate">{{ doc.progress_message || '等待中' }}</p>
                 </div>
-                <p v-else-if="doc.status === 'error'" class="text-[11px] text-rose-500 truncate"
-                   :title="doc.error_message">⚠️ {{ doc.error_message || '處理失敗' }}</p>
-                <p v-else-if="doc.status === 'ready'" class="text-[11px] text-emerald-600">✓ 處理完成</p>
+                <p
+                  v-else-if="doc.status === 'error'"
+                  class="text-[11px] text-danger-600 truncate flex items-center gap-1"
+                  :title="doc.error_message"
+                >
+                  <IconWarning :size="12" />
+                  {{ doc.error_message || '處理失敗' }}
+                </p>
+                <p v-else-if="doc.status === 'ready'" class="text-[11px] text-success-600 flex items-center gap-1">
+                  <IconCheck :size="12" :stroke-width="2.5" />
+                  完成
+                </p>
               </td>
-              <td class="px-5 py-3 text-sm text-gray-600">
+              <td class="px-5 py-3 text-sm text-neutral-600 text-right tabular-nums">
                 {{ doc.paragraph_count || 0 }}
               </td>
-              <td class="px-5 py-3 text-sm text-gray-600">
+              <td class="px-5 py-3 text-sm text-neutral-600 text-right tabular-nums">
                 {{ formatSize(doc.file_size) }}
               </td>
               <td class="px-5 py-3">
-                <button @click="onDelete(doc)"
-                        class="text-gray-300 hover:text-rose-500 transition p-1 rounded-lg hover:bg-rose-50"
-                        title="刪除">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                  </svg>
+                <button
+                  @click="onDelete(doc)"
+                  class="text-neutral-300 hover:text-danger-600 hover:bg-danger-50 transition-colors p-1.5 rounded-md"
+                  title="刪除"
+                >
+                  <IconDelete :size="14" />
                 </button>
               </td>
             </tr>
@@ -123,26 +167,29 @@
         </table>
       </div>
 
-      <!-- 上傳中 toast -->
+      <!-- Upload toast -->
       <transition
         enter-active-class="transition-all duration-300 ease-out"
         enter-from-class="opacity-0 translate-y-2"
         enter-to-class="opacity-100 translate-y-0"
         leave-active-class="transition-all duration-200 ease-in"
-        leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-if="uploadingFile"
-             class="fixed bottom-6 right-6 bg-white border border-gray-200 rounded-2xl shadow-lg p-4 w-80 z-50">
+        <div
+          v-if="uploadingFile"
+          class="fixed bottom-6 right-6 bg-surface-raised border border-neutral-200 rounded-2xl shadow-lg p-4 w-80 z-50"
+        >
           <div class="flex items-center gap-3 mb-2">
-            <span class="text-xl">📤</span>
+            <div class="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center text-brand-600 flex-shrink-0">
+              <IconUpload :size="16" />
+            </div>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-gray-900 truncate">{{ uploadingFile.name }}</p>
-              <p class="text-[11px] text-gray-400">{{ uploadProgress }}% 上傳中…</p>
+              <p class="text-sm font-medium text-neutral-900 truncate">{{ uploadingFile.name }}</p>
+              <p class="text-[11px] text-neutral-400">{{ uploadProgress }}% 上傳中</p>
             </div>
           </div>
-          <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full bg-indigo-500 transition-all" :style="{ width: uploadProgress + '%' }"></div>
+          <div class="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+            <div class="h-full bg-brand-500 transition-all" :style="{ width: uploadProgress + '%' }" />
           </div>
         </div>
       </transition>
@@ -151,22 +198,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { knowledgeApi } from '../../api/knowledge'
+import {
+  IconArrowLeft, IconCheck, IconDelete, IconDocument, IconFolder,
+  IconImage, IconRefresh, IconSpinner, IconSpreadsheet, IconUpload, IconWarning,
+} from '../../components/icons'
 
 const route = useRoute()
-const kbId  = computed(() => route.params.kbId as string)
+const kbId = computed(() => route.params.kbId as string)
 
-const docs            = ref<any[]>([])
-const loading         = ref(false)
-const dragging        = ref(false)
-const uploadingFile   = ref<File | null>(null)
-const uploadProgress  = ref(0)
-
+const docs = ref<any[]>([])
+const loading = ref(false)
+const dragging = ref(false)
+const uploadingFile = ref<File | null>(null)
+const uploadProgress = ref(0)
 let pollTimer: any = null
 
-// ─── 載入 / 自動輪詢 ─────────────────────────────────────────────────────────
 async function loadDocs() {
   loading.value = true
   try {
@@ -181,28 +230,19 @@ async function loadDocs() {
 function startPolling() {
   stopPolling()
   pollTimer = setInterval(() => {
-    // 若有 pending/processing，每 3 秒輪詢
-    if (docs.value.some(d => d.status === 'pending' || d.status === 'processing')) {
-      loadDocs()
-    }
+    if (docs.value.some(d => d.status === 'pending' || d.status === 'processing')) loadDocs()
   }, 3000)
 }
-
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-onMounted(() => {
-  loadDocs()
-  startPolling()
-})
-
+onMounted(() => { loadDocs(); startPolling() })
 onBeforeUnmount(stopPolling)
 
-// ─── 上傳 ─────────────────────────────────────────────────────────────────────
 async function onFileSelected(e: Event) {
   const input = e.target as HTMLInputElement
-  const file  = input.files?.[0]
+  const file = input.files?.[0]
   if (file) await upload(file)
   input.value = ''
 }
@@ -214,22 +254,21 @@ function onDrop(e: DragEvent) {
 }
 
 async function upload(file: File) {
-  uploadingFile.value  = file
+  uploadingFile.value = file
   uploadProgress.value = 0
   try {
-    await knowledgeApi.uploadDocument(kbId.value, file, (p) => uploadProgress.value = p)
+    await knowledgeApi.uploadDocument(kbId.value, file, p => (uploadProgress.value = p))
     await loadDocs()
   } catch (e: any) {
     alert('上傳失敗：' + (e.response?.data?.detail || e.message))
   } finally {
-    uploadingFile.value  = null
+    uploadingFile.value = null
     uploadProgress.value = 0
   }
 }
 
-// ─── 刪除 ─────────────────────────────────────────────────────────────────────
 async function onDelete(doc: any) {
-  if (!confirm(`確定要刪除「${doc.name}」嗎？`)) return
+  if (!confirm(`確定要刪除「${doc.name}」？`)) return
   try {
     await knowledgeApi.deleteDocument(doc.id)
     docs.value = docs.value.filter(d => d.id !== doc.id)
@@ -238,14 +277,20 @@ async function onDelete(doc: any) {
   }
 }
 
-// ─── UI helpers ────────────────────────────────────────────────────────────────
-function fileTypeIcon(t: string): string {
-  const map: Record<string, string> = {
-    pdf: '📕', doc: '📘', docx: '📘',
-    txt: '📄', md: '📝',
-    xlsx: '📊', xls: '📊', csv: '📊',
-  }
-  return map[t?.toLowerCase()] || '📄'
+// ─── UI helpers ────────────────────────────────────────────────
+function fileTypeIcon(t: string) {
+  const ext = (t || '').toLowerCase()
+  if (['xlsx', 'xls', 'csv'].includes(ext)) return IconSpreadsheet
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return IconImage
+  return IconDocument
+}
+function fileTypeBg(t: string) {
+  const ext = (t || '').toLowerCase()
+  if (['pdf'].includes(ext))                     return 'bg-danger-50  text-danger-600'
+  if (['doc', 'docx'].includes(ext))             return 'bg-info-50    text-info-600'
+  if (['xlsx', 'xls', 'csv'].includes(ext))      return 'bg-success-50 text-success-600'
+  if (['md', 'txt'].includes(ext))               return 'bg-neutral-100 text-neutral-600'
+  return 'bg-neutral-100 text-neutral-600'
 }
 
 function formatSize(bytes: number): string {
@@ -260,18 +305,18 @@ function statusLabel(s: string): string {
 }
 function statusChipClass(s: string): string {
   return {
-    pending:    'bg-gray-100 text-gray-600',
-    processing: 'bg-blue-50 text-blue-700',
-    ready:      'bg-emerald-50 text-emerald-700',
-    error:      'bg-rose-50 text-rose-600',
-  }[s] || 'bg-gray-100 text-gray-500'
+    pending:    'bg-neutral-100 text-neutral-600',
+    processing: 'bg-info-50    text-info-700',
+    ready:      'bg-success-50 text-success-700',
+    error:      'bg-danger-50  text-danger-600',
+  }[s] || 'bg-neutral-100 text-neutral-500'
 }
 function statusDotClass(s: string): string {
   return {
-    pending:    'bg-gray-400',
-    processing: 'bg-blue-500 animate-pulse',
-    ready:      'bg-emerald-500',
-    error:      'bg-rose-500',
-  }[s] || 'bg-gray-400'
+    pending:    'bg-neutral-400',
+    processing: 'bg-info-500    animate-pulse',
+    ready:      'bg-success-500',
+    error:      'bg-danger-500',
+  }[s] || 'bg-neutral-400'
 }
 </script>
