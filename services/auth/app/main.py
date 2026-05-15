@@ -8,6 +8,7 @@ import structlog
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.models import router as models_router
+from app.api.workspaces import router as workspaces_router
 from staffkm_core.utils.database import init_db
 from app.config import settings
 
@@ -36,6 +37,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["身分驗證"])
 app.include_router(users_router, prefix="/api/v1/admin/users", tags=["使用者管理"])
 app.include_router(models_router, prefix="/api/v1/admin/models", tags=["模型供應商管理"])
+app.include_router(workspaces_router, prefix="/api/v1/workspaces", tags=["工作區（多租戶）"])
 
 
 @app.get("/health")

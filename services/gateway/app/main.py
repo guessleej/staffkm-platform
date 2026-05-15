@@ -10,7 +10,7 @@ from app.config import settings
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import StructuredLoggingMiddleware
 from app.middleware.rate_limit import setup_rate_limiter
-from app.routers import health, knowledge, agent, auth, chat, integration, admin, applications, api_keys, public
+from app.routers import health, knowledge, agent, auth, chat, integration, admin, applications, api_keys, public, workspaces
 
 log = structlog.get_logger()
 
@@ -54,6 +54,7 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 # 路由註冊
 app.include_router(health.router, prefix="/api/v1", tags=["健康檢查"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["身分驗證"])
+app.include_router(workspaces.router, prefix="/api/v1/workspaces", tags=["工作區（多租戶）"])
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["知識庫管理"])
 app.include_router(agent.router, prefix="/api/v1/agents", tags=["AI 代理人"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["對話管理"])
