@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # 偵測哪些 path 有改 → 決定跑哪些 job（節省 CI 時間）
+  # ─────────────────────────────────────────────────────────────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docs: ${{ steps.filter.outputs.docs }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'services/**'
+              - 'packages/python/**'
+              - 'pyproject.toml'
+            frontend:
+              - 'apps/web/**'
+              - 'packages/ts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            docs:
+              - 'docs/**'
+              - '**/*.md'
+            docker:
+              - '**/Dockerfile'
+              - 'infra/docker-compose*.yml'
+
+  # ─────────────────────────────────────────────────────────────
+  # 後端：lint + type + test
+  # ─────────────────────────────────────────────────────────────
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Sync deps
+        run: uv sync --all-extras
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Format check
+        run: uv run ruff format --check .
+      - name: Type check (mypy)
+        run: uv run mypy services packages/python
+      - name: Tests
+        env:
+          DB_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379/0
+        run: uv run pytest --cov --cov-report=xml --cov-fail-under=80
+      - uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+
+  # ─────────────────────────────────────────────────────────────
+  # 前端：lint + type + test + build
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r lint
+      - run: pnpm -r type-check
+      - run: pnpm -r test
+      - run: pnpm -r build
+
+  # ─────────────────────────────────────────────────────────────
+  # 安全掃描
+  # ─────────────────────────────────────────────────────────────
+  security:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+      - name: Gitleaks (secret scanning)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────
+  # E2E（合併 main 才跑、太重）
+  # ─────────────────────────────────────────────────────────────
+  e2e:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boot stack
+        run: docker compose -f infra/docker-compose.yml up -d
+      - name: Wait for healthy
+        run: ./tools/scripts/wait-healthy.sh
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter e2e exec playwright install --with-deps
+      - run: pnpm --filter e2e test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: tools/e2e/playwright-report/
+
+  # ─────────────────────────────────────────────────────────────
+  # 必要 gate（PR 必通過）
+  # ─────────────────────────────────────────────────────────────
+  ci-pass:
+    if: always()
+    needs: [backend, frontend, security]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.backend.result }}" == "failure" ] || \
+             [ "${{ needs.frontend.result }}" == "failure" ] || \
+             [ "${{ needs.security.result }}" == "failure" ]; then
+            echo "❌ CI failed"; exit 1
+          fi
+          echo "✅ CI passed"

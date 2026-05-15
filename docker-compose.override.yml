@@ -1,0 +1,103 @@
+# ────────────────────────────────────────────────────────────────
+#  開發環境覆寫設定
+#  此檔案由 Docker Compose 自動合併，無需手動指定
+#  正式部署請使用：docker compose -f docker-compose.yml up
+# ────────────────────────────────────────────────────────────────
+
+services:
+
+  # 開發時開放資料庫直連
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"  # MinIO Console
+
+  # Gateway 開放外部直連 + 熱重載
+  gateway:
+    build:
+      context: ./gateway
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./gateway/app:/app/app        # 掛載原始碼，uvicorn --reload
+      - ./core:/app/core
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      ENV: development
+    deploy:
+      resources: {}  # 開發時移除資源限制
+
+  knowledge:
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./services/knowledge/app:/app/app
+      - ./core:/app/core
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    deploy:
+      resources: {}
+
+  knowledge-worker:
+    volumes:
+      - ./services/knowledge/app:/app/app
+      - ./core:/app/core
+    deploy:
+      resources: {}
+
+  agent:
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./services/agent/app:/app/app
+      - ./core:/app/core
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    deploy:
+      resources: {}
+
+  auth:
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./services/auth/app:/app/app
+      - ./core:/app/core
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+    deploy:
+      resources: {}
+
+  integration:
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./services/integration/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload
+    deploy:
+      resources: {}
+
+  chat:
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./services/chat/app:/app/app
+      - ./core:/app/core
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
+    deploy:
+      resources: {}
+
+  # 開發時跳過 UI 容器，由 vite dev server 提供（port 5173）
+  ui:
+    profiles: ["skip-in-dev"]
+
+  nginx:
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d/dev.conf:/etc/nginx/conf.d/staffkm.conf:ro
+    deploy:
+      resources: {}

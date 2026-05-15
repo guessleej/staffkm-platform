@@ -1,0 +1,13 @@
+.git/
+.gitignore
+**/__pycache__/
+**/*.py[cod]
+**/.env
+**/*.log
+**/node_modules/
+**/dist/
+ui/node_modules/
+ui/dist/
+infrastructure/monitoring/
+*.md
+Makefile

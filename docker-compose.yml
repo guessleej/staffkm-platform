@@ -1,0 +1,674 @@
+name: staffkm
+
+# ────────────────────────────────────────────────────────────────
+#  環境變數 — 複製 .env.example 為 .env 並填寫真實值
+# ────────────────────────────────────────────────────────────────
+x-db-env: &db-env
+  DB_URL: postgresql+asyncpg://${DB_USER:-staffkm}:${DB_PASSWORD:-staffkm_secret}@postgres:5432/${DB_NAME:-staffkm}?ssl=disable
+
+x-redis-env: &redis-env
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-staffkm_redis}
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+    labels: "service"
+
+# ────────────────────────────────────────────────────────────────
+#  共用健康檢查基礎 (FastAPI /health)
+# ────────────────────────────────────────────────────────────────
+x-api-healthcheck: &api-healthcheck
+  test: ["CMD-SHELL", "curl -sf http://localhost:${PORT:-8000}/health || exit 1"]
+  interval: 20s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+services:
+
+  # ══════════════════════════════════════════════════════════════
+  #  基礎設施層
+  # ══════════════════════════════════════════════════════════════
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: staffkm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-staffkm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-staffkm_secret}
+      POSTGRES_DB: ${DB_NAME:-staffkm}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./infrastructure/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-staffkm} -d ${DB_NAME:-staffkm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+        reservations:
+          memory: 512m
+    logging: *default-logging
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    container_name: staffkm-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-staffkm_redis}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-staffkm_redis}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: staffkm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-staffkm}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-staffkm_minio}
+      MINIO_SITE_NAME: staffkm-storage
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Embedding 服務 — 內網向量化（OpenAI API 相容）
+  #  使用 Ollama 跑 bge-m3（1024 維、多語言、中文檢索 SOTA、8K context）
+  #  ARM64 / x86_64 雙平台原生支援
+  # ══════════════════════════════════════════════════════════════
+  embedder:
+    image: ollama/ollama:latest
+    container_name: staffkm-embedder
+    restart: unless-stopped
+    volumes:
+      - embedder_cache:/root/.ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+      OLLAMA_KEEP_ALIVE: "24h"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q bge-m3 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 600s   # 首次需下載 ~1.2GB 模型
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: "2.0"
+        reservations:
+          memory: 2g
+    logging: *default-logging
+    networks:
+      - backend
+      - frontend  # 首次拉模型需連 ollama.com
+
+  # 一次性：拉取 bge-m3 模型（embedder healthcheck 才會通過）
+  embedder-init:
+    image: ollama/ollama:latest
+    container_name: staffkm-embedder-init
+    restart: "no"
+    depends_on:
+      - embedder
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "⏳ 等 Ollama 啟動..."
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        echo "📦 拉取 bge-m3 (~1.2GB)..."
+        ollama pull bge-m3
+        echo "✅ Embedding 模型就緒"
+    environment:
+      OLLAMA_HOST: "embedder:11434"
+    networks:
+      - backend
+
+  # MinIO 初始化：建立預設 bucket
+  minio-init:
+    image: minio/mc:latest
+    container_name: staffkm-minio-init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-staffkm} ${MINIO_ROOT_PASSWORD:-staffkm_minio} &&
+        mc mb --ignore-existing local/staffkm-docs &&
+        mc mb --ignore-existing local/staffkm-logs &&
+        mc policy set download local/staffkm-docs &&
+        echo '✅ MinIO buckets 初始化完成'
+      "
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  資料庫 Migration（先於所有應用服務啟動）
+  # ══════════════════════════════════════════════════════════════
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: services/knowledge/Dockerfile
+      target: base
+    container_name: staffkm-db-migrate
+    restart: "no"
+    entrypoint: ["sh", "-c"]
+    command: ["echo '✅ Schema 由 init.sql 建立，跳過 migration'"]
+    environment:
+      <<: *db-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  API Gateway
+  # ══════════════════════════════════════════════════════════════
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    image: staffkm/gateway:${TAG:-latest}
+    container_name: staffkm-gateway
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      ENV: production
+      SECRET_KEY: ${SECRET_KEY:?請在 .env 設定 SECRET_KEY}
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8001
+      AGENT_SERVICE_URL: http://agent:8002
+      AUTH_SERVICE_URL: http://auth:8003
+      INTEGRATION_SERVICE_URL: http://integration:8004
+      CHAT_SERVICE_URL: http://chat:8005
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/0
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+    healthcheck:
+      <<: *api-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health || exit 1"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      knowledge:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+      chat:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - frontend
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Knowledge Service（知識庫 + 文件處理）
+  # ══════════════════════════════════════════════════════════════
+
+  knowledge:
+    build:
+      context: .
+      dockerfile: services/knowledge/Dockerfile
+    image: staffkm/knowledge:${TAG:-latest}
+    container_name: staffkm-knowledge
+    restart: unless-stopped
+    expose:
+      - "8001"
+    environment:
+      PORT: 8001
+      <<: *db-env
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-staffkm}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-staffkm_minio}
+      MINIO_BUCKET: staffkm-docs
+      MINIO_SECURE: "false"
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?請在 .env 設定 OPENAI_API_KEY}
+      CHUNK_SIZE: ${CHUNK_SIZE:-512}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-64}
+    healthcheck:
+      <<: *api-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+    logging: *default-logging
+    networks:
+      - backend
+      - frontend  # 需連外網呼叫 OpenAI Embedding API
+
+  # Knowledge Celery Worker（背景文件處理）
+  knowledge-worker:
+    build:
+      context: .
+      dockerfile: services/knowledge/Dockerfile
+    image: staffkm/knowledge:${TAG:-latest}
+    container_name: staffkm-knowledge-worker
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 -Q knowledge
+    environment:
+      PORT: 8001
+      <<: *db-env
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-staffkm}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-staffkm_minio}
+      MINIO_BUCKET: staffkm-docs
+      MINIO_SECURE: "false"
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME | grep -q OK || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+    logging: *default-logging
+    networks:
+      - backend
+      - frontend  # Worker 需連外網呼叫 OpenAI / Cohere / 其他 AI API
+
+  # ══════════════════════════════════════════════════════════════
+  #  Agent Service（AI 代理人）
+  # ══════════════════════════════════════════════════════════════
+
+  agent:
+    build:
+      context: .
+      dockerfile: services/agent/Dockerfile
+    image: staffkm/agent:${TAG:-latest}
+    container_name: staffkm-agent
+    restart: unless-stopped
+    expose:
+      - "8002"
+    environment:
+      PORT: 8002
+      <<: *db-env
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8001
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
+    healthcheck:
+      <<: *api-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      knowledge:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Auth Service（身分驗證 / LDAP）
+  # ══════════════════════════════════════════════════════════════
+
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    image: staffkm/auth:${TAG:-latest}
+    container_name: staffkm-auth
+    restart: unless-stopped
+    expose:
+      - "8003"
+    environment:
+      PORT: 8003
+      <<: *db-env
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/3
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
+      REFRESH_TOKEN_DAYS: ${REFRESH_TOKEN_DAYS:-30}
+      LDAP_ENABLED: ${LDAP_ENABLED:-false}
+      LDAP_SERVER: ${LDAP_SERVER:-}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-}
+      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+    healthcheck:
+      <<: *api-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Integration Service（LINE / Teams）
+  # ══════════════════════════════════════════════════════════════
+
+  integration:
+    build:
+      context: .
+      dockerfile: services/integration/Dockerfile
+    image: staffkm/integration:${TAG:-latest}
+    container_name: staffkm-integration
+    restart: unless-stopped
+    expose:
+      - "8004"
+    environment:
+      PORT: 8004
+      AGENT_SERVICE_URL: http://agent:8002
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+      TEAMS_APP_ID: ${TEAMS_APP_ID:-}
+      TEAMS_APP_PASSWORD: ${TEAMS_APP_PASSWORD:-}
+    healthcheck:
+      <<: *api-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:8004/health || exit 1"]
+    depends_on:
+      agent:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Chat Service（對話管理）
+  # ══════════════════════════════════════════════════════════════
+
+  chat:
+    build:
+      context: .
+      dockerfile: services/chat/Dockerfile
+    image: staffkm/chat:${TAG:-latest}
+    container_name: staffkm-chat
+    restart: unless-stopped
+    expose:
+      - "8005"
+    environment:
+      PORT: 8005
+      <<: *db-env
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/5
+      AGENT_SERVICE_URL: http://agent:8002
+      MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
+    healthcheck:
+      <<: *api-healthcheck
+      test: ["CMD-SHELL", "curl -sf http://localhost:8005/health || exit 1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  前端 UI（多階段建置 → Nginx 服務）
+  # ══════════════════════════════════════════════════════════════
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      # context 限縮在 ui/ 即可，不需要 core
+      args:
+        VITE_API_BASE_URL: /api/v1
+        VITE_APP_TITLE: StaffKM 行政知識管理系統
+    image: staffkm/ui:${TAG:-latest}
+    container_name: staffkm-ui
+    restart: unless-stopped
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ | grep -q StaffKM || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging: *default-logging
+    networks:
+      - frontend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Nginx 反向代理（對外唯一入口）
+  # ══════════════════════════════════════════════════════════════
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: staffkm-nginx
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:${HTTP_PORT:-80}:80"
+      - "0.0.0.0:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d/staffkm.conf:/etc/nginx/conf.d/staffkm.conf:ro
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t && wget -qO- http://127.0.0.1/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      gateway:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging: *default-logging
+    networks:
+      - frontend
+
+  # ══════════════════════════════════════════════════════════════
+  #  可選：監控套件（profile=monitoring 才啟動）
+  # ══════════════════════════════════════════════════════════════
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: staffkm-prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    expose:
+      - "9090"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *default-logging
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: staffkm-grafana
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-staffkm_grafana}
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_LOG_LEVEL: warn
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infrastructure/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+    logging: *default-logging
+    networks:
+      - backend
+
+# ──────────────────────────────────────────────────────────────
+#  持久化 Volume
+# ──────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+    labels:
+      staffkm.backup: "daily"
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+    labels:
+      staffkm.backup: "daily"
+  nginx_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  embedder_cache:
+    driver: local
+    labels:
+      staffkm.backup: "weekly"   # HuggingFace 模型快取，重灌可重下載
+
+# ──────────────────────────────────────────────────────────────
+#  網路 — 前後端隔離
+# ──────────────────────────────────────────────────────────────
+networks:
+  frontend:
+    driver: bridge
+    labels:
+      staffkm.zone: "public"
+  backend:
+    driver: bridge
+    internal: true
+    labels:
+      staffkm.zone: "private"

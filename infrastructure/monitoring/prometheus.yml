@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: staffkm-gateway
+    static_configs:
+      - targets: ['gateway:8000']
+    metrics_path: /metrics
+
+  - job_name: staffkm-knowledge
+    static_configs:
+      - targets: ['knowledge:8001']
+    metrics_path: /metrics
+
+  - job_name: staffkm-agent
+    static_configs:
+      - targets: ['agent:8002']
+    metrics_path: /metrics
+
+  - job_name: staffkm-auth
+    static_configs:
+      - targets: ['auth:8003']
+    metrics_path: /metrics
+
+  - job_name: staffkm-chat
+    static_configs:
+      - targets: ['chat:8005']
+    metrics_path: /metrics
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres:5432']
+
+  - job_name: redis
+    static_configs:
+      - targets: ['redis:6379']
