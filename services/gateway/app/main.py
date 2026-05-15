@@ -55,6 +55,8 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.include_router(health.router, prefix="/api/v1", tags=["健康檢查"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["身分驗證"])
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["知識庫管理"])
+# 同一個 router 也接 workspace-scoped 路徑（RFC-001 Stage 2）
+app.include_router(knowledge.router, prefix="/api/v1/workspace/{workspace_id}/knowledge", tags=["知識庫管理（workspace）"])
 app.include_router(agent.router, prefix="/api/v1/agents", tags=["AI 代理人"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["對話管理"])
 app.include_router(integration.router, prefix="/api/v1/integrations", tags=["外部整合"])

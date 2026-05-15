@@ -1,16 +1,21 @@
 """Knowledge Service — 知識庫管理服務"""
+import uuid
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
 from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks
+from app.middleware.legacy_bridge import LegacyURLBridge
+from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
+from staffkm_tenant import TenantContextMiddleware
 
 log = structlog.get_logger()
 
@@ -100,21 +105,53 @@ async def lifespan(app: FastAPI):
     yield
 
 
+class GatewayHeadersMiddleware(BaseHTTPMiddleware):
+    """從 Gateway 注入的 X-User-ID 標頭恢復 request.state（供 tenant middleware 取用）。"""
+    async def dispatch(self, request: Request, call_next):
+        request.state.user_id = request.headers.get("X-User-ID") or None
+        request.state.roles   = [r for r in request.headers.get("X-User-Roles", "").split(",") if r]
+        return await call_next(request)
+
+
+def _user_id_from_request(req: Request) -> uuid.UUID | None:
+    raw = getattr(req.state, "user_id", None) or req.headers.get("X-User-ID")
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 app = FastAPI(
     title="StaffKM Knowledge Service",
     description="知識庫管理服務 — 文件處理、向量化、語意檢索",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
+# ── Middleware（注意：starlette 後加先跑，故順序由下而上）──────────────
+# 1) CORS — 永遠最外層
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# 2) Legacy URL bridge — v1 → v2 重寫，這個要早於 tenant middleware 才能讓重寫後的 path 帶 workspace
+app.add_middleware(LegacyURLBridge)
+# 3) Gateway headers → request.state
+app.add_middleware(GatewayHeadersMiddleware)
+# 4) Tenant context — 讀 path 中的 workspace_id 並驗證成員
+app.add_middleware(
+    TenantContextMiddleware,
+    session_factory=lambda: _db._session_factory,   # 延遲取（lifespan 後才 init）
+    user_id_getter=_user_id_from_request,
+)
 
-app.include_router(knowledge_bases.router, prefix="/api/v1/knowledge/bases", tags=["知識庫"])
-app.include_router(documents.router, prefix="/api/v1/knowledge/documents", tags=["文件管理"])
-app.include_router(paragraphs.router, prefix="/api/v1/knowledge/paragraphs", tags=["段落管理"])
-app.include_router(search.router, prefix="/api/v1/knowledge/search", tags=["語意檢索"])
-app.include_router(hit_test.router, prefix="/api/v1/knowledge/hit-test", tags=["命中測試"])
-app.include_router(tasks.router, prefix="/api/v1/knowledge/tasks", tags=["任務管理"])
+# ── Routes（v2：workspace-scoped）─────────────────────────────────────
+_PREFIX = "/api/v1/workspace/{workspace_id}/knowledge"
+app.include_router(knowledge_bases.router, prefix=f"{_PREFIX}/bases",      tags=["知識庫"])
+app.include_router(documents.router,       prefix=f"{_PREFIX}/documents",  tags=["文件管理"])
+app.include_router(paragraphs.router,      prefix=f"{_PREFIX}/paragraphs", tags=["段落管理"])
+app.include_router(search.router,          prefix=f"{_PREFIX}/search",     tags=["語意檢索"])
+app.include_router(hit_test.router,        prefix=f"{_PREFIX}/hit-test",   tags=["命中測試"])
+app.include_router(tasks.router,           prefix=f"{_PREFIX}/tasks",      tags=["任務管理"])
 
 
 @app.get("/health")
