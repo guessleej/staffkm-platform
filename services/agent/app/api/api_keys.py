@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.schemas.response import ApiResponse, PagedResponse, PageMeta
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

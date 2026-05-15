@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
-from core.schemas.response import ApiResponse, PagedResponse, PageMeta
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 

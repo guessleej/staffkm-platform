@@ -6,7 +6,7 @@ from sqlalchemy import String, Boolean, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from core.models.base import Base, UUIDPrimaryKeyMixin, AuditMixin
+from staffkm_core.models.base import Base, UUIDPrimaryKeyMixin, AuditMixin
 
 
 class UserStatus(str, Enum):

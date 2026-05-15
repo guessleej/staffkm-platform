@@ -13,8 +13,8 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.config import settings
 from app.models.conversation import Conversation, Message
-from core.schemas.response import ApiResponse, PagedResponse, PageMeta
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 log = structlog.get_logger()

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
 from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks
-from core.utils.database import init_db
+from staffkm_core.utils.database import init_db
 
 log = structlog.get_logger()
 

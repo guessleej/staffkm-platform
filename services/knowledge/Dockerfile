@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS runtime
 COPY --chown=staffkm:staffkm services/knowledge/app ./app
-COPY --chown=staffkm:staffkm core ./core
+COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core ./staffkm_core
 
 USER staffkm
 EXPOSE 8001

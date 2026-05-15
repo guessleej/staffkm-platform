@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.context import CryptContext
 
 from app.models.user import User, UserStatus
-from core.schemas.response import ApiResponse, PagedResponse, PageMeta
-from core.utils.database import get_session
+from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")

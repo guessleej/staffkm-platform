@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.scenarios import SCENARIO_REGISTRY
-from core.schemas.response import ApiResponse
+from staffkm_core.schemas.response import ApiResponse
 
 router = APIRouter()
 
