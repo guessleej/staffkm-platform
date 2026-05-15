@@ -85,8 +85,10 @@ async def _async_process(doc_id: str, minio_key: str, filename: str) -> dict:
                 await session.commit()
 
                 # 寫入段落與向量（每 50 筆批次提交）
+                # workspace_id 從 document 繼承（RFC-001 Stage 2）
                 for idx, (chunk, emb) in enumerate(zip(chunks, embeddings)):
                     para = Paragraph(
+                        workspace_id=doc.workspace_id,
                         document_id=doc.id,
                         knowledge_base_id=doc.knowledge_base_id,
                         content=chunk,

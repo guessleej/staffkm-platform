@@ -15,6 +15,9 @@ from staffkm_tenant.middleware import TenantContextMiddleware
 from staffkm_tenant.permissions import (
     require_role,
     require_member,
+    require_writer,
+    require_admin,
+    require_owner,
     WorkspacePermissionError,
 )
 from staffkm_tenant.scoped_query import WorkspaceScopedQuery
@@ -28,6 +31,9 @@ __all__ = [
     "TenantContextMiddleware",
     "require_role",
     "require_member",
+    "require_writer",
+    "require_admin",
+    "require_owner",
     "WorkspacePermissionError",
     "WorkspaceScopedQuery",
 ]

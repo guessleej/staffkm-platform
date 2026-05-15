@@ -10,10 +10,28 @@ from app.config import settings
 from app.core.embedder import get_embedder
 from app.core.reranker import rerank
 from app.core.vectorstore import hybrid_search
+from app.models.knowledge_base import KnowledgeBase
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
+from staffkm_tenant import TenantContext, WorkspaceScopedQuery, require_member
 
 router = APIRouter()
+
+
+async def _filter_kbs_in_workspace(
+    kb_ids: list[uuid.UUID],
+    ctx: TenantContext,
+    session: AsyncSession,
+) -> list[uuid.UUID]:
+    """過濾出真正屬於當前 workspace 的 kb_id；其他靜默丟棄（避免訊息洩漏）。"""
+    if not kb_ids:
+        return []
+    q = (
+        WorkspaceScopedQuery(KnowledgeBase).select()
+        .where(KnowledgeBase.id.in_(kb_ids))
+    )
+    rows = (await session.execute(q)).scalars().all()
+    return [kb.id for kb in rows]
 
 
 class SearchRequest(BaseModel):
@@ -51,8 +69,14 @@ class SearchResponse(BaseModel):
 @router.post("", response_model=ApiResponse[SearchResponse])
 async def search(
     body: SearchRequest,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
+    # 跨 workspace 防護：只查屬於當前 workspace 的 kb_ids
+    allowed_kb_ids = await _filter_kbs_in_workspace(body.kb_ids, ctx, session)
+    if not allowed_kb_ids:
+        return ApiResponse(data=SearchResponse(citations=[], total=0, search_mode=body.search_mode))
+
     # 純 FTS 模式不需要向量化
     query_embedding: list[float] = []
     if body.search_mode != "fts":
@@ -66,7 +90,7 @@ async def search(
     fetch_k = body.retrieval_top_k if body.reranker else body.top_k
 
     all_results: list[dict] = []
-    for kb_id in body.kb_ids:
+    for kb_id in allowed_kb_ids:
         hits = await hybrid_search(
             session=session,
             kb_id=kb_id,

@@ -2,7 +2,7 @@
 import re
 import uuid
 import structlog
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Union
 
 from fastapi import Request, Response
 from sqlalchemy import select
@@ -18,15 +18,25 @@ log = structlog.get_logger()
 # /api/v1/workspace/{ws_id}/...   → 抓 ws_id
 _WORKSPACE_PATH_RE = re.compile(r"/workspace/([0-9a-f-]{36})/")
 
+SessionFactoryLike = Union[
+    async_sessionmaker,                     # 直接傳入
+    Callable[[], async_sessionmaker | None],  # 延遲取值（lifespan 後才 init 的場景）
+]
+
 
 class TenantContextMiddleware(BaseHTTPMiddleware):
     """
     使用方式：
-        app.add_middleware(
-            TenantContextMiddleware,
-            session_factory=session_factory,        # async_sessionmaker
-            user_id_getter=lambda req: req.state.user_id,  # 從 auth middleware 拿
-        )
+        # 方式 A：直接傳 factory
+        app.add_middleware(TenantContextMiddleware,
+            session_factory=session_factory,
+            user_id_getter=lambda req: req.state.user_id)
+
+        # 方式 B：延遲取（init_db 在 lifespan 才跑、middleware 註冊時還沒 ready）
+        from staffkm_core.utils import database
+        app.add_middleware(TenantContextMiddleware,
+            session_factory=lambda: database._session_factory,
+            user_id_getter=lambda req: req.state.user_id)
 
     流程：
       1. 從 URL 抓 workspace_id（沒有就 pass，留給非 workspace-scoped endpoints）
@@ -38,12 +48,25 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
-        session_factory: async_sessionmaker,
+        session_factory: SessionFactoryLike,
         user_id_getter: Callable[[Request], uuid.UUID | None],
     ):
         super().__init__(app)
-        self.session_factory = session_factory
+        self._session_factory_input = session_factory
         self.get_user_id = user_id_getter
+
+    @property
+    def session_factory(self) -> async_sessionmaker:
+        """支援 callable 延遲取值，否則回傳本來就傳入的 factory。"""
+        sf = self._session_factory_input
+        if callable(sf) and not isinstance(sf, async_sessionmaker):
+            sf = sf()
+        if sf is None:
+            raise RuntimeError(
+                "TenantContextMiddleware: session_factory 尚未就緒。"
+                "確認 init_db() 已於 lifespan 呼叫。"
+            )
+        return sf
 
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]

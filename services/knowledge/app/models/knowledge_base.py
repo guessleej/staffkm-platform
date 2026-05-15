@@ -19,6 +19,16 @@ class KBStatus(str, Enum):
 
 class KnowledgeBase(Base, UUIDPrimaryKeyMixin, AuditMixin):
     __tablename__ = "knowledge_bases"
+    __table_args__ = (
+        Index("idx_knowledge_bases_workspace", "workspace_id"),
+    )
+
+    # ── 多租戶歸屬（RFC-001 Stage 2）— DB column 已由 0001 migration 建好 ──
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspace.id", ondelete="CASCADE"),
+        nullable=True,    # Stage 2 過渡期 nullable；Stage 3 改 NOT NULL
+    )
 
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
@@ -27,7 +37,7 @@ class KnowledgeBase(Base, UUIDPrimaryKeyMixin, AuditMixin):
     vector_store_type: Mapped[str] = mapped_column(String(32), default="pgvector")
     meta: Mapped[dict] = mapped_column(JSONB, default=dict)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
-    tenant_id: Mapped[str | None] = mapped_column(String(64))
+    tenant_id: Mapped[str | None] = mapped_column(String(64))   # legacy；下版移除
 
     documents: Mapped[list["Document"]] = relationship(back_populates="knowledge_base", cascade="all, delete-orphan")
 
@@ -41,6 +51,16 @@ class DocStatus(str, Enum):
 
 class Document(Base, UUIDPrimaryKeyMixin, AuditMixin):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("idx_documents_workspace", "workspace_id"),
+    )
+
+    # ── 多租戶歸屬（RFC-001 Stage 2）──
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspace.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE")
@@ -63,6 +83,14 @@ class Paragraph(Base, UUIDPrimaryKeyMixin, AuditMixin):
     __tablename__ = "paragraphs"
     __table_args__ = (
         Index("idx_paragraphs_search_vector", "search_vector", postgresql_using="gin"),
+        Index("idx_paragraphs_workspace", "workspace_id"),
+    )
+
+    # ── 多租戶歸屬（RFC-001 Stage 2）──
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspace.id", ondelete="CASCADE"),
+        nullable=True,
     )
 
     document_id: Mapped[uuid.UUID] = mapped_column(

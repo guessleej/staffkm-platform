@@ -9,8 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.embedder import get_embedder
 from app.core.vectorstore import hybrid_search
+from app.models.knowledge_base import KnowledgeBase
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
+from staffkm_tenant import TenantContext, WorkspaceScopedQuery, require_member
+from fastapi import HTTPException
 
 router = APIRouter()
 
@@ -28,8 +31,14 @@ class HitTestRequest(BaseModel):
 @router.post("", response_model=ApiResponse)
 async def hit_test(
     body: HitTestRequest,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
+    # 驗證 kb_id 屬於當前 workspace
+    kb_q = WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == body.kb_id)
+    if not (await session.execute(kb_q)).scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+
     query_embedding: list[float] = []
     if body.search_mode != "fts":
         embedder = get_embedder(

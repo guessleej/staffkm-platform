@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r staffkm && useradd -r -g staffkm staffkm
 
-COPY gateway/requirements.txt .
+COPY services/gateway/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS runtime
