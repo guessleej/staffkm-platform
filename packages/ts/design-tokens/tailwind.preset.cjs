@@ -72,6 +72,18 @@ module.exports = {
       emerald: semanticScale('success'),
       sky:    semanticScale('info'),
       violet: brandScale('brand'),
+      // 相容 legacy class（PR #44 之前散落的 Tailwind 預設色）
+      orange:  semanticScale('warning'),
+      yellow:  semanticScale('warning'),
+      red:     semanticScale('danger'),
+      pink:    semanticScale('danger'),
+      green:   semanticScale('success'),
+      teal:    semanticScale('success'),
+      blue:    semanticScale('info'),
+      cyan:    semanticScale('info'),
+      purple:  brandScale('brand'),
+      stone:   brandScale('neutral'),
+      zinc:    brandScale('neutral'),
     },
 
     extend: {
