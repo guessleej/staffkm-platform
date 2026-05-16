@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Type
 
+from .anthropic import AnthropicProvider
 from .base import BaseProvider
 from .openai_compat import OpenAICompatProvider
 
@@ -61,7 +62,7 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
     ProviderMeta("anthropic", "Anthropic Claude", "anthropic",
                  default_base_url="https://api.anthropic.com",
                  recommended_models=["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"],
-                 notes="專屬 adapter 後續 PR 接入。"),
+                 notes="走 messages API；system 自動拆成頂層欄位。"),
     ProviderMeta("bedrock", "AWS Bedrock", "bedrock",
                  notes="走 boto3，需 AWS 認證；後續 PR 接入。"),
     ProviderMeta("gemini", "Google Gemini", "gemini",
@@ -116,9 +117,9 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
 # adapter_type → class 對應
 _ADAPTER_TABLE: dict[str, Type[BaseProvider]] = {
     "openai_compat": OpenAICompatProvider,
+    "anthropic":  AnthropicProvider,   # M3 中段-A
     # 以下為 placeholder，後續 PR 補真正 adapter；
     # 目前 fallback 到 OpenAICompatProvider 以避免執行期錯誤
-    "anthropic":  OpenAICompatProvider,
     "bedrock":    OpenAICompatProvider,
     "gemini":     OpenAICompatProvider,
     "vertex_ai":  OpenAICompatProvider,

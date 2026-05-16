@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 
 from app.config import settings
 from app.core.base_agent import AgentContext
+from app.core.providers import BaseProvider, ChatRequest, get_adapter
 
 log = structlog.get_logger()
 
@@ -58,6 +59,10 @@ class ApplicationAgent:
 
         # 建立預設 LLM 客戶端（可能在 _init_llm_from_db 後被替換）
         self._llm = AsyncOpenAI(api_key=self._api_key)
+
+        # M3 中段-A：BaseProvider adapter（若 _init_llm_from_db 載入成功會被設定）
+        self._provider: BaseProvider | None = None
+        self._provider_type: str = "openai_compat"
 
         # Reranker 設定（可能在 _init_reranker_from_db 後載入）
         self._reranker_config: dict | None = None
@@ -173,11 +178,33 @@ class ApplicationAgent:
             self._base_url = base_url
             self._llm = AsyncOpenAI(**client_kwargs)
 
+            # M3 中段-A：依 provider_type 選 adapter（Anthropic 等走專屬實作；
+            # 其餘 fallback 到 OpenAI-compatible）
+            try:
+                adapter_cls = get_adapter(provider_type)
+                provider_config = mapping.get("provider_config") or {}
+                if isinstance(provider_config, str):
+                    provider_config = json.loads(provider_config)
+                self._provider = adapter_cls(
+                    api_key=api_key,
+                    base_url=base_url,
+                    config=provider_config,
+                )
+                self._provider_type = provider_type
+            except Exception as e:
+                log.warning(
+                    "application_agent_provider_init_failed",
+                    app_id=self.app_id,
+                    provider=provider_type,
+                    error=str(e),
+                )
+
             log.info(
                 "application_agent_llm_loaded",
                 app_id=self.app_id,
                 model=self._model,
                 provider=provider_type,
+                adapter=type(self._provider).__name__ if self._provider else "openai-compat-fallback",
             )
 
         except Exception as e:
@@ -368,6 +395,21 @@ class ApplicationAgent:
 
         temperature = float(self.config.get("temperature", 0.1))
         max_tokens = int(self.config.get("max_tokens", 2048))
+
+        # M3 中段-A：優先使用 BaseProvider adapter（支援 Anthropic / Gemini / …）；
+        # 若未載入則 fallback 到既有 AsyncOpenAI 路徑（保持向後相容）。
+        if self._provider is not None:
+            req = ChatRequest(
+                model=self._model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+            )
+            async for token in self._provider.chat_stream(req):
+                if token:
+                    yield token
+            return
 
         stream = await self._llm.chat.completions.create(
             model=self._model,
