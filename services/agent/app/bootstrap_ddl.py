@@ -195,6 +195,39 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_wf_versions_workspace ON workflow_versions(workspace_id)",
     # Application 加 workflow_manager 欄位（執行策略）
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS workflow_manager VARCHAR(16) NOT NULL DEFAULT 'simple'",
+
+    # ── M3 中段：Token 計帳 + Workspace Quota ───────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS model_usage_logs (
+        id                UUID PRIMARY KEY,
+        workspace_id      UUID NOT NULL,
+        user_id           UUID,
+        application_id    UUID,
+        provider_type     VARCHAR(32),
+        model             VARCHAR(128),
+        prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens      INTEGER NOT NULL DEFAULT 0,
+        cost_usd          NUMERIC(12, 6) NOT NULL DEFAULT 0,
+        latency_ms        INTEGER NOT NULL DEFAULT 0,
+        status            VARCHAR(16) NOT NULL DEFAULT 'ok',
+        error             TEXT,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_usage_logs_workspace_time ON model_usage_logs(workspace_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_logs_app             ON model_usage_logs(application_id)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_logs_provider_model  ON model_usage_logs(provider_type, model)",
+
+    """
+    CREATE TABLE IF NOT EXISTS workspace_quotas (
+        workspace_id        UUID PRIMARY KEY,
+        monthly_token_cap   BIGINT,             -- NULL = 無上限
+        monthly_cost_cap_usd NUMERIC(12, 2),    -- NULL = 無上限
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_by          UUID
+    )
+    """,
 ]
 
 
