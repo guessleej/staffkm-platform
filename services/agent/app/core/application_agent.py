@@ -35,6 +35,13 @@ class ApplicationAgent:
             kb_ids = json.loads(kb_ids)
         self.kb_ids: list[str] = kb_ids or []
 
+        # Skill IDs（D-2）— 啟動時還只是 id 列表；stream_response 前由 create() 載入文字
+        skill_ids = application.get("skill_ids", [])
+        if isinstance(skill_ids, str):
+            skill_ids = json.loads(skill_ids)
+        self.skill_ids: list[str] = skill_ids or []
+        self._skill_prompts: list[str] = []  # 載入後填入
+
         # 應用程式層級的 config（溫度、max_tokens 等）
         config = application.get("config", {})
         if isinstance(config, str):
@@ -80,7 +87,34 @@ class ApplicationAgent:
             await agent._init_llm_from_db(session)
         if agent._reranker_model_id and session is not None:
             await agent._init_reranker_from_db(session)
+        if agent.skill_ids and session is not None:
+            await agent._init_skills_from_db(session)
         return agent
+
+    async def _init_skills_from_db(self, session) -> None:
+        """D-2：載入引用的 Skills，把每個 skill 的 prompt_template 收進
+        self._skill_prompts，stream_response 前 prepend 到 system_prompt。
+        Skill 必須屬於同 workspace（agent service 的 require_member 保證）。"""
+        from sqlalchemy import text
+        try:
+            rows = await session.execute(
+                text(
+                    "SELECT id, name, prompt_template FROM skills "
+                    "WHERE id::text = ANY(:ids)"
+                ),
+                {"ids": [str(s) for s in self.skill_ids]},
+            )
+            self._skill_prompts = []
+            for r in rows.fetchall():
+                d = dict(r._mapping)
+                tpl = (d.get("prompt_template") or "").strip()
+                if tpl:
+                    # 加 marker 包住，方便日後 strip/debug
+                    self._skill_prompts.append(
+                        f"# Skill: {d.get('name', '')}\n{tpl}"
+                    )
+        except Exception as e:
+            log.warning("application_agent_skill_load_failed", app_id=self.app_id, error=str(e))
 
     async def _init_llm_from_db(self, session) -> None:
         """從 DB 的 ai_models + model_providers 資料表載入 LLM 設定。"""
@@ -322,8 +356,12 @@ class ApplicationAgent:
 
         rag_user_message = self._build_rag_prompt(citations, user_query)
 
+        # D-2：把 skill prompts 接在 system_prompt 前面（用 marker 分段）
+        composed_system = self.system_prompt
+        if self._skill_prompts:
+            composed_system = "\n\n".join(self._skill_prompts) + "\n\n" + self.system_prompt
         messages = [
-            {"role": "system", "content": self.system_prompt},
+            {"role": "system", "content": composed_system},
             *ctx.messages[:-1],
             {"role": "user", "content": rag_user_message},
         ]
