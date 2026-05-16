@@ -72,6 +72,11 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "ALTER TABLE paragraphs ADD COLUMN IF NOT EXISTS qa_pairs JSONB NOT NULL DEFAULT '[]'::jsonb",
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS questions JSONB NOT NULL DEFAULT '[]'::jsonb",
 
+    # 9. Round 10-5 / RFC-013：Workflow KB
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_type VARCHAR(16) NOT NULL DEFAULT 'manual'",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_workflow_id UUID",
+    "CREATE INDEX IF NOT EXISTS idx_kb_source_workflow ON knowledge_bases(source_workflow_id) WHERE source_workflow_id IS NOT NULL",
+
     # 8. Round 10-4：KB 資源授權（per-KB ACL；workspace 內針對特定 user / role 限制存取）
     """
     CREATE TABLE IF NOT EXISTS kb_grants (

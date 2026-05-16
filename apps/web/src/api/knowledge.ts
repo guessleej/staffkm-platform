@@ -182,4 +182,14 @@ export const knowledgeApi = {
     const { data } = await http.get(`/knowledge/bases/${kbId}/related-resources`)
     return data.data || { applications: [] }
   },
+
+  // — Workflow KB（Round 10-5 / RFC-013）
+  async convertToWorkflowKB(kbId: string, source_workflow_id: string) {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/convert-to-workflow`, { source_workflow_id })
+    return data.data
+  },
+  async getKbSourceInfo(kbId: string) {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/source-info`)
+    return data.data
+  },
 }
