@@ -1,5 +1,12 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex h-full">
+    <EntityFolderSidebar
+      kind="tool"
+      root-label="所有工具"
+      :active-folder-id="activeFolderId"
+      @update:active-folder-id="(v) => (activeFolderId = v)"
+    />
+  <div class="flex-1 flex flex-col overflow-hidden">
     <div class="px-6 py-5 border-b border-neutral-200 bg-surface-raised flex items-center justify-between flex-shrink-0">
       <div>
         <h1 class="text-lg font-semibold text-neutral-900">工具</h1>
@@ -150,21 +157,29 @@
       </div>
     </Teleport>
   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { toolApi, type ToolEntity, type ToolExecResult } from '../../api/extras'
 import { IconPlus } from '../../components/icons'
+import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
 
-const items = ref<ToolEntity[]>([])
+const allItems = ref<ToolEntity[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
 const draft = reactive({ name: '', description: '', kind: 'http' })
+const activeFolderId = ref<string | null>(null)
+
+const items = computed(() => {
+  if (activeFolderId.value === null) return allItems.value
+  return allItems.value.filter(t => (t as any).folder_id === activeFolderId.value)
+})
 
 async function load() {
   loading.value = true
-  try { items.value = await toolApi.list() } finally { loading.value = false }
+  try { allItems.value = await toolApi.list() } finally { loading.value = false }
 }
 async function onCreate() {
   if (!draft.name.trim()) return

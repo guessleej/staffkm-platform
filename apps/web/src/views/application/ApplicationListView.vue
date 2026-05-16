@@ -1,5 +1,13 @@
 <template>
-  <div class="flex-1 flex flex-col overflow-hidden">
+  <div class="flex h-full">
+    <!-- D-5 後續：Application folder 側欄 -->
+    <EntityFolderSidebar
+      kind="app"
+      root-label="所有應用"
+      :active-folder-id="activeFolderId"
+      @update:active-folder-id="(v) => (activeFolderId = v)"
+    />
+    <div class="flex-1 flex flex-col overflow-hidden">
     <!-- 頁首 -->
     <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
       <div>
@@ -385,6 +393,7 @@
       class="px-2.5 py-1.5 rounded-lg text-sm text-white/90 hover:bg-white/10 hover:text-white transition"
     >刪除</button>
   </BatchSelectToolbar>
+  </div><!-- /flex h-full wrapper for sidebar + main -->
 </template>
 
 <script setup lang="ts">
@@ -397,6 +406,7 @@ import { modelProviderApi, type AiModel } from '../../api/modelProvider'
 import { http } from '../../api/index'
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
+import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
 import { useProjectStore } from '../../stores/project'
 
 const router = useRouter()
@@ -406,14 +416,21 @@ const loading = ref(false)
 const saving = ref(false)
 const applications = ref<Application[]>([])
 
-// ── D-6：Project 過濾 ─────────────────────────────────────────────────
+// ── D-6：Project 過濾 + D-5 後續：Folder 過濾 ──────────────────────
 const projects = useProjectStore()
 const activeProject = computed(() => projects.active)
+const activeFolderId = ref<string | null>(null)
+
 const displayedApps = computed(() => {
-  const p = activeProject.value
-  if (!p) return applications.value
-  const ids = new Set(p.application_ids || [])
-  return applications.value.filter(a => ids.has(a.id))
+  let list = applications.value
+  if (activeProject.value) {
+    const ids = new Set(activeProject.value.application_ids || [])
+    list = list.filter(a => ids.has(a.id))
+  }
+  if (activeFolderId.value !== null) {
+    list = list.filter(a => (a as any).folder_id === activeFolderId.value)
+  }
+  return list
 })
 
 // ── 批量選擇 ───────────────────────────────────────────────────────────
