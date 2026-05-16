@@ -61,4 +61,18 @@ export const toolApi = {
   },
 }
 export const skillApi       = makeCrud<SkillEntity, Partial<SkillEntity>, Partial<SkillEntity>>('skills')
-export const dataSourceApi  = makeCrud<DataSourceEntity, Partial<DataSourceEntity>, Partial<DataSourceEntity>>('data-sources')
+export interface DataSourceTestResult {
+  success:    boolean
+  elapsed_ms: number
+  detail:     string
+  config_ok:  boolean
+  missing:    string[]
+}
+
+export const dataSourceApi = {
+  ...makeCrud<DataSourceEntity, Partial<DataSourceEntity>, Partial<DataSourceEntity>>('data-sources'),
+  test: async (id: string): Promise<DataSourceTestResult> => {
+    const { data } = await http.post(`/data-sources/${id}/test`)
+    return data.data
+  },
+}
