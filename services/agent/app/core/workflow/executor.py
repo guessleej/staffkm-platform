@@ -158,7 +158,11 @@ class WorkflowExecutor:
                     await self._exec_mcp_tool(config, context)
 
             except Exception as e:
-                log.error("workflow_node_failed", node_key=current_key, type=node_type, error=str(e))
+                log.error(
+                    "workflow_node_failed",
+                    node_key=current_key, type=node_type, error=str(e),
+                    **self._audit_fields(context),
+                )
                 yield {"event": "error", "data": json.dumps({"node_key": current_key, "error": str(e)})}
 
             yield {"event": "node_done", "data": json.dumps({"node_key": current_key})}
@@ -201,6 +205,13 @@ class WorkflowExecutor:
         if roles:
             headers["X-User-Roles"] = ",".join(roles)
         return headers
+
+    def _audit_fields(self, context: dict) -> dict[str, str]:
+        """組裝 structured log 用的審計欄位，便於跨 workspace 追蹤呼叫。"""
+        return {
+            "workspace_id": str(context.get("workspace_id") or "-"),
+            "user_id":      str(context.get("_user_id") or "-"),
+        }
 
     def _knowledge_url(self, context: dict, suffix: str) -> str:
         """組 knowledge service URL；有 workspace 走 v2，否則走 legacy（會被 bridge 重寫）。"""
@@ -264,23 +275,36 @@ class WorkflowExecutor:
         )
         system = config.get("system_prompt", "你是一個助手，請根據提供資料回答問題。")
 
+        # RFC-005 政策稽核：若 config 試圖蓋過系統鎖定的模型，留 audit log
+        node_model = config.get("model")
+        if node_model and node_model != settings.LLM_MODEL:
+            log.warning(
+                "llm_model_override_blocked",
+                requested=node_model, enforced=settings.LLM_MODEL,
+                **self._audit_fields(context),
+            )
+
         llm, model = self._build_llm_client(config)
         full_response = ""
-        stream = await llm.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            stream=True,
-            temperature=float(config.get("temperature", settings.LLM_TEMPERATURE)),
-            max_tokens=int(config.get("max_tokens", settings.LLM_MAX_TOKENS)),
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                full_response += delta
-                yield delta
+        try:
+            stream = await llm.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=True,
+                temperature=float(config.get("temperature", settings.LLM_TEMPERATURE)),
+                max_tokens=int(config.get("max_tokens", settings.LLM_MAX_TOKENS)),
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    full_response += delta
+                    yield delta
+        except Exception as e:
+            log.error("workflow_llm_failed", error=str(e), **self._audit_fields(context))
+            yield f"\n\n錯誤：LLM 呼叫失敗：{e}"
         context["llm_response"] = full_response
 
     def _eval_condition(self, config: dict, context: dict) -> bool:
@@ -490,7 +514,7 @@ class WorkflowExecutor:
             else:
                 context[output_var] = json.dumps(result, ensure_ascii=False)
         except Exception as e:
-            log.error("mcp_tool_failed", tool=tool_name, error=str(e))
+            log.error("mcp_tool_failed", tool=tool_name, error=str(e), **self._audit_fields(context))
             context[output_var] = f"MCP 呼叫失敗：{e}"
 
     async def _exec_image_understand(self, config: dict, context: dict) -> AsyncIterator[str]:
@@ -541,8 +565,8 @@ class WorkflowExecutor:
                     full_response += delta
                     yield delta
         except Exception as e:
-            log.error("image_understand_failed", error=str(e))
-            yield f"\n\n⚠️ 圖像分析失敗：{e}"
+            log.error("image_understand_failed", error=str(e), **self._audit_fields(context))
+            yield f"\n\n錯誤：圖像分析失敗：{e}"
         context[output_var] = full_response
 
     async def _exec_image_generate(self, config: dict, context: dict) -> None:
@@ -586,7 +610,7 @@ class WorkflowExecutor:
             if revised_var and first.revised_prompt:
                 context[revised_var] = first.revised_prompt
         except Exception as e:
-            log.error("image_generate_failed", error=str(e))
+            log.error("image_generate_failed", error=str(e), **self._audit_fields(context))
 
     async def _exec_stt(self, config: dict, context: dict) -> None:
         """Speech-to-Text：呼叫 Whisper 相容 API，轉錄音訊後寫入 context。"""
@@ -631,7 +655,7 @@ class WorkflowExecutor:
                 resp.raise_for_status()
                 context[output_var] = resp.json().get("text", "")
         except Exception as e:
-            log.warning("stt_failed", error=str(e))
+            log.warning("stt_failed", error=str(e), **self._audit_fields(context))
             context[output_var] = ""
 
     async def _exec_tts(self, config: dict, context: dict) -> None:
@@ -670,7 +694,7 @@ class WorkflowExecutor:
                 resp.raise_for_status()
                 context[output_var] = base64.b64encode(resp.content).decode()
         except Exception as e:
-            log.warning("tts_failed", error=str(e))
+            log.warning("tts_failed", error=str(e), **self._audit_fields(context))
 
     async def _exec_reranker(self, config: dict, context: dict) -> None:
         """對 knowledge_results（或任意 docs 變數）重新排序，結果寫回 output_variable。"""
@@ -729,7 +753,7 @@ class WorkflowExecutor:
                             reranked.append(doc)
 
         except Exception as e:
-            log.warning("workflow_reranker_failed", error=str(e), fallback="truncate")
+            log.warning("workflow_reranker_failed", error=str(e), fallback="truncate", **self._audit_fields(context))
             reranked = docs[:top_n]
 
         context[output_var] = reranked
@@ -801,7 +825,7 @@ class WorkflowExecutor:
                 raw = re.sub(r"\n?```$", "", raw.strip())
                 extracted = json.loads(raw)
             except Exception as e:
-                log.warning("parameter_extraction_llm_failed", error=str(e))
+                log.warning("parameter_extraction_llm_failed", error=str(e), **self._audit_fields(context))
                 extracted = {p["name"]: str(p.get("default", "")) for p in parameters if p.get("name")}
 
         # write each extracted value into context
@@ -855,7 +879,7 @@ class WorkflowExecutor:
                 matched = intents[idx]
                 return matched.get("label", ""), matched.get("next_node_key") or None
         except Exception as e:
-            log.warning("intent_llm_failed", error=str(e))
+            log.warning("intent_llm_failed", error=str(e), **self._audit_fields(context))
         return "default", default_key
 
     async def _exec_loop(self, config: dict, context: dict) -> AsyncIterator[dict]:
@@ -918,7 +942,11 @@ class WorkflowExecutor:
                         if self._eval_condition(bcfg, context):
                             context["__break__"] = True
                 except Exception as e:
-                    log.error("loop_body_failed", node_key=bkey, error=str(e))
+                    log.error(
+                        "loop_body_failed",
+                        node_key=bkey, error=str(e),
+                        **self._audit_fields(context),
+                    )
                     yield {"event": "error", "data": json.dumps({"node_key": bkey, "error": str(e)})}
                 yield {"event": "node_done", "data": json.dumps({"node_key": bkey})}
 
