@@ -13,14 +13,18 @@ from .base import BaseProvider, ChatRequest, ChatResponse, EmbedRequest, EmbedRe
 from .bedrock import BedrockProvider
 from .cohere import CohereProvider
 from .gemini import GeminiProvider
+from .minimax import MiniMaxProvider
 from .openai_compat import OpenAICompatProvider
 from .registry import PROVIDER_REGISTRY, ProviderMeta, get_adapter, list_providers
+from .vertex_ai import VertexAIProvider
 
 __all__ = [
     "AnthropicProvider",
     "BedrockProvider",
     "CohereProvider",
     "GeminiProvider",
+    "MiniMaxProvider",
+    "VertexAIProvider",
     "BaseProvider",
     "ChatRequest",
     "ChatResponse",
