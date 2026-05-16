@@ -156,6 +156,29 @@ class WorkflowExecutor:
                 elif node_type == "mcp_tool":
                     await self._exec_mcp_tool(config, context)
 
+                # ── M2-1 新節點 ────────────────────────────────────
+                elif node_type == "wait":
+                    await self._exec_wait(config, context)
+                elif node_type == "switch":
+                    next_key = await self._exec_switch(config, context)
+                elif node_type == "map":
+                    async for ev in self._exec_map(config, context):
+                        yield ev
+                elif node_type == "reduce":
+                    await self._exec_reduce(config, context)
+                elif node_type == "webhook":
+                    await self._exec_webhook(config, context)
+                elif node_type == "notify":
+                    await self._exec_notify(config, context)
+                elif node_type == "email":
+                    await self._exec_email(config, context)
+                elif node_type == "schedule":
+                    await self._exec_schedule(config, context)
+                elif node_type == "transform":
+                    await self._exec_transform(config, context)
+                elif node_type == "merge":
+                    await self._exec_merge(config, context)
+
             except Exception as e:
                 log.error(
                     "workflow_node_failed",
@@ -1003,3 +1026,189 @@ class WorkflowExecutor:
                 return resp.json()
             except Exception:
                 return {"status": resp.status_code, "text": resp.text[:500]}
+
+    # ─────────────────────────────────────────────────────────────────
+    # M2-1：10 個新 workflow node executor（basic 版）
+    # ─────────────────────────────────────────────────────────────────
+
+    async def _exec_wait(self, config: dict, context: dict) -> None:
+        """依 config.seconds 延遲；最多 60 秒避免阻塞 worker。"""
+        import asyncio
+        seconds = max(0.0, min(float(config.get("seconds", 5)), 60.0))
+        await asyncio.sleep(seconds)
+
+    async def _exec_switch(self, config: dict, context: dict) -> str | None:
+        """多分支：依 variable 值對應 case.next_node_key，否則 default_next_node_key。
+        回傳 next_key 讓主迴圈跳轉；找不到回 None（呼叫端 fallback）。"""
+        var = config.get("variable", "user_input")
+        value = str(context.get(var, ""))
+        for case in config.get("cases", []) or []:
+            match = case.get("match", "")
+            if value == match or (match and match in value):
+                return self._resolve_next_node_key(case.get("next_node_key"))
+        return self._resolve_next_node_key(config.get("default_next_node_key"))
+
+    async def _exec_map(self, config: dict, context: dict):
+        """逐項處理：對 list_variable 中每個 item 跑 body_nodes（簡化版：
+        僅支援 llm / variable / answer / http_request 子節點）。
+        結果累積到 output_variable（list）。"""
+        list_var = config.get("list_variable", "items")
+        item_var = config.get("item_variable", "item")
+        output_var = config.get("output_variable", "mapped")
+        body_nodes = config.get("body_nodes", []) or []
+        raw = context.get(list_var, [])
+        if isinstance(raw, str):
+            try: raw = json.loads(raw)
+            except Exception: raw = [raw]
+        items = list(raw) if isinstance(raw, (list, tuple)) else []
+        if not items:
+            context[output_var] = []
+            return
+
+        results: list = []
+        for idx, it in enumerate(items):
+            context[item_var] = it
+            context["__map_index__"] = idx
+            for body_node in body_nodes:
+                bcfg = body_node.get("config", {})
+                if isinstance(bcfg, str):
+                    try: bcfg = json.loads(bcfg)
+                    except Exception: bcfg = {}
+                btype = body_node.get("node_type", "")
+                yield {"event": "map_step", "data": json.dumps({"index": idx, "type": btype})}
+                try:
+                    if btype == "llm":
+                        async for token in self._exec_llm(bcfg, context):
+                            yield {"event": "token", "data": token}
+                    elif btype == "variable":
+                        for asgn in bcfg.get("assignments", []):
+                            n = asgn.get("name")
+                            if n:
+                                context[n] = self._render_template(asgn.get("value_expression", ""), context)
+                    elif btype == "http_request":
+                        context["http_response"] = await self._exec_http(bcfg, context)
+                    elif btype == "answer":
+                        content = self._render_template(bcfg.get("content_template", "{{llm_response}}"), context)
+                        for ch in content:
+                            yield {"event": "token", "data": ch}
+                except Exception as e:
+                    log.error("map_body_failed", index=idx, error=str(e), **self._audit_fields(context))
+            # 收集當前 item 的處理結果（用 llm_response 或 answer 文字）
+            results.append(context.get("llm_response") or context.get(item_var))
+        context[output_var] = results
+
+    async def _exec_reduce(self, config: dict, context: dict) -> None:
+        """聚合運算：sum / count / concat / first / last。"""
+        list_var = config.get("list_variable", "items")
+        op = (config.get("op") or "sum").lower()
+        output_var = config.get("output_variable", "total")
+        raw = context.get(list_var, [])
+        if isinstance(raw, str):
+            try: raw = json.loads(raw)
+            except Exception: raw = []
+        items = list(raw) if isinstance(raw, (list, tuple)) else []
+
+        if op == "sum":
+            total = 0.0
+            for it in items:
+                try: total += float(it)
+                except Exception: pass
+            context[output_var] = total
+        elif op == "count":
+            context[output_var] = len(items)
+        elif op == "concat":
+            sep = config.get("separator", "\n")
+            context[output_var] = sep.join(str(x) for x in items)
+        elif op == "first":
+            context[output_var] = items[0] if items else None
+        elif op == "last":
+            context[output_var] = items[-1] if items else None
+        else:
+            log.warning("reduce_unknown_op", op=op, **self._audit_fields(context))
+            context[output_var] = None
+
+    async def _exec_webhook(self, config: dict, context: dict) -> None:
+        """Webhook trigger 節點：只 echo 已注入的 webhook_payload 到 output_variable。
+        實際接收 webhook 由外部 endpoint 處理（後續 PR 加 /webhooks/{path}）。"""
+        output_var = config.get("output_variable", "webhook_payload")
+        # 若使用者已從觸發處塞了 payload 進 context，原樣保留；否則空 dict
+        if output_var not in context:
+            context[output_var] = context.get("webhook_payload", {})
+
+    async def _exec_notify(self, config: dict, context: dict) -> None:
+        """推播通知（in_app / email / slack）— 目前只 log + 寫入 context.notify_sent。
+        實際發送通道整合（後續 PR）由 channel 分派至對應 worker。"""
+        channel = config.get("channel", "in_app")
+        target = context.get(config.get("target_var", "")) if config.get("target_var") else None
+        message = self._render_template(config.get("template", ""), context)
+        log.info(
+            "notify_dispatch",
+            channel=channel, target=str(target)[:64], message=message[:200],
+            **self._audit_fields(context),
+        )
+        context["notify_sent"] = {"channel": channel, "target": target, "message": message}
+
+    async def _exec_email(self, config: dict, context: dict) -> None:
+        """Email 寄送節點 — 目前 stub：render subject + body，log 後寫 context.email_drafted。
+        實際 SMTP 整合（後續 PR）由 application config 設定 SMTP server。"""
+        to = str(context.get(config.get("to_var", "recipient_email"), ""))
+        subject = self._render_template(config.get("subject_template", ""), context)
+        body = self._render_template(config.get("body_template", ""), context)
+        log.info(
+            "email_drafted",
+            to=to[:128], subject=subject[:128],
+            **self._audit_fields(context),
+        )
+        context["email_drafted"] = {"to": to, "subject": subject, "body": body}
+
+    async def _exec_schedule(self, config: dict, context: dict) -> None:
+        """排程觸發節點：實際排程由 scheduler worker 註冊；本節點僅標記 metadata
+        供 workflow 設定階段使用。執行期視為 no-op。"""
+        cron = config.get("cron", "")
+        tz = config.get("timezone", "Asia/Taipei")
+        log.info(
+            "schedule_node_visited",
+            cron=cron, tz=tz,
+            **self._audit_fields(context),
+        )
+        context["schedule_meta"] = {"cron": cron, "timezone": tz}
+
+    async def _exec_transform(self, config: dict, context: dict) -> None:
+        """資料轉換：把 input_variable 套用 expression 模板後寫 output_variable。
+        expression 是 {{var}} 模板（沿用 _render_template），不執行 eval。"""
+        input_var = config.get("input_variable", "input")
+        output_var = config.get("output_variable", "transformed")
+        expression = config.get("expression", "{{" + input_var + "}}")
+        # 暫時把 input_var 值 alias 為 'input' 供 expression 引用
+        bak = context.get("input")
+        try:
+            context["input"] = context.get(input_var, "")
+            context[output_var] = self._render_template(expression, context)
+        finally:
+            if bak is None:
+                context.pop("input", None)
+            else:
+                context["input"] = bak
+
+    async def _exec_merge(self, config: dict, context: dict) -> None:
+        """合併多個 source_variables 的值（list / dict / 字串都支援）到 output_variable。
+        - 全 list → concat
+        - 全 dict → 後者覆蓋前者（淺合併）
+        - 其他 → 用 \\n 串接字串化值"""
+        sources: list[str] = config.get("source_variables", []) or []
+        output_var = config.get("output_variable", "merged")
+        values = [context.get(s) for s in sources]
+        values_nn = [v for v in values if v is not None]
+        if not values_nn:
+            context[output_var] = None
+            return
+        if all(isinstance(v, list) for v in values_nn):
+            out: list = []
+            for v in values_nn: out.extend(v)
+            context[output_var] = out
+        elif all(isinstance(v, dict) for v in values_nn):
+            merged: dict = {}
+            for v in values_nn: merged.update(v)
+            context[output_var] = merged
+        else:
+            context[output_var] = "\n".join(str(v) for v in values_nn)
