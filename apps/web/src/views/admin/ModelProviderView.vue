@@ -62,11 +62,12 @@
                 <span v-if="verifying === provider.id">驗證中…</span>
                 <span v-else>測試連線</span>
               </button>
-              <button @click="openModelDialog(provider)" class="btn-sm btn-outline">
-                <svg class="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <button @click="openModelDialog(provider)"
+                      class="btn-sm btn-outline inline-flex items-center gap-1 whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
                 </svg>
-                新增模型
+                <span>新增模型</span>
               </button>
               <button @click="openProviderDialog(provider)" class="btn-sm btn-ghost">編輯</button>
               <button @click="deleteProvider(provider.id)" class="btn-sm text-rose-500 hover:bg-rose-50">刪除</button>
