@@ -127,3 +127,74 @@ async def delete_knowledge_base(
         raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
     await session.delete(kb)
     return ApiResponse(message="知識庫已刪除")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Round 10-5 / RFC-013：Workflow KB
+# ═══════════════════════════════════════════════════════════════════════
+class ConvertToWorkflowReq(BaseModel):
+    source_workflow_id: uuid.UUID
+
+
+@router.post("/{kb_id}/convert-to-workflow", response_model=ApiResponse)
+async def convert_to_workflow_kb(
+    kb_id: uuid.UUID,
+    body: ConvertToWorkflowReq,
+    ctx: TenantContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """把現有手動 KB 轉換為 workflow KB（不可撤回）。
+
+    後續寫入只能透過指定 workflow 的 kb_writer node；
+    inline-write endpoint + workflow node 留給 v2.1 中段（RFC-013）。
+    """
+    from sqlalchemy import text
+    q = WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    kb = (await session.execute(q)).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+
+    # 取目前 source_type；model 尚未加欄位，用 raw SQL
+    r = await session.execute(
+        text("SELECT source_type FROM knowledge_bases WHERE id = :id"),
+        {"id": str(kb_id)},
+    )
+    row = r.fetchone()
+    if row and (row._mapping.get("source_type") == "workflow"):
+        raise HTTPException(status_code=400, detail="此 KB 已是 workflow KB；無法重複轉換")
+
+    await session.execute(
+        text(
+            "UPDATE knowledge_bases SET source_type = 'workflow', "
+            "  source_workflow_id = :wf, updated_at = now() "
+            "WHERE id = :id AND workspace_id = :ws"
+        ),
+        {"wf": str(body.source_workflow_id), "id": str(kb_id), "ws": str(ctx.workspace_id)},
+    )
+    await session.commit()
+    return ApiResponse(message="已轉換為 workflow KB（不可撤回）", data={
+        "kb_id": str(kb_id),
+        "source_type": "workflow",
+        "source_workflow_id": str(body.source_workflow_id),
+    })
+
+
+@router.get("/{kb_id}/source-info", response_model=ApiResponse)
+async def get_source_info(
+    kb_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """回傳 KB source 資訊（manual / workflow）；workflow 時帶 source_workflow_id。"""
+    from sqlalchemy import text
+    r = await session.execute(
+        text(
+            "SELECT id, name, source_type, source_workflow_id "
+            "FROM knowledge_bases WHERE id = :id AND workspace_id = :ws"
+        ),
+        {"id": str(kb_id), "ws": str(ctx.workspace_id)},
+    )
+    row = r.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+    return ApiResponse(data=dict(row._mapping))
