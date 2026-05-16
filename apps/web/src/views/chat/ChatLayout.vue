@@ -24,10 +24,21 @@
 
         <!-- 右側控制 -->
         <div class="flex items-center gap-1">
+          <!-- Locale switcher -->
+          <select
+            :value="$i18n.locale"
+            @change="onLocaleChange(($event.target as HTMLSelectElement).value)"
+            class="h-8 px-2 text-xs rounded-md border border-neutral-200 bg-transparent text-neutral-600 hover:bg-neutral-100 transition focus:outline-none focus:ring-1 focus:ring-brand-400"
+          >
+            <option v-for="l in SUPPORTED_LOCALES" :key="l.code" :value="l.code">
+              {{ l.label }}
+            </option>
+          </select>
+
           <button
             @click="ui.toggleTheme()"
             class="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition"
-            :title="ui.isDark ? '切換到淺色模式' : '切換到深色模式'"
+            :title="ui.isDark ? $t('theme.light') : $t('theme.dark')"
           >
             <svg v-if="!ui.isDark" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
@@ -89,6 +100,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
 import ChatHistoryDrawer from '../../components/chat/ChatHistoryDrawer.vue'
+import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
 import { useConversationStore } from '../../stores/conversation'
@@ -134,6 +146,10 @@ async function onLogout() {
   userMenuOpen.value = false
   auth.logout()
   router.push('/login')
+}
+
+function onLocaleChange(code: string) {
+  setLocale(code as Locale)
 }
 
 onMounted(async () => {
