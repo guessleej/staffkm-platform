@@ -38,6 +38,7 @@ class ApplicationCreate(BaseModel):
     welcome_message: str | None = None
     suggested_questions: list[str] = Field(default_factory=list)
     knowledge_base_ids: list[str] = Field(default_factory=list)
+    skill_ids: list[str] = Field(default_factory=list)        # D-2
     config: dict[str, Any] = Field(default_factory=dict)
     is_public: bool = False
     tenant_id: str | None = None
@@ -54,6 +55,7 @@ class ApplicationUpdate(BaseModel):
     welcome_message: str | None = None
     suggested_questions: list[str] | None = None
     knowledge_base_ids: list[str] | None = None
+    skill_ids: list[str] | None = None       # D-2
     config: dict[str, Any] | None = None
     is_public: bool | None = None
 
@@ -70,6 +72,7 @@ class ApplicationOut(BaseModel):
     welcome_message: str | None
     suggested_questions: list[str]
     knowledge_base_ids: list[str]
+    skill_ids: list[str] = []                # D-2
     config: dict[str, Any]
     is_public: bool
     tenant_id: str | None
@@ -82,12 +85,11 @@ class ApplicationOut(BaseModel):
 def _row_to_out(row) -> ApplicationOut:
     """將資料庫 Row 物件轉換為 ApplicationOut（過濾掉非 schema 欄位如 workspace_id）。"""
     d = dict(row._mapping)
-    for field in ("suggested_questions", "knowledge_base_ids", "config"):
+    for field in ("suggested_questions", "knowledge_base_ids", "skill_ids", "config"):
         if isinstance(d.get(field), str):
             d[field] = json.loads(d[field])
         elif d.get(field) is None:
             d[field] = [] if field != "config" else {}
-    # 只保留 ApplicationOut 定義的欄位
     return ApplicationOut(**{k: v for k, v in d.items() if k in ApplicationOut.model_fields})
 
 
@@ -168,12 +170,12 @@ async def create_application(
             INSERT INTO applications (
                 id, workspace_id, name, description, icon, type, status,
                 llm_model_id, system_prompt, welcome_message,
-                suggested_questions, knowledge_base_ids, config,
+                suggested_questions, knowledge_base_ids, skill_ids, config,
                 is_public, tenant_id, created_at, updated_at, created_by
             ) VALUES (
                 :id, :workspace_id, :name, :description, :icon, :type, :status,
                 :llm_model_id, :system_prompt, :welcome_message,
-                :suggested_questions::jsonb, :knowledge_base_ids::jsonb, :config::jsonb,
+                :suggested_questions::jsonb, :knowledge_base_ids::jsonb, :skill_ids::jsonb, :config::jsonb,
                 :is_public, :tenant_id, :created_at, :updated_at, :created_by
             )
             """
@@ -191,6 +193,7 @@ async def create_application(
             "welcome_message": body.welcome_message,
             "suggested_questions": json.dumps(body.suggested_questions, ensure_ascii=False),
             "knowledge_base_ids": json.dumps(body.knowledge_base_ids, ensure_ascii=False),
+            "skill_ids": json.dumps(body.skill_ids, ensure_ascii=False),
             "config": json.dumps(body.config, ensure_ascii=False),
             "is_public": body.is_public,
             "tenant_id": body.tenant_id,
@@ -271,7 +274,7 @@ async def update_application(
     }
 
     for field, value in updates.items():
-        if field in ("suggested_questions", "knowledge_base_ids", "config"):
+        if field in ("suggested_questions", "knowledge_base_ids", "skill_ids", "config"):
             set_parts.append(f"{field} = :{field}::jsonb")
             params[field] = json.dumps(value, ensure_ascii=False)
         elif field == "llm_model_id":

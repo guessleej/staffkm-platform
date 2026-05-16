@@ -132,6 +132,9 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_data_sources_workspace ON data_sources(workspace_id)",
+
+    # ── D-2：Application 引用 Skill ─────────────────────────────────
+    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS skill_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
 ]
 
 
