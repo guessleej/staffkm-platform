@@ -191,6 +191,25 @@ class WorkflowExecutor:
                 result = result.replace(f"{{{{{key}}}}}", docs)
         return result
 
+    def _downstream_headers(self, context: dict) -> dict[str, str]:
+        """組裝呼叫下游服務時要帶的認證 header（X-User-ID / X-User-Roles）。"""
+        headers: dict[str, str] = {}
+        uid = context.get("_user_id")
+        roles = context.get("_roles") or []
+        if uid:
+            headers["X-User-ID"] = str(uid)
+        if roles:
+            headers["X-User-Roles"] = ",".join(roles)
+        return headers
+
+    def _knowledge_url(self, context: dict, suffix: str) -> str:
+        """組 knowledge service URL；有 workspace 走 v2，否則走 legacy（會被 bridge 重寫）。"""
+        ws = context.get("workspace_id")
+        base = settings.KNOWLEDGE_SERVICE_URL
+        if ws:
+            return f"{base}/api/v1/workspace/{ws}/knowledge/{suffix.lstrip('/')}"
+        return f"{base}/api/v1/knowledge/{suffix.lstrip('/')}"
+
     async def _exec_knowledge(self, config: dict, context: dict) -> list[dict]:
         kb_ids = config.get("kb_ids", [])
         if not kb_ids:
@@ -198,16 +217,21 @@ class WorkflowExecutor:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
-                    f"{settings.KNOWLEDGE_SERVICE_URL}/api/v1/knowledge/search",
+                    self._knowledge_url(context, "search"),
                     json={
                         "query": context.get("user_input", ""),
                         "kb_ids": kb_ids,
                         "top_k": config.get("top_k", 5),
                         "similarity_threshold": config.get("similarity_threshold", 0.45),
                     },
+                    headers=self._downstream_headers(context),
                 )
                 if resp.status_code == 200:
                     return resp.json().get("data", {}).get("citations", [])
+                log.warning(
+                    "workflow_knowledge_non_200",
+                    status=resp.status_code, body=resp.text[:200],
+                )
         except Exception as e:
             log.warning("workflow_knowledge_failed", error=str(e))
         return []
@@ -320,10 +344,17 @@ class WorkflowExecutor:
 
             elif extraction_url:
                 ext = "pdf" if file_type == "pdf" else "docx"
+                # 同 _exec_http：opt-in 內部認證轉發
+                extra_headers = (
+                    self._downstream_headers(context)
+                    if config.get("forward_workspace_auth")
+                    else {}
+                )
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     r = await client.post(
                         extraction_url,
                         files={"file": (f"document.{ext}", raw_bytes, "application/octet-stream")},
+                        headers=extra_headers,
                     )
                     r.raise_for_status()
                     data = r.json()
@@ -895,9 +926,17 @@ class WorkflowExecutor:
                 break
 
     async def _exec_http(self, config: dict, context: dict) -> dict:
+        """通用 HTTP 請求節點。
+
+        若 config.forward_workspace_auth == True，自動把當前 workspace 的
+        X-User-ID / X-User-Roles 注入 header（呼叫內部 staffKM 服務時用）。
+        對外部 URL 預設不注入，避免洩漏內部憑證。
+        """
         method = config.get("method", "GET").upper()
         url = self._render_template(config.get("url", ""), context)
-        headers = config.get("headers", {})
+        headers = dict(config.get("headers", {}) or {})
+        if config.get("forward_workspace_auth"):
+            headers.update(self._downstream_headers(context))
         body_str = self._render_template(config.get("body_template", ""), context)
         try:
             body = json.loads(body_str) if body_str else None
