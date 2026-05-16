@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.core.base_agent import AgentContext
 from app.core.providers import BaseProvider, ChatRequest, get_adapter
+from app.core.secrets import decrypt_secret
 
 log = structlog.get_logger()
 
@@ -160,9 +161,9 @@ class ApplicationAgent:
             base_url: str | None = mapping.get("base_url")
             api_key_enc: str | None = mapping.get("api_key_enc")
 
-            # api_key_enc 目前儲存為明文或加密文字，此處直接使用
-            # 若有加密機制，在此處解密
-            api_key = api_key_enc or settings.OPENAI_API_KEY
+            # Round 8-3：透過 decrypt_secret 解 fernet:/plain:/legacy；
+            # 未設金鑰時 fallback 到原始字串
+            api_key = decrypt_secret(api_key_enc) or settings.OPENAI_API_KEY
 
             # 從 model_config / provider_config 取得額外參數
             model_config = mapping.get("model_config") or {}
@@ -251,13 +252,8 @@ class ApplicationAgent:
             base_url: str | None = mapping.get("base_url")
             api_key_enc: str | None = mapping.get("api_key_enc")
 
-            import base64
-            api_key: str | None = None
-            if api_key_enc:
-                try:
-                    api_key = base64.b64decode(api_key_enc.encode()).decode()
-                except Exception:
-                    api_key = api_key_enc  # 若解碼失敗則直接使用原值
+            # Round 8-3：統一走 decrypt_secret（自動辨識 fernet:/plain:/legacy base64）
+            api_key: str | None = decrypt_secret(api_key_enc)
 
             # 判斷 reranker 類型
             reranker_type = "cohere" if provider_type == "cohere" or (base_url and "cohere" in base_url) else "http"
