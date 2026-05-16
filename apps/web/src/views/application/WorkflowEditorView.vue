@@ -22,6 +22,12 @@
                 class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">
           自動排版
         </button>
+        <!-- 歷史版本 (D-7) -->
+        <button @click="openHistory"
+                class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
+                :class="showHistory ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : ''">
+          歷史版本
+        </button>
         <!-- 測試 -->
         <button @click="showTest = !showTest"
                 class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
@@ -142,6 +148,72 @@
       </div>
     </transition>
 
+    <!-- ── 歷史版本抽屜 (D-7 後續) ─────────────────────────────────────── -->
+    <Teleport to="body">
+      <transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-if="showHistory" class="fixed inset-0 z-50 bg-black/30" @click.self="showHistory = false">
+          <transition
+            enter-active-class="transition-transform duration-200 ease-out"
+            enter-from-class="translate-x-full"
+            enter-to-class="translate-x-0"
+            leave-active-class="transition-transform duration-150 ease-in"
+            leave-from-class="translate-x-0"
+            leave-to-class="translate-x-full"
+            appear
+          >
+            <aside class="absolute right-0 top-0 bottom-0 w-96 bg-white shadow-2xl flex flex-col">
+              <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900">歷史版本</h3>
+                  <p class="text-[11px] text-gray-500 mt-0.5">每次儲存後可手動建立快照</p>
+                </div>
+                <button @click="showHistory = false" class="text-gray-400 hover:text-gray-700">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div class="px-5 py-3 border-b border-neutral-100 bg-neutral-50 flex-shrink-0">
+                <div class="flex items-center gap-2">
+                  <input v-model="snapshotNote" placeholder="版本說明（選填）"
+                         class="flex-1 h-8 px-2 text-xs rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                  <button @click="onSnapshot" :disabled="snapshotBusy"
+                          class="h-8 px-3 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40">
+                    {{ snapshotBusy ? '建立中…' : '建立快照' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex-1 overflow-y-auto px-3 py-2">
+                <p v-if="historyLoading" class="text-xs text-neutral-400 text-center py-8">載入中…</p>
+                <p v-else-if="!versions.length" class="text-xs text-neutral-400 text-center py-8">尚無歷史版本</p>
+                <ul v-else class="space-y-1">
+                  <li v-for="v in versions" :key="v.id"
+                      class="p-3 rounded-lg border border-neutral-100 hover:border-indigo-200 hover:bg-indigo-50/40 transition">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-gray-800">v{{ v.version_number }}</span>
+                      <button @click="onRestore(v.version_number)" :disabled="restoreBusy === v.version_number"
+                              class="text-[11px] text-indigo-600 hover:text-indigo-800 disabled:opacity-40">
+                        {{ restoreBusy === v.version_number ? '回滾中…' : '回滾此版本' }}
+                      </button>
+                    </div>
+                    <p v-if="v.note" class="text-[11px] text-gray-600 mt-1 line-clamp-2">{{ v.note }}</p>
+                    <p class="text-[10px] text-gray-400 mt-1 font-mono">{{ formatTime(v.created_at) }}</p>
+                  </li>
+                </ul>
+              </div>
+            </aside>
+          </transition>
+        </div>
+      </transition>
+    </Teleport>
+
   </div>
 </template>
 
@@ -154,6 +226,7 @@ import '@logicflow/core/dist/style/index.css'
 import { registerWorkflowNodes, NODE_META, PALETTE_GROUPS, getDefaultConfig } from '../../components/workflow/lf-nodes'
 import NodeConfigPanel from '../../components/workflow/NodeConfigPanel.vue'
 import { workflowApi, type WorkflowNode, type WorkflowEdge } from '../../api/workflow'
+import { appVersionApi, type AppVersion } from '../../api/application'
 
 // ─── 路由 ──────────────────────────────────────────────────────────────────────
 const route  = useRoute()
@@ -168,6 +241,54 @@ const testInput    = ref('')
 const testRunning  = ref(false)
 const testEvents   = ref<{ event: string; data: string }[]>([])
 const nodeCount    = ref(0)
+
+// ─── 歷史版本抽屜 (D-7 後續) ────────────────────────────────────────────
+const showHistory   = ref(false)
+const historyLoading = ref(false)
+const versions      = ref<AppVersion[]>([])
+const snapshotNote  = ref('')
+const snapshotBusy  = ref(false)
+const restoreBusy   = ref<number | null>(null)
+
+async function loadVersions() {
+  historyLoading.value = true
+  try { versions.value = await appVersionApi.list(appId) }
+  catch (e) { console.warn('versions load failed:', e) }
+  finally { historyLoading.value = false }
+}
+function openHistory() {
+  showHistory.value = true
+  loadVersions()
+}
+async function onSnapshot() {
+  snapshotBusy.value = true
+  try {
+    await appVersionApi.create(appId, snapshotNote.value.trim() || undefined)
+    snapshotNote.value = ''
+    await loadVersions()
+  } catch (e: any) {
+    alert('建立快照失敗：' + (e?.message || e))
+  } finally {
+    snapshotBusy.value = false
+  }
+}
+async function onRestore(versionNumber: number) {
+  if (!confirm(`確定要回滾到 v${versionNumber}？當前設定會自動建立快照保留 audit。`)) return
+  restoreBusy.value = versionNumber
+  try {
+    await appVersionApi.restore(appId, versionNumber)
+    await loadVersions()
+    alert(`已回滾至 v${versionNumber}，請重新整理頁面以套用。`)
+  } catch (e: any) {
+    alert('回滾失敗：' + (e?.message || e))
+  } finally {
+    restoreBusy.value = null
+  }
+}
+function formatTime(s: string) {
+  try { return new Date(s).toLocaleString('zh-TW', { hour12: false }) }
+  catch { return s }
+}
 
 // 選取的節點（雙向綁定 LF ← → Vue）
 const selectedNode = ref<{
