@@ -77,6 +77,61 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_project_resources_project ON project_resources(project_id)",
     "CREATE INDEX IF NOT EXISTS idx_project_resources_kind ON project_resources(kind, resource_id)",
+
+    # ── tools（RFC-006 新 backlog：對標 MaxKB 工具模組）─────────────────
+    """
+    CREATE TABLE IF NOT EXISTS tools (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        description     TEXT,
+        kind            VARCHAR(32) NOT NULL DEFAULT 'http',
+        config          JSONB NOT NULL DEFAULT '{}',
+        is_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID,
+        updated_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_tools_workspace ON tools(workspace_id)",
+
+    # ── skills（可重用 prompt 技能）─────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS skills (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        description     TEXT,
+        prompt_template TEXT NOT NULL DEFAULT '',
+        variables       JSONB NOT NULL DEFAULT '[]',
+        tags            JSONB NOT NULL DEFAULT '[]',
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID,
+        updated_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_skills_workspace ON skills(workspace_id)",
+
+    # ── data_sources（DB / API 連接器）─────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS data_sources (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        description     TEXT,
+        kind            VARCHAR(32) NOT NULL DEFAULT 'postgres',
+        config          JSONB NOT NULL DEFAULT '{}',
+        is_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+        last_synced_at  TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID,
+        updated_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_data_sources_workspace ON data_sources(workspace_id)",
 ]
 
 
