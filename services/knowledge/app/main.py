@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
-from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders
+from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
@@ -71,6 +71,24 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     # 7. Round 10-2：Q&A 生成
     "ALTER TABLE paragraphs ADD COLUMN IF NOT EXISTS qa_pairs JSONB NOT NULL DEFAULT '[]'::jsonb",
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS questions JSONB NOT NULL DEFAULT '[]'::jsonb",
+
+    # 8. Round 10-4：KB 資源授權（per-KB ACL；workspace 內針對特定 user / role 限制存取）
+    """
+    CREATE TABLE IF NOT EXISTS kb_grants (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        kb_id           UUID NOT NULL,
+        principal_type  VARCHAR(16) NOT NULL,    -- 'user' | 'role' | 'workspace'
+        principal_id    VARCHAR(128) NOT NULL,   -- user_id 或 role 名（owner/admin/editor/viewer）
+        access          VARCHAR(16) NOT NULL DEFAULT 'read',  -- read | edit | manage
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID,
+        UNIQUE (kb_id, principal_type, principal_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_kb_grants_kb        ON kb_grants(kb_id)",
+    "CREATE INDEX IF NOT EXISTS idx_kb_grants_ws        ON kb_grants(workspace_id)",
+    "CREATE INDEX IF NOT EXISTS idx_kb_grants_principal ON kb_grants(principal_type, principal_id)",
 ]
 
 
@@ -189,6 +207,7 @@ app.include_router(paragraphs.router,      prefix=f"{_PREFIX}/paragraphs", tags=
 app.include_router(search.router,          prefix=f"{_PREFIX}/search",     tags=["語意檢索"])
 app.include_router(hit_test.router,        prefix=f"{_PREFIX}/hit-test",   tags=["命中測試"])
 app.include_router(tasks.router,           prefix=f"{_PREFIX}/tasks",      tags=["任務管理"])
+app.include_router(kb_grants.router,       prefix=f"{_PREFIX}/bases",      tags=["KB 資源授權（Round 10-4）"])
 
 
 @app.get("/health")
