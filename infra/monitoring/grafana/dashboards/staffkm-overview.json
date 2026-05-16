@@ -1,0 +1,67 @@
+{
+  "title": "staffKM Overview",
+  "uid": "staffkm-overview",
+  "tags": ["staffkm", "v2.0"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate（per service）",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (job) (rate(http_requests_total[5m]))" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "title": "p95 latency",
+      "type": "timeseries",
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m])))" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "title": "5xx error rate",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (job) (rate(http_requests_total{status=~\"5..\"}[5m]))" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "title": "Active workspaces（last 24h）",
+      "type": "stat",
+      "targets": [{ "expr": "count(count by (workspace_id) (rate(staffkm_model_usage_total[24h])))" }],
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 }
+    },
+    {
+      "id": 5,
+      "title": "Daily tokens（cumulative）",
+      "type": "stat",
+      "targets": [{ "expr": "sum(increase(staffkm_model_usage_total[24h]))" }],
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 }
+    },
+    {
+      "id": 6,
+      "title": "Workflow node executions",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (node_type) (rate(staffkm_workflow_node_duration_count[5m]))" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }
+    },
+    {
+      "id": 7,
+      "title": "pgvector P95 query ms",
+      "type": "timeseries",
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(staffkm_pgvector_query_ms_bucket[5m])))" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+    },
+    {
+      "id": 8,
+      "title": "Quota breach (429) rate",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (workspace_id) (rate(http_requests_total{status=\"429\"}[5m]))" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+    }
+  ]
+}
