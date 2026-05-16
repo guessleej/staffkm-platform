@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
-from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks
+from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
@@ -37,6 +37,24 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "SET search_vector = to_tsvector('simple', "
     "  regexp_replace(content, '([一-鿿㐀-䶿豈-﫿぀-ゟ゠-ヿ])', ' \\1 ', 'g')) "
     "WHERE search_vector IS NULL",
+
+    # 4. RFC-006 Phase C-3：Folder 階層
+    """
+    CREATE TABLE IF NOT EXISTS kb_folders (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        parent_id       UUID,
+        name            VARCHAR(128) NOT NULL,
+        sort_order      INTEGER NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_kb_folders_workspace ON kb_folders(workspace_id)",
+    "CREATE INDEX IF NOT EXISTS idx_kb_folders_parent ON kb_folders(parent_id)",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS folder_id UUID",
+    "CREATE INDEX IF NOT EXISTS idx_kb_folder ON knowledge_bases(folder_id)",
 ]
 
 
@@ -149,6 +167,7 @@ app.add_middleware(LegacyURLBridge)
 # ── Routes（v2：workspace-scoped）─────────────────────────────────────
 _PREFIX = "/api/v1/workspace/{workspace_id}/knowledge"
 app.include_router(knowledge_bases.router, prefix=f"{_PREFIX}/bases",      tags=["知識庫"])
+app.include_router(folders.router,         prefix=f"{_PREFIX}/folders",    tags=["知識庫資料夾"])
 app.include_router(documents.router,       prefix=f"{_PREFIX}/documents",  tags=["文件管理"])
 app.include_router(paragraphs.router,      prefix=f"{_PREFIX}/paragraphs", tags=["段落管理"])
 app.include_router(search.router,          prefix=f"{_PREFIX}/search",     tags=["語意檢索"])
