@@ -4,6 +4,8 @@
   <!-- UX 對齊輪 #1：全域 toast / dialog 容器 -->
   <ToastHost />
   <DialogHost />
+  <!-- 設計系統 v1.1：⌘K command palette -->
+  <CommandPalette />
 
   <!--
     Cold-start 指示：用右下角小 toast 取代全螢幕 overlay
@@ -37,6 +39,7 @@ import { useAuthStore } from './stores/auth'
 import { useWorkspaceStore } from './stores/workspace'
 import ToastHost from './components/common/ToastHost.vue'
 import DialogHost from './components/common/DialogHost.vue'
+import CommandPalette from './components/common/CommandPalette.vue'
 
 const auth = useAuthStore()
 const workspace = useWorkspaceStore()
