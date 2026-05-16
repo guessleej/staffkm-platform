@@ -47,15 +47,17 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
                  recommended_models=["gemma4:e4b", "qwen2.5:7b", "llama3.1:8b"],
                  needs_api_key=False,
                  notes="staffKM 預設地端 LLM；硬鎖 gemma4:e4b。"),
+    # 地端集中以 Ollama 的同一 endpoint（http://ollama:11434/v1）作為預設；
+    # 若實際另起 vLLM/Xinference/LocalAI 容器，admin 自行改 base_url 即可。
     ProviderMeta("vllm", "vLLM（地端）", "openai_compat",
-                 default_base_url="http://vllm:8000/v1",
+                 default_base_url="http://ollama:11434/v1",
                  recommended_models=["Qwen/Qwen2.5-7B-Instruct"],
                  needs_api_key=False),
     ProviderMeta("xinference", "Xinference（地端）", "openai_compat",
-                 default_base_url="http://xinference:9997/v1",
+                 default_base_url="http://ollama:11434/v1",
                  needs_api_key=False),
     ProviderMeta("localai", "LocalAI（地端）", "openai_compat",
-                 default_base_url="http://localai:8080/v1",
+                 default_base_url="http://ollama:11434/v1",
                  needs_api_key=False),
 
     # ── 2) 國際雲端 ─────────────────────────────────────────────────────
