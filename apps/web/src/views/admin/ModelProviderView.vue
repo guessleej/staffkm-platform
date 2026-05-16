@@ -108,7 +108,8 @@
         <div class="p-6 space-y-4">
           <div>
             <label class="form-label">供應商名稱</label>
-            <input v-model="providerForm.name" class="form-input" placeholder="如：OpenAI 正式環境"/>
+            <input v-model="providerForm.name" class="form-input" placeholder="如：OpenAI 正式環境"
+                   autocomplete="off" data-1p-ignore data-lpignore="true" />
           </div>
           <div>
             <label class="form-label">類型</label>
@@ -128,12 +129,15 @@
               </span>
             </label>
             <input v-model="providerForm.base_url" class="form-input font-mono text-sm"
-                   :placeholder="selectedRegistry?.default_base_url || 'https://api.openai.com/v1'"/>
+                   :placeholder="selectedRegistry?.default_base_url || 'https://api.openai.com/v1'"
+                   autocomplete="off" data-1p-ignore data-lpignore="true"
+                   inputmode="url" spellcheck="false" />
           </div>
           <div v-if="selectedRegistry?.needs_api_key !== false">
             <label class="form-label">API Key</label>
             <input v-model="providerForm.api_key" type="password" class="form-input font-mono text-sm"
-                   :placeholder="editingProvider ? '留空保持不變' : 'sk-...'"/>
+                   :placeholder="editingProvider ? '留空保持不變' : 'sk-...'"
+                   autocomplete="new-password" data-1p-ignore data-lpignore="true" />
           </div>
           <div v-else class="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-2">
             此供應商為地端服務，無需 API Key
