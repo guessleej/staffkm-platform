@@ -84,12 +84,12 @@ class WorkflowExecutor:
             node_count=len(self.nodes),
         )
 
-        # M2-2 stub manager 提示：parallel / batch / sandbox 行為由後續 PR 補上
-        if self.workflow_manager in ("parallel", "batch", "sandbox"):
+        # M2-2 → M2 收尾-A：parallel 與 batch 已有真實語義；sandbox 仍為 stub
+        if self.workflow_manager == "sandbox":
             log.warning(
                 "workflow_manager_stub",
-                manager=self.workflow_manager,
-                note="此策略行為尚未實作；本次以 simple 模式執行",
+                manager="sandbox",
+                note="sandbox 容器隔離尚未實作（M4），本次以 simple 模式執行",
             )
 
         while current_key and current_key not in visited:
@@ -246,12 +246,129 @@ class WorkflowExecutor:
                     c for c in children
                     if self.edge_conditions.get((current_key, c)) is None
                 ]
-                next_key = non_condition[0] if non_condition else None
+                # M2 收尾-A：parallel manager — 多子節點時並行展開
+                if self.workflow_manager == "parallel" and len(non_condition) >= 2:
+                    async for ev in self._execute_parallel_branches(non_condition, context, visited):
+                        yield ev
+                    next_key = None
+                else:
+                    next_key = non_condition[0] if non_condition else None
 
             current_key = next_key
 
         yield {"event": "citations", "data": json.dumps(context.get("knowledge_results", []))}
         yield {"event": "done", "data": "[DONE]"}
+
+    # ── M2 收尾-A：parallel manager 真實語義 ────────────────────────────
+    async def _execute_subchain(
+        self, start_key: str, ctx_snapshot: dict
+    ) -> tuple[list[dict], dict]:
+        """走完從 start_key 開始的子鏈，回 (events, ctx_after)。供 parallel branch 用。
+
+        簡化規則：
+        - 子鏈內遇到 fan-out 不再展開（避免遞迴爆炸；M4 再支援巢狀並行）
+        - 子鏈使用 ctx_snapshot 的 shallow copy，避免污染主 context
+        - 子鏈以 simple 策略執行（不繼承父 workflow_manager；避免無限遞迴）
+        """
+        local_ctx = dict(ctx_snapshot)
+        events: list[dict] = []
+        cur = start_key
+        local_visited: set[str] = set()
+
+        # 為避免重入 self.execute() 帶來的複雜性，這裡只支援常見 5 種 node type 的子鏈
+        # （llm / variable / answer / http_request / knowledge_retrieval），
+        # 其它 type 直接退出子鏈（事件不丟）。
+        SAFE_TYPES = {"llm", "variable", "answer", "http_request", "knowledge_retrieval", "start"}
+
+        while cur and cur not in local_visited:
+            local_visited.add(cur)
+            node = self.nodes.get(cur)
+            if not node:
+                break
+            ntype = node.get("node_type", "")
+            cfg = node.get("config", {})
+            if isinstance(cfg, str):
+                cfg = json.loads(cfg)
+
+            events.append({"event": "parallel_node_start",
+                           "data": json.dumps({"node_key": cur, "type": ntype})})
+
+            if ntype not in SAFE_TYPES:
+                events.append({"event": "parallel_skip",
+                               "data": json.dumps({"node_key": cur, "type": ntype,
+                                                   "reason": "non-safe type in parallel branch"})})
+                break
+
+            try:
+                if ntype == "llm":
+                    async for tok in self._exec_llm(cfg, local_ctx):
+                        events.append({"event": "token", "data": tok})
+                elif ntype == "variable":
+                    for a in cfg.get("assignments", []):
+                        n = a.get("name")
+                        if n:
+                            local_ctx[n] = self._render_template(a.get("value_expression", ""), local_ctx)
+                elif ntype == "http_request":
+                    local_ctx["http_response"] = await self._exec_http(cfg, local_ctx)
+                elif ntype == "knowledge_retrieval":
+                    local_ctx["knowledge_results"] = await self._exec_knowledge(cfg, local_ctx)
+                elif ntype == "answer":
+                    content = self._render_template(cfg.get("content_template", "{{llm_response}}"), local_ctx)
+                    for ch in content:
+                        events.append({"event": "token", "data": ch})
+            except Exception as e:
+                events.append({"event": "parallel_error",
+                               "data": json.dumps({"node_key": cur, "error": str(e)})})
+
+            events.append({"event": "parallel_node_done", "data": json.dumps({"node_key": cur})})
+
+            # 子鏈內挑下一個（不再 fan-out）
+            cs = self.children.get(cur, [])
+            non_c = [c for c in cs if self.edge_conditions.get((cur, c)) is None]
+            cur = non_c[0] if non_c else None
+
+        return events, local_ctx
+
+    async def _execute_parallel_branches(
+        self, start_keys: list[str], context: dict, visited: set[str]
+    ) -> AsyncIterator[dict]:
+        """同時走多個 branch，gather 完成後把 branch context merge 回主 context。
+
+        - 各 branch 共享父 context 快照（shallow copy）
+        - 衝突欄位採「最後勝」策略；保留各 branch 的 llm_response 到
+          context["__parallel_results__"][branch_idx]
+        """
+        import asyncio
+
+        snapshot = {k: v for k, v in context.items()}
+        yield {"event": "parallel_start",
+               "data": json.dumps({"branches": start_keys, "count": len(start_keys)})}
+
+        tasks = [self._execute_subchain(sk, snapshot) for sk in start_keys]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        per_branch: list[Any] = []
+        for idx, res in enumerate(results):
+            if isinstance(res, Exception):
+                yield {"event": "parallel_error",
+                       "data": json.dumps({"branch": idx, "error": str(res)})}
+                per_branch.append(None)
+                continue
+            evs, ctx_after = res
+            for ev in evs:
+                yield ev
+            # branch context merge：以「最後勝」策略覆寫 context；llm_response 拆出來收集
+            per_branch.append(ctx_after.get("llm_response"))
+            for k, v in ctx_after.items():
+                if k in self._INTERNAL_CONTEXT_KEYS:
+                    continue
+                context[k] = v
+            # 子鏈內節點全部標 visited，避免主迴圈再走一次
+            visited.update(start_keys)
+
+        context["__parallel_results__"] = per_branch
+        yield {"event": "parallel_done",
+               "data": json.dumps({"branches": len(start_keys)})}
 
     # 內部欄位（不允許被 {{var}} 模板替換以避免洩漏給使用者輸出）
     _INTERNAL_CONTEXT_KEYS = {"_user_id", "_roles", "workspace_id"}
@@ -1114,6 +1231,16 @@ class WorkflowExecutor:
             context[output_var] = []
             return
 
+        # M2 收尾-A：batch manager — 分塊並行（chunk_size 由 config 或 manager 預設）
+        if self.workflow_manager == "batch":
+            async for ev in self._exec_map_batched(
+                items=items, item_var=item_var, output_var=output_var,
+                body_nodes=body_nodes, context=context,
+                chunk_size=int(config.get("batch_size", 5)),
+            ):
+                yield ev
+            return
+
         results: list = []
         for idx, it in enumerate(items):
             context[item_var] = it
@@ -1144,6 +1271,64 @@ class WorkflowExecutor:
                     log.error("map_body_failed", index=idx, error=str(e), **self._audit_fields(context))
             # 收集當前 item 的處理結果（用 llm_response 或 answer 文字）
             results.append(context.get("llm_response") or context.get(item_var))
+        context[output_var] = results
+
+    async def _exec_map_batched(
+        self, *, items: list, item_var: str, output_var: str,
+        body_nodes: list, context: dict, chunk_size: int,
+    ):
+        """batch manager：把 items 切 chunk_size 一組，組內並行、組間順序。
+
+        每個 item 拿到 context 的 shallow copy，避免並行寫衝突；
+        結果按 input order 寫回 context[output_var]。
+        """
+        import asyncio
+
+        async def _run_one(idx: int, it):
+            local = dict(context)
+            local[item_var] = it
+            local["__map_index__"] = idx
+            for body_node in body_nodes:
+                bcfg = body_node.get("config", {})
+                if isinstance(bcfg, str):
+                    try: bcfg = json.loads(bcfg)
+                    except Exception: bcfg = {}
+                btype = body_node.get("node_type", "")
+                try:
+                    if btype == "llm":
+                        # 並行模式下不 yield token（會交錯難讀）；收集成 llm_response
+                        chunks = []
+                        async for token in self._exec_llm(bcfg, local):
+                            chunks.append(token)
+                        local["llm_response"] = "".join(chunks) or local.get("llm_response", "")
+                    elif btype == "variable":
+                        for asgn in bcfg.get("assignments", []):
+                            n = asgn.get("name")
+                            if n:
+                                local[n] = self._render_template(asgn.get("value_expression", ""), local)
+                    elif btype == "http_request":
+                        local["http_response"] = await self._exec_http(bcfg, local)
+                    elif btype == "answer":
+                        local["llm_response"] = self._render_template(
+                            bcfg.get("content_template", "{{llm_response}}"), local,
+                        )
+                except Exception as e:
+                    log.error("batch_body_failed", index=idx, error=str(e), **self._audit_fields(local))
+            return local.get("llm_response") or local.get(item_var)
+
+        total = len(items)
+        results: list = [None] * total
+        for chunk_start in range(0, total, chunk_size):
+            chunk = list(enumerate(items))[chunk_start:chunk_start + chunk_size]
+            yield {"event": "batch_chunk_start", "data": json.dumps(
+                {"chunk_start": chunk_start, "size": len(chunk)},
+            )}
+            outs = await asyncio.gather(*[_run_one(i, it) for i, it in chunk])
+            for (i, _), out in zip(chunk, outs):
+                results[i] = out
+            yield {"event": "batch_chunk_done", "data": json.dumps(
+                {"chunk_start": chunk_start, "size": len(chunk)},
+            )}
         context[output_var] = results
 
     async def _exec_reduce(self, config: dict, context: dict) -> None:
