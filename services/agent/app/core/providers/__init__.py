@@ -10,11 +10,17 @@
 """
 from .anthropic import AnthropicProvider
 from .base import BaseProvider, ChatRequest, ChatResponse, EmbedRequest, EmbedResponse
+from .bedrock import BedrockProvider
+from .cohere import CohereProvider
+from .gemini import GeminiProvider
 from .openai_compat import OpenAICompatProvider
 from .registry import PROVIDER_REGISTRY, ProviderMeta, get_adapter, list_providers
 
 __all__ = [
     "AnthropicProvider",
+    "BedrockProvider",
+    "CohereProvider",
+    "GeminiProvider",
     "BaseProvider",
     "ChatRequest",
     "ChatResponse",
