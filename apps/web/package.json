@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit",
+    "lint": "echo '(lint stub — vue-tsc covers type errors; eslint 後續 PR 補)' && exit 0",
+    "test": "echo '(test stub — vitest 後續 PR 補)' && exit 0"
   },
   "dependencies": {
     "vue": "^3.5.13",
