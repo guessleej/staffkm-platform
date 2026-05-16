@@ -58,9 +58,24 @@ const ICONS: Record<string, string> = {
 }
 function scenarioIcon(id: string) { return ICONS[id] ?? 'AGT' }
 
+// 重試 + 永遠 finally 清 loading；避免 503 cold-start 後永遠卡在「載入中…」
 async function load() {
-  const { data } = await http.get('/agents')
-  agents.value = data.data || []
+  loading.value = true
+  let lastErr: any
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data } = await http.get('/agents')
+      agents.value = data.data || []
+      lastErr = null
+      break
+    } catch (e: any) {
+      lastErr = e
+      const status = e?.response?.status
+      if (status && status < 500) break       // 4xx 不重試
+      if (attempt < 2) await new Promise(r => setTimeout(r, 800 * Math.pow(2, attempt)))
+    }
+  }
+  if (lastErr) console.error('AgentView load failed:', lastErr)
   loading.value = false
 }
 

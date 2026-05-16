@@ -133,11 +133,12 @@
          主內容
     ════════════════════════════════════════ -->
     <main class="flex-1 overflow-y-auto bg-surface-base">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
+      <!--
+        刻意不用 transition mode="out-in"：連點不同 nav 會卡 leave/enter 競態。
+        也不加 :key="$route.fullPath"：不同路由本來就用不同元件，
+        強制 remount 反而讓連點時每次都重跑 load() + 暫時 unmount → 視覺空白。
+      -->
+      <router-view />
     </main>
   </div>
 </template>

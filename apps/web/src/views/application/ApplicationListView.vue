@@ -488,17 +488,33 @@ const suggestedQuestionsText = computed({
 async function load() {
   loading.value = true
   try {
-    const [appsRes, kbRes, rerankerRes] = await Promise.all([
+    // 用 allSettled：任一 API 慢 / 503 不會卡住整個頁面渲染
+    const [appsR, kbR, rerankerR] = await Promise.allSettled([
       applicationApi.list({ page_size: 50 }),
       http.get('/knowledge/bases', { params: { page_size: 50 } }),
       modelProviderApi.listModels(undefined, 'reranker'),
     ])
-    applications.value = appsRes.data.data?.items ?? appsRes.data.data ?? []
-    knowledgeBases.value = kbRes.data.data?.items ?? kbRes.data.data ?? []
-    const rerankerData = rerankerRes.data.data
-    rerankerModels.value = Array.isArray(rerankerData)
-      ? rerankerData
-      : (rerankerData?.items ?? [])
+    if (appsR.status === 'fulfilled') {
+      const v = appsR.value
+      applications.value = v.data.data?.items ?? v.data.data ?? []
+    } else {
+      console.error('ApplicationListView apps load failed:', appsR.reason)
+    }
+    if (kbR.status === 'fulfilled') {
+      const v = kbR.value
+      knowledgeBases.value = v.data.data?.items ?? v.data.data ?? []
+    } else {
+      console.error('ApplicationListView kb load failed:', kbR.reason)
+    }
+    if (rerankerR.status === 'fulfilled') {
+      const rerankerData = rerankerR.value.data.data
+      rerankerModels.value = Array.isArray(rerankerData)
+        ? rerankerData
+        : (rerankerData?.items ?? [])
+    } else {
+      // reranker 失敗無傷大雅，只是進階設定的下拉空了
+      console.warn('ApplicationListView reranker load failed:', rerankerR.reason)
+    }
   } finally {
     loading.value = false
   }

@@ -33,10 +33,31 @@ export interface UpdateWorkspaceInput {
   description?: string
 }
 
+// Cold-start 友善：5xx 時自動 retry 至多 2 次，每次等 800ms / 1600ms
+async function _withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: any
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (e: any) {
+      const status = e?.response?.status
+      // 只在 503/502/504 / 網路錯誤時 retry；其他直接 throw
+      if (status && status < 500) throw e
+      lastErr = e
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 800 * Math.pow(2, i)))
+      }
+    }
+  }
+  throw lastErr
+}
+
 export const workspaceApi = {
   list: async (): Promise<Workspace[]> => {
-    const { data } = await http.get('/workspaces')
-    return data.data
+    return _withRetry(async () => {
+      const { data } = await http.get('/workspaces')
+      return data.data
+    })
   },
   get: async (id: string): Promise<Workspace> => {
     const { data } = await http.get(`/workspaces/${id}`)

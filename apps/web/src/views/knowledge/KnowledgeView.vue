@@ -388,15 +388,31 @@ function statusLabel(s: string) {
 }
 
 // ── data loading ───────────────────────────────────────────────────────
+// 重試 + 永遠 finally 清 loading；避免 503 cold-start 後永遠卡在「載入中…」
 async function load() {
   loading.value = true
-  const [kbData, folderData] = await Promise.all([
-    knowledgeApi.listBases(),
-    knowledgeApi.listFolders().catch(() => []),
-  ])
-  kbs.value = kbData.data || []
-  folders.value = folderData
-  loading.value = false
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const [kbData, folderData] = await Promise.all([
+          knowledgeApi.listBases(),
+          knowledgeApi.listFolders().catch(() => []),
+        ])
+        kbs.value = kbData.data || []
+        folders.value = folderData
+        return  // 成功就跳出（finally 仍會跑）
+      } catch (e: any) {
+        const status = e?.response?.status
+        if (status && status < 500) throw e
+        if (attempt === 2) throw e
+        await new Promise(r => setTimeout(r, 800 * Math.pow(2, attempt)))
+      }
+    }
+  } catch (e) {
+    console.error('KnowledgeView load failed:', e)
+  } finally {
+    loading.value = false
+  }
 }
 
 async function createKB() {
