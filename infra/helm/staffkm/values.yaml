@@ -1,0 +1,78 @@
+# staffKM Helm values（v2.0 GA 預設）
+#
+# 上線前必改：
+#   - secrets.secretsKey （Fernet 主金鑰）
+#   - secrets.jwtSecret  （Gateway JWT 簽章）
+#   - postgres.password / superuserPassword
+#   - 各 service env.OPENAI_API_KEY 等
+
+image:
+  registry: docker.io
+  tag: "2.0.0"
+  pullPolicy: IfNotPresent
+
+# ── 多副本 + 自動擴展（每個服務獨立） ──────────────────────────────
+replicaCount:
+  gateway:   2
+  agent:     2
+  knowledge: 2
+  auth:      2
+  chat:      2
+  ui:        2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  cpuThreshold: 70
+  memThreshold: 75
+
+resources:
+  default:
+    requests: { cpu: "200m", memory: "512Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+  agent:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "2000m", memory: "2Gi" }
+  knowledge:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "2000m", memory: "4Gi" }   # pgvector caller 吃較多
+
+# ── 安全 / 多租戶 ──────────────────────────────────────────────────
+secrets:
+  # 上線前必填（kubectl create secret 後在這裡寫 secret name 即可）
+  secretsKey:   ""           # staffkm-secrets-key
+  jwtSecret:    ""           # staffkm-jwt-secret
+  ollamaToken:  ""           # 若有
+
+# ── PostgreSQL（建議走 cloud managed；本 chart 提供 in-cluster as fallback） ──
+postgres:
+  managed: false             # true 時不啟動 in-cluster；走 externalUrl
+  externalUrl: ""            # postgresql://user:pwd@host:5432/staffkm
+  image: pgvector/pgvector:pg16
+  storageClass: standard
+  persistence:
+    size: 100Gi
+  superuserPassword: ""
+  password: ""
+
+# ── 觀測 ──────────────────────────────────────────────────────────
+observability:
+  enabled: true
+  otelCollectorEndpoint: "otel-collector.observability.svc:4317"
+  prometheusEnabled: true   # PodMonitor / ServiceMonitor 自動建立
+
+# ── Ingress ────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: staffkm.example.com
+  tls:
+    enabled: true
+    secretName: staffkm-tls
+
+# ── 排程 / Long-running tasks（M4 trigger worker） ─────────────────
+triggerWorker:
+  enabled: true
+  replicaCount: 1          # 多副本待 advisory lock 上鉤後再開
+  schedule: "*/1 * * * *"   # 若改用 CronJob 模式
