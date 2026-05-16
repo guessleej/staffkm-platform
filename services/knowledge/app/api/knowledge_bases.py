@@ -22,12 +22,19 @@ class KBCreate(BaseModel):
     description: str | None = None
     embedding_model: str = "bge-m3"
     is_public: bool = False
+    # RFC-006 切片技術升級
+    chunk_strategy: str = "auto"      # auto / recursive / markdown / qa
+    chunk_size:     int = 512
+    chunk_overlap:  int = 64
 
 
 class KBUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     is_public: bool | None = None
+    chunk_strategy: str | None = None
+    chunk_size:     int | None = None
+    chunk_overlap:  int | None = None
 
 
 class KBOut(BaseModel):
@@ -38,6 +45,9 @@ class KBOut(BaseModel):
     embedding_model: str
     is_public: bool
     document_count: int = 0
+    chunk_strategy: str = "auto"
+    chunk_size:     int = 512
+    chunk_overlap:  int = 64
 
     model_config = {"from_attributes": True}
 

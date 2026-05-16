@@ -184,6 +184,44 @@
                 class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none"
               />
             </div>
+
+            <!-- 切片策略（RFC-006）─────────────────────────────────── -->
+            <div>
+              <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
+                切片策略
+              </label>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="opt in CHUNK_STRATEGIES" :key="opt.value"
+                  type="button"
+                  @click="form.chunk_strategy = opt.value"
+                  class="text-left px-3 py-2 rounded-lg border text-xs transition"
+                  :class="form.chunk_strategy === opt.value
+                    ? 'border-brand-400 bg-brand-50 text-brand-700'
+                    : 'border-neutral-200 hover:border-brand-300 text-neutral-700'"
+                >
+                  <div class="font-semibold">{{ opt.label }}</div>
+                  <div class="text-[10px] text-neutral-500 mt-0.5">{{ opt.desc }}</div>
+                </button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 mb-1">每段字數</label>
+                <input
+                  v-model.number="form.chunk_size" type="number" min="128" max="2048"
+                  class="w-full text-sm h-9 px-3 rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-neutral-600 mb-1">overlap</label>
+                <input
+                  v-model.number="form.chunk_overlap" type="number" min="0" max="512"
+                  class="w-full text-sm h-9 px-3 rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                />
+              </div>
+            </div>
+
             <p v-if="activeFolderId" class="text-[11px] text-neutral-500">
               將建立於資料夾「{{ activeFolderName }}」
             </p>
@@ -242,7 +280,7 @@
   </Teleport>
 
   <!-- 批量選擇浮動工具列 -->
-  <BatchSelectToolbar :count="batch.count.value" @clear="batch.clear()">
+  <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
     <button
       @click="batchDelete"
       class="px-2.5 py-1.5 rounded-lg text-sm text-white/90 hover:bg-white/10 hover:text-white transition"
@@ -263,7 +301,21 @@ const folders = ref<KbFolder[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
 const showNewFolder = ref(false)
-const form = ref({ name: '', description: '' })
+const form = ref({
+  name: '',
+  description: '',
+  chunk_strategy: 'auto' as 'auto' | 'recursive' | 'markdown' | 'qa',
+  chunk_size: 512,
+  chunk_overlap: 64,
+})
+
+// 切片策略選項（RFC-006）
+const CHUNK_STRATEGIES = [
+  { value: 'auto',      label: '自動',     desc: '依內容自動偵測（推薦）' },
+  { value: 'recursive', label: '遞迴字符', desc: '段→句→字回退；CJK 友好' },
+  { value: 'markdown',  label: 'Markdown', desc: '保留 heading 階層脈絡' },
+  { value: 'qa',        label: 'Q&A 對',   desc: 'FAQ / 問答格式文件' },
+] as const
 const folderForm = reactive({ name: '' })
 
 const activeFolderId = ref<string | null>(null)
@@ -327,11 +379,15 @@ async function load() {
 
 async function createKB() {
   await knowledgeApi.createBase({
-    ...form.value,
+    name: form.value.name,
+    description: form.value.description || undefined,
     folder_id: activeFolderId.value,
+    chunk_strategy: form.value.chunk_strategy,
+    chunk_size: form.value.chunk_size,
+    chunk_overlap: form.value.chunk_overlap,
   })
   showCreate.value = false
-  form.value = { name: '', description: '' }
+  form.value = { name: '', description: '', chunk_strategy: 'auto', chunk_size: 512, chunk_overlap: 64 }
   await load()
 }
 
