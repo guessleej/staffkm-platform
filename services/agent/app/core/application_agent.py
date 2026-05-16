@@ -226,12 +226,18 @@ class ApplicationAgent:
     # ── RAG 檢索 ────────────────────────────────────────────────────────────
 
     async def retrieve_context(
-        self, query: str, extra_kb_ids: list[str] | None = None
+        self,
+        query: str,
+        extra_kb_ids: list[str] | None = None,
+        workspace_id: str | None = None,
+        user_id: str | None = None,
+        roles: list[str] | None = None,
     ) -> list[dict]:
         """
-        呼叫 Knowledge Service 取得相關段落。
+        呼叫 Knowledge Service 取得相關段落（workspace-scoped）。
 
         合併 application.knowledge_base_ids 與呼叫端傳入的 extra_kb_ids。
+        若 workspace_id 為 None，靠 knowledge service LegacyURLBridge 重寫到 default workspace。
         """
         merged_kb_ids = list(dict.fromkeys(self.kb_ids + (extra_kb_ids or [])))
         if not merged_kb_ids:
@@ -251,13 +257,28 @@ class ApplicationAgent:
                 search_payload["rerank_top_n"] = self.config.get("rerank_top_n", 5)
                 search_payload["retrieval_top_k"] = self.config.get("retrieval_top_k", 20)
 
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(
-                    f"{settings.KNOWLEDGE_SERVICE_URL}/api/v1/knowledge/search",
-                    json=search_payload,
+            # 組 URL：workspace-scoped 或 legacy
+            if workspace_id:
+                url = (
+                    f"{settings.KNOWLEDGE_SERVICE_URL}"
+                    f"/api/v1/workspace/{workspace_id}/knowledge/search"
                 )
+            else:
+                url = f"{settings.KNOWLEDGE_SERVICE_URL}/api/v1/knowledge/search"
+            headers: dict[str, str] = {}
+            if user_id:
+                headers["X-User-ID"] = user_id
+            if roles:
+                headers["X-User-Roles"] = ",".join(roles)
+
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(url, json=search_payload, headers=headers)
                 if resp.status_code == 200:
                     return resp.json().get("data", {}).get("citations", [])
+                log.warning(
+                    "application_agent_retrieval_non_200",
+                    app_id=self.app_id, status=resp.status_code, body=resp.text[:200],
+                )
         except Exception as e:
             log.warning(
                 "application_agent_retrieval_failed",
@@ -289,8 +310,14 @@ class ApplicationAgent:
         """RAG 檢索 + LLM 串流回應，與 BaseAdminAgent 相同模式。"""
         user_query = ctx.messages[-1]["content"] if ctx.messages else ""
 
-        # RAG 檢索（合併 ctx.kb_ids）
-        citations = await self.retrieve_context(user_query, ctx.kb_ids)
+        # RAG 檢索（合併 ctx.kb_ids；帶 workspace + 認證 header 給下游 knowledge service）
+        citations = await self.retrieve_context(
+            user_query,
+            ctx.kb_ids,
+            workspace_id=ctx.workspace_id,
+            user_id=ctx.user_id,
+            roles=ctx.roles,
+        )
         ctx.citations = citations
 
         rag_user_message = self._build_rag_prompt(citations, user_query)
