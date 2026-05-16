@@ -93,9 +93,8 @@ class WorkflowExecutor:
 
                 elif node_type == "condition":
                     branch = self._eval_condition(config, context)
-                    true_key = config.get("true_branch")
-                    false_key = config.get("false_branch")
-                    next_key = true_key if branch else false_key
+                    raw = config.get("true_branch") if branch else config.get("false_branch")
+                    next_key = self._resolve_next_node_key(raw)
 
                 elif node_type == "variable":
                     for assignment in config.get("assignments", []):
@@ -182,10 +181,15 @@ class WorkflowExecutor:
         yield {"event": "citations", "data": json.dumps(context.get("knowledge_results", []))}
         yield {"event": "done", "data": "[DONE]"}
 
+    # 內部欄位（不允許被 {{var}} 模板替換以避免洩漏給使用者輸出）
+    _INTERNAL_CONTEXT_KEYS = {"_user_id", "_roles", "workspace_id"}
+
     def _render_template(self, template: str, context: dict) -> str:
-        """簡單的 {{variable}} 替換"""
+        """簡單的 {{variable}} 替換；跳過內部欄位避免洩漏到 prompt / answer 中。"""
         result = template
         for key, value in context.items():
+            if key in self._INTERNAL_CONTEXT_KEYS or key.startswith("__"):
+                continue
             if isinstance(value, (str, int, float)):
                 result = result.replace(f"{{{{{key}}}}}", str(value))
             elif isinstance(value, list) and key == "knowledge_results":
@@ -839,18 +843,38 @@ class WorkflowExecutor:
 
         return extracted
 
+    def _resolve_next_node_key(self, candidate: str | None) -> str | None:
+        """確認 next_node_key 真的存在於本 workflow graph；不存在則回 None。
+
+        防禦性：避免使用者誤填或從別的 workflow 複製貼上設定，導致跳到
+        不存在的 node（會被 execute() 的 while 迴圈直接結束）。
+        """
+        if candidate and candidate in self.nodes:
+            return candidate
+        if candidate:
+            log.warning(
+                "intent_next_node_key_not_found",
+                requested=candidate, workflow_nodes=list(self.nodes.keys()),
+            )
+        return None
+
     async def _exec_intent(self, config: dict, context: dict) -> tuple[str, str | None]:
         """意圖識別：keyword 模式做字串比對，llm 模式請 LLM 回傳意圖編號。"""
         method = config.get("method", "keyword")
         intents: list[dict] = config.get("intents", [])
         text = str(context.get(config.get("variable", "user_input"), ""))
-        default_key: str | None = config.get("default_next_node_key") or None
+        default_key: str | None = self._resolve_next_node_key(
+            config.get("default_next_node_key")
+        )
 
         if method == "keyword":
             for intent in intents:
                 for kw in intent.get("keywords", []):
                     if kw and kw in text:
-                        return intent.get("label", ""), intent.get("next_node_key") or None
+                        return (
+                            intent.get("label", ""),
+                            self._resolve_next_node_key(intent.get("next_node_key")),
+                        )
             return "default", default_key
 
         # llm 模式
@@ -877,7 +901,10 @@ class WorkflowExecutor:
             idx = int(digits) - 1 if digits else -1
             if 0 <= idx < len(intents):
                 matched = intents[idx]
-                return matched.get("label", ""), matched.get("next_node_key") or None
+                return (
+                    matched.get("label", ""),
+                    self._resolve_next_node_key(matched.get("next_node_key")),
+                )
         except Exception as e:
             log.warning("intent_llm_failed", error=str(e), **self._audit_fields(context))
         return "default", default_key
