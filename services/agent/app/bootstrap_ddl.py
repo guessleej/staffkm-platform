@@ -236,10 +236,10 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
         workspace_id    UUID NOT NULL,
         user_id         UUID,
         application_id  UUID,
-        scope           VARCHAR(16) NOT NULL DEFAULT 'user',  -- user | app | team
+        scope           VARCHAR(16) NOT NULL DEFAULT 'user',
         content         TEXT NOT NULL,
         tags            JSONB NOT NULL DEFAULT '[]',
-        importance      INTEGER NOT NULL DEFAULT 5,           -- 1~10
+        importance      INTEGER NOT NULL DEFAULT 5,
         access_count    INTEGER NOT NULL DEFAULT 0,
         last_accessed_at TIMESTAMPTZ,
         created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -250,6 +250,46 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_memories_user      ON long_term_memories(user_id, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_memories_app       ON long_term_memories(application_id, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_memories_content_gin ON long_term_memories USING gin (to_tsvector('simple', content))",
+
+    # ── M4 啟動：Event Triggers（定期 / 事件觸發 workflow）──────────────
+    """
+    CREATE TABLE IF NOT EXISTS event_triggers (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        application_id  UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        kind            VARCHAR(16) NOT NULL DEFAULT 'interval',
+        cron_expr       VARCHAR(64),
+        interval_sec    INTEGER,
+        input_template  TEXT NOT NULL DEFAULT '',
+        enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+        next_fire_at    TIMESTAMPTZ,
+        last_fired_at   TIMESTAMPTZ,
+        last_status     VARCHAR(16),
+        last_error      TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_event_triggers_ws       ON event_triggers(workspace_id)",
+    "CREATE INDEX IF NOT EXISTS idx_event_triggers_next     ON event_triggers(next_fire_at) WHERE enabled = TRUE",
+    "CREATE INDEX IF NOT EXISTS idx_event_triggers_app      ON event_triggers(application_id)",
+
+    """
+    CREATE TABLE IF NOT EXISTS event_trigger_runs (
+        id              UUID PRIMARY KEY,
+        trigger_id      UUID NOT NULL,
+        workspace_id    UUID NOT NULL,
+        fired_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        finished_at     TIMESTAMPTZ,
+        status          VARCHAR(16) NOT NULL DEFAULT 'queued',
+        output_summary  TEXT,
+        error           TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_trigger_runs_trigger ON event_trigger_runs(trigger_id, fired_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_trigger_runs_ws      ON event_trigger_runs(workspace_id, fired_at DESC)",
 ]
 
 
