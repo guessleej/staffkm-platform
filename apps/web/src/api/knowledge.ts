@@ -20,7 +20,15 @@ export const knowledgeApi = {
     const { data } = await http.get('/knowledge/bases', { params: { page, page_size: pageSize } })
     return data
   },
-  async createBase(payload: { name: string; description?: string; is_public?: boolean; folder_id?: string | null }) {
+  async createBase(payload: {
+    name: string
+    description?: string
+    is_public?: boolean
+    folder_id?: string | null
+    chunk_strategy?: 'auto' | 'recursive' | 'markdown' | 'qa'
+    chunk_size?: number
+    chunk_overlap?: number
+  }) {
     const { data } = await http.post('/knowledge/bases', payload)
     return data.data
   },

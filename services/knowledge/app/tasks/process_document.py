@@ -3,11 +3,12 @@ import asyncio
 import io
 import uuid
 import structlog
-from sqlalchemy import delete
+from sqlalchemy import delete, text as text_sql
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.config import settings
-from app.core.document_processor import DocumentProcessor, TextSplitter
+from app.core.document_processor import DocumentProcessor
+from app.core.chunking import get_chunker
 from app.core.embedder import get_embedder
 from app.core.storage import download_document
 from app.core.vectorstore import upsert_embedding, update_search_vector
@@ -62,14 +63,41 @@ async def _async_process(doc_id: str, minio_key: str, filename: str) -> dict:
                 processor = DocumentProcessor()
                 text = processor.load(io.BytesIO(file_bytes), filename)
 
-                # 分段
-                splitter = TextSplitter(
-                    chunk_size=settings.CHUNK_SIZE,
-                    chunk_overlap=settings.CHUNK_OVERLAP,
+                # ── 分段（新版多策略切片系統）──────────────────────
+                # 從 KB 設定取出策略；缺值時 fallback auto
+                kb_row = await session.execute(
+                    text_sql(
+                        "SELECT chunk_strategy, chunk_size, chunk_overlap "
+                        "FROM knowledge_bases WHERE id = :id"
+                    ),
+                    {"id": str(doc.kb_id)},
                 )
-                chunks = splitter.split(text)
-                log.info("document_chunked", doc_id=doc_id, chunks=len(chunks))
-                await set_progress(30, f"分段完成，共 {len(chunks)} 段，正在向量化…")
+                kb_settings = dict(kb_row.fetchone()._mapping) if kb_row else {}
+                strategy = kb_settings.get("chunk_strategy") or "auto"
+                chunk_size = kb_settings.get("chunk_size") or settings.CHUNK_SIZE
+                chunk_overlap = kb_settings.get("chunk_overlap") or settings.CHUNK_OVERLAP
+
+                chunker = get_chunker(strategy, chunk_size, chunk_overlap)
+                raw_chunks = chunker.split(text)
+                # 把 Chunk dataclass 攤平為「文字 + heading_path 前綴」給 embedding
+                chunks: list[str] = []
+                chunk_meta: list[dict] = []
+                for c in raw_chunks:
+                    # heading_path 加入文字，提升 retrieval 對「在 X 章節中」的命中
+                    prefix = (" / ".join(c.heading_path) + "\n") if c.heading_path else ""
+                    chunks.append(prefix + c.content)
+                    chunk_meta.append({
+                        "heading_path": c.heading_path,
+                        "chunk_type": c.chunk_type,
+                        "char_start": c.char_start,
+                        "char_end": c.char_end,
+                    })
+                log.info(
+                    "document_chunked",
+                    doc_id=doc_id, chunks=len(chunks),
+                    strategy=strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+                )
+                await set_progress(30, f"分段完成（策略 {strategy}），共 {len(chunks)} 段，正在向量化…")
 
                 # 向量化
                 embedder = get_embedder(

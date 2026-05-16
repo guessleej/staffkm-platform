@@ -55,6 +55,11 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_kb_folders_parent ON kb_folders(parent_id)",
     "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS folder_id UUID",
     "CREATE INDEX IF NOT EXISTS idx_kb_folder ON knowledge_bases(folder_id)",
+
+    # 5. RFC-006 切片技術升級：per-KB 切片策略
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_strategy VARCHAR(16) NOT NULL DEFAULT 'auto'",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_size INTEGER NOT NULL DEFAULT 512",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_overlap INTEGER NOT NULL DEFAULT 64",
 ]
 
 

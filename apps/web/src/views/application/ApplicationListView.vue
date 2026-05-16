@@ -41,7 +41,7 @@
           :class="batch.isSelected(app.id)
             ? 'border-indigo-400 ring-1 ring-indigo-200'
             : 'border-gray-200 hover:border-indigo-300'"
-          @click="batch.hasSelection.value ? batch.toggle(app.id) : enterApp(app)"
+          @click="batch.hasSelection ? batch.toggle(app.id) : enterApp(app)"
         >
           <!-- 批量選取 checkbox（hover 或選中時顯示）-->
           <button
@@ -359,7 +359,7 @@
   </div>
 
   <!-- 批量選擇浮動工具列 -->
-  <BatchSelectToolbar :count="batch.count.value" @clear="batch.clear()">
+  <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
     <button
       v-if="auth.hasRole(['admin'])"
       @click="batchDelete"

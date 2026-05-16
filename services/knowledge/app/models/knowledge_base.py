@@ -39,6 +39,11 @@ class KnowledgeBase(Base, UUIDPrimaryKeyMixin, AuditMixin):
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     tenant_id: Mapped[str | None] = mapped_column(String(64))   # legacy；下版移除
 
+    # ── 切片策略（RFC-006 切片技術升級）─────────────────────────────
+    chunk_strategy: Mapped[str] = mapped_column(String(16), default="auto")
+    chunk_size:     Mapped[int] = mapped_column(default=512)
+    chunk_overlap:  Mapped[int] = mapped_column(default=64)
+
     documents: Mapped[list["Document"]] = relationship(back_populates="knowledge_base", cascade="all, delete-orphan")
 
 
