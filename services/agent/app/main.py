@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.middleware.legacy_bridge import LegacyURLBridge
@@ -72,6 +72,9 @@ app.include_router(applications.router,  prefix=f"{_PREFIX}/applications", tags=
 app.include_router(workflows.router,     prefix=f"{_PREFIX}/applications", tags=["Workflow 引擎"])
 app.include_router(api_keys.router,      prefix=f"{_PREFIX}/api-keys",     tags=["API Key 管理"])
 app.include_router(projects.router,      prefix=f"{_PREFIX}/projects",     tags=["Project（RFC-006）"])
+app.include_router(tools.router,         prefix=f"{_PREFIX}/tools",        tags=["Tool（新 backlog）"])
+app.include_router(skills.router,        prefix=f"{_PREFIX}/skills",       tags=["Skill（新 backlog）"])
+app.include_router(data_sources.router,  prefix=f"{_PREFIX}/data-sources", tags=["Data Source（新 backlog）"])
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])

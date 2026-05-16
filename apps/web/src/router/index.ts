@@ -72,6 +72,25 @@ const router = createRouter({
           component: () => import('../views/agent/AgentView.vue'),
           meta: { title: 'AI 代理人' },
         },
+        // ── 新 backlog 模組（RFC-006 對標 MaxKB）─────────────────────────
+        {
+          path: 'tools',
+          name: 'tools',
+          component: () => import('../views/tool/ToolListView.vue'),
+          meta: { title: '工具' },
+        },
+        {
+          path: 'skills',
+          name: 'skills',
+          component: () => import('../views/skill/SkillListView.vue'),
+          meta: { title: 'Skills' },
+        },
+        {
+          path: 'data-sources',
+          name: 'data-sources',
+          component: () => import('../views/datasource/DataSourceListView.vue'),
+          meta: { title: '資料來源' },
+        },
         {
           path: 'admin/users',
           name: 'admin-users',
