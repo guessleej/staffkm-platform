@@ -1,6 +1,10 @@
 <template>
   <router-view />
 
+  <!-- UX 對齊輪 #1：全域 toast / dialog 容器 -->
+  <ToastHost />
+  <DialogHost />
+
   <!--
     Cold-start 指示：用右下角小 toast 取代全螢幕 overlay
     避免使用者把「dim + blur 效果」誤判為「畫面空白」。
@@ -31,6 +35,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useWorkspaceStore } from './stores/workspace'
+import ToastHost from './components/common/ToastHost.vue'
+import DialogHost from './components/common/DialogHost.vue'
 
 const auth = useAuthStore()
 const workspace = useWorkspaceStore()
