@@ -17,6 +17,17 @@
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Undo / Redo (M2 收尾) -->
+        <button @click="onUndo" :disabled="!canUndo"
+                class="px-2.5 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-40"
+                title="復原（Cmd/Ctrl+Z）"
+                aria-label="復原（Cmd/Ctrl+Z）">↶</button>
+        <button @click="onRedo" :disabled="!canRedo"
+                class="px-2.5 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-40"
+                title="重做（Cmd/Ctrl+Shift+Z）"
+                aria-label="重做（Cmd/Ctrl+Shift+Z）">↷</button>
+        <span class="text-[11px] text-gray-400 px-1 tabular-nums" :title="`縮放 ${zoomPct}%`">{{ zoomPct }}%</span>
+        <span class="w-px h-5 bg-gray-200 mx-1"></span>
         <!-- 自動排版 -->
         <button @click="autoLayout"
                 class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">
@@ -242,6 +253,24 @@ const testRunning  = ref(false)
 const testEvents   = ref<{ event: string; data: string }[]>([])
 const nodeCount    = ref(0)
 
+// ─── M2 收尾：undo/redo / zoom / 剪貼簿 ──────────────────────────────
+const canUndo   = ref(false)
+const canRedo   = ref(false)
+const zoomPct   = ref(100)
+const clipboardNode = ref<any | null>(null)
+const GRID = 20  // snap-to-grid 格距
+
+function refreshHistoryState() {
+  try {
+    const hist = (lf as any)?.history
+    canUndo.value = !!hist?.undoAble
+    canRedo.value = !!hist?.redoAble
+  } catch { /* noop */ }
+}
+function onUndo() { lf?.undo?.(); refreshHistoryState(); countNodes() }
+function onRedo() { lf?.redo?.(); refreshHistoryState(); countNodes() }
+function snapToGrid(p: number) { return Math.round(p / GRID) * GRID }
+
 // ─── 歷史版本抽屜 (D-7 後續) ────────────────────────────────────────────
 const showHistory   = ref(false)
 const historyLoading = ref(false)
@@ -343,7 +372,23 @@ onMounted(async () => {
   })
 
   // 新增節點時更新計數
-  lf.on('node:add', () => countNodes())
+  lf.on('node:add', () => { countNodes(); refreshHistoryState() })
+
+  // M2 收尾：snap-to-grid（拖曳停止後自動對齊網格）
+  lf.on('node:drag-stop', ({ data }: any) => {
+    const model = (lf!.graphModel as any).getNodeModelById(data.id)
+    if (!model) return
+    const nx = snapToGrid(model.x)
+    const ny = snapToGrid(model.y)
+    if (nx !== model.x || ny !== model.y) model.moveTo(nx, ny)
+    refreshHistoryState()
+  })
+
+  // M2 收尾：history / zoom 變化追蹤
+  lf.on('history:change', refreshHistoryState)
+  lf.on('graph:transform', ({ transform }: any) => {
+    if (transform?.SCALE_X) zoomPct.value = Math.round(transform.SCALE_X * 100)
+  })
 
   // 條件節點連線自動加上 True/False 標籤
   lf.on('edge:add', ({ data }: any) => {
@@ -363,9 +408,55 @@ onMounted(async () => {
   lf.render({})
   await loadWorkflow()
   countNodes()
+  refreshHistoryState()
+
+  // M2 收尾：全域鍵盤快捷鍵
+  window.addEventListener('keydown', onKeydown)
 })
 
+function onKeydown(e: KeyboardEvent) {
+  // 避免在輸入框 / textarea 內攔截
+  const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return
+
+  const meta = e.metaKey || e.ctrlKey
+  if (meta && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    saveWorkflow()
+  } else if (meta && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+    e.preventDefault(); onUndo()
+  } else if (meta && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+    e.preventDefault(); onRedo()
+  } else if (meta && e.key.toLowerCase() === 'c' && selectedNode.value) {
+    clipboardNode.value = JSON.parse(JSON.stringify(selectedNode.value))
+  } else if (meta && e.key.toLowerCase() === 'v' && clipboardNode.value) {
+    e.preventDefault(); pasteClipboard()
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode.value) {
+    e.preventDefault(); deleteSelectedNode()
+  }
+}
+
+function pasteClipboard() {
+  if (!lf || !clipboardNode.value) return
+  const src = clipboardNode.value
+  const sm = (lf.graphModel as any).getNodeModelById(src.id)
+  const baseX = sm?.x ?? 200
+  const baseY = sm?.y ?? 200
+  lf.addNode({
+    type: src.node_type,
+    x: snapToGrid(baseX + 40),
+    y: snapToGrid(baseY + 40),
+    properties: {
+      node_key: `${src.node_type}_${Date.now()}`,
+      label:    src.label || '',
+      config:   JSON.parse(JSON.stringify(src.config || {})),
+    },
+  } as any)
+  refreshHistoryState()
+}
+
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
   lf?.destroy?.()
   lf = null
 })
