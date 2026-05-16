@@ -30,17 +30,17 @@
   --radius-2xl:  1.5rem;    /* 24px */
   --radius-full: 9999px;
 
-  /* ── Shadow ────────────────────────────────────────────────────── */
-  --shadow-xs:  0 1px 2px 0 rgba(0,0,0,0.04);
-  --shadow-sm:  0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04);
-  --shadow-md:  0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.04);
-  --shadow-lg:  0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04);
-  --shadow-xl:  0 20px 25px -5px rgba(0,0,0,0.10), 0 8px 10px -6px rgba(0,0,0,0.04);
-  --shadow-2xl: 0 25px 50px -12px rgba(0,0,0,0.20);
-  --shadow-inner: inset 0 2px 4px 0 rgba(0,0,0,0.04);
+  /* ── Shadow（v2: 降強度，扁平化）────────────────────────────────── */
+  --shadow-xs:  0 1px 1px 0 rgba(0,0,0,0.03);
+  --shadow-sm:  0 1px 2px 0 rgba(0,0,0,0.04);
+  --shadow-md:  0 2px 4px -1px rgba(0,0,0,0.04), 0 1px 2px -1px rgba(0,0,0,0.03);
+  --shadow-lg:  0 4px 8px -2px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.03);
+  --shadow-xl:  0 8px 16px -4px rgba(0,0,0,0.06), 0 4px 6px -4px rgba(0,0,0,0.03);
+  --shadow-2xl: 0 16px 32px -8px rgba(0,0,0,0.10);
+  --shadow-inner: inset 0 1px 2px 0 rgba(0,0,0,0.04);
 
-  /* Brand-tinted focus ring */
-  --shadow-focus: 0 0 0 4px hsl(var(--color-brand-500) / 0.2);
+  /* Brand-tinted focus ring（降不透明度避免太刺眼）*/
+  --shadow-focus: 0 0 0 3px hsl(var(--color-brand-500) / 0.15);
 
   /* ── Z-index scale ─────────────────────────────────────────────── */
   --z-base:     0;
