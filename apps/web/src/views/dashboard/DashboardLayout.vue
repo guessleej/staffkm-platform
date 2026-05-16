@@ -134,14 +134,11 @@
     ════════════════════════════════════════ -->
     <main class="flex-1 overflow-y-auto bg-surface-base">
       <!--
-        刻意不用 transition mode="out-in"：
-        快速點擊不同 nav 連結時 leave/enter 會發生競態，
-        最後可能卡在「leave 還沒完、enter 還沒開始」的中間態，
-        導致 router-view slot 的 Component 變 undefined，
-        整個 main 變成空 HTML comment、視覺上看起來像當機。
-        直接 router-view + :key 才是最穩的做法。
+        刻意不用 transition mode="out-in"：連點不同 nav 會卡 leave/enter 競態。
+        也不加 :key="$route.fullPath"：不同路由本來就用不同元件，
+        強制 remount 反而讓連點時每次都重跑 load() + 暫時 unmount → 視覺空白。
       -->
-      <router-view :key="$route.fullPath" />
+      <router-view />
     </main>
   </div>
 </template>
