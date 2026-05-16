@@ -161,4 +161,25 @@ export const knowledgeApi = {
     const r = await http.post(`/knowledge/documents/${kbId}/export/zip`, { document_ids }, { responseType: 'blob' })
     return r.data as Blob
   },
+
+  // — KB 資源授權 + 關聯資源（Round 10-4）
+  async listKbGrants(kbId: string) {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/grants`)
+    return data.data || []
+  },
+  async addKbGrant(kbId: string, body: {
+    principal_type: 'user' | 'role' | 'workspace';
+    principal_id: string;
+    access?: 'read' | 'edit' | 'manage';
+  }) {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/grants`, body)
+    return data.data
+  },
+  async deleteKbGrant(kbId: string, grantId: string) {
+    await http.delete(`/knowledge/bases/${kbId}/grants/${grantId}`)
+  },
+  async kbRelatedResources(kbId: string): Promise<{ applications: { id: string; name: string; type: string; status: string; updated_at: string }[] }> {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/related-resources`)
+    return data.data || { applications: [] }
+  },
 }
