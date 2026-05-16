@@ -84,12 +84,12 @@ class WorkflowExecutor:
             node_count=len(self.nodes),
         )
 
-        # M2-2 → M2 收尾-A：parallel 與 batch 已有真實語義；sandbox 仍為 stub
+        # M2-2 → M2 收尾：parallel / batch 已有真實語義；
+        # sandbox 在 M2 收尾提供 subprocess + rlimit 隔離（M4 升 nsjail / firecracker）
         if self.workflow_manager == "sandbox":
-            log.warning(
-                "workflow_manager_stub",
-                manager="sandbox",
-                note="sandbox 容器隔離尚未實作（M4），本次以 simple 模式執行",
+            log.info(
+                "workflow_manager_sandbox",
+                note="shell 節點將透過 SubprocessSandbox 執行（rlimit + timeout）。",
             )
 
         while current_key and current_key not in visited:
@@ -206,6 +206,11 @@ class WorkflowExecutor:
                     await self._exec_transform(config, context)
                 elif node_type == "merge":
                     await self._exec_merge(config, context)
+
+                # ── M2 收尾：sandbox 隔離下的 shell 節點 ───────────────
+                elif node_type == "shell":
+                    async for ev in self._exec_shell(config, context):
+                        yield ev
 
             except Exception as e:
                 # M2-2：manager='retry' 時自動重試（最多 3 次、指數退避）
@@ -1446,3 +1451,67 @@ class WorkflowExecutor:
             context[output_var] = merged
         else:
             context[output_var] = "\n".join(str(v) for v in values_nn)
+
+    # ── M2 收尾：sandbox 隔離下的 shell 節點 ──────────────────────────────
+    async def _exec_shell(self, config: dict, context: dict):
+        """執行 user-supplied shell 指令（必須在 workflow_manager='sandbox' 下）。
+
+        config 欄位：
+          - argv:        list[str]      必填，wzhell=False，argv[0] 為可執行檔
+          - stdin:       str            optional，模板支援 {{var}}
+          - timeout_sec: int            預設 10
+          - mem_mb:      int            預設 128
+          - cpu_secs:    int            預設 5
+          - output_variable: str        預設 'shell_output'，回傳 dict(stdout/stderr/exit_code/...)
+
+        強制檢查：
+        - workflow_manager 必須是 'sandbox'，否則直接拒絕（避免被當逃逸通道）
+        - argv 必須是 list[str] 且 argv[0] 為絕對路徑
+        """
+        from app.core.sandbox import run_sandboxed
+
+        if self.workflow_manager != "sandbox":
+            yield {"event": "shell_blocked", "data": json.dumps({
+                "reason": "shell 節點只允許在 workflow_manager='sandbox' 下執行",
+            })}
+            return
+
+        argv = config.get("argv") or []
+        if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
+            yield {"event": "shell_blocked", "data": json.dumps({"reason": "argv 必須是 list[str]"})}
+            return
+        if not argv[0].startswith("/"):
+            yield {"event": "shell_blocked", "data": json.dumps({
+                "reason": "argv[0] 必須是絕對路徑（防止 PATH 注入）",
+            })}
+            return
+
+        stdin_tpl = config.get("stdin")
+        stdin = self._render_template(stdin_tpl, context) if stdin_tpl else None
+
+        yield {"event": "shell_exec", "data": json.dumps({
+            "argv": argv,
+            "timeout_sec": int(config.get("timeout_sec", 10)),
+        })}
+
+        res = await run_sandboxed(
+            argv,
+            stdin=stdin,
+            timeout_sec=int(config.get("timeout_sec", 10)),
+            mem_mb=int(config.get("mem_mb", 128)),
+            cpu_secs=int(config.get("cpu_secs", 5)),
+        )
+
+        out_var = config.get("output_variable", "shell_output")
+        context[out_var] = {
+            "stdout":     res.stdout,
+            "stderr":     res.stderr,
+            "exit_code":  res.exit_code,
+            "timed_out":  res.timed_out,
+            "elapsed_ms": res.elapsed_ms,
+        }
+        yield {"event": "shell_done", "data": json.dumps({
+            "exit_code": res.exit_code,
+            "timed_out": res.timed_out,
+            "elapsed_ms": res.elapsed_ms,
+        })}
