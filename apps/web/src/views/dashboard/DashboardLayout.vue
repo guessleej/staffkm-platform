@@ -133,11 +133,15 @@
          主內容
     ════════════════════════════════════════ -->
     <main class="flex-1 overflow-y-auto bg-surface-base">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
+      <!--
+        刻意不用 transition mode="out-in"：
+        快速點擊不同 nav 連結時 leave/enter 會發生競態，
+        最後可能卡在「leave 還沒完、enter 還沒開始」的中間態，
+        導致 router-view slot 的 Component 變 undefined，
+        整個 main 變成空 HTML comment、視覺上看起來像當機。
+        直接 router-view + :key 才是最穩的做法。
+      -->
+      <router-view :key="$route.fullPath" />
     </main>
   </div>
 </template>
