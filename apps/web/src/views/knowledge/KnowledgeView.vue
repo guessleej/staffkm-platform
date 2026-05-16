@@ -46,14 +46,14 @@
       <div class="px-6 py-5 border-b border-neutral-200 bg-surface-raised flex items-center justify-between flex-shrink-0">
         <div>
           <h1 class="text-lg font-semibold text-neutral-900">{{ activeFolderName }}</h1>
-          <p class="text-xs text-neutral-500 mt-0.5">共 {{ filteredKbs.length }} 個</p>
+          <p class="text-xs text-neutral-500 mt-0.5">{{ $t('knowledge.docCount', { n: filteredKbs.length }) }}</p>
         </div>
         <button
           @click="showCreate = true"
           class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
         >
           <IconPlus :size="14" :stroke-width="2.5" />
-          建立知識庫
+          {{ $t('knowledge.createKb') }}
         </button>
       </div>
 

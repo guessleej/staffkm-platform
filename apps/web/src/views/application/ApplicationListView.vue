@@ -3,14 +3,14 @@
     <!-- 頁首 -->
     <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
       <div>
-        <h1 class="text-lg font-semibold text-gray-900">AI 應用</h1>
+        <h1 class="text-lg font-semibold text-gray-900">{{ $t('app.title') }}</h1>
         <p class="text-sm text-gray-500 mt-0.5">建立並管理各部門的 AI 問答應用</p>
       </div>
       <button v-if="auth.hasRole(['admin'])" @click="openCreateDialog" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
         </svg>
-        新增應用
+        {{ $t('app.createApp') }}
       </button>
     </div>
 
