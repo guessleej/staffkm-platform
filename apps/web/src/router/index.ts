@@ -10,14 +10,14 @@ const router = createRouter({
       component: () => import('../views/login/LoginView.vue'),
       meta: { public: true },
     },
-    // ── 對話為中心的 layout（claude.ai 風格）─────────────────────────
+    // ── 對話為中心的 layout（claude.ai 風格），獨立路徑避免與 /
+    //    被 DashboardLayout 的 children 互蓋（Vue Router 只認第一個 / parent）
     {
-      path: '/',
+      path: '/chat',
       component: () => import('../views/chat/ChatLayout.vue'),
       children: [
-        { path: '', redirect: '/chat' },
         {
-          path: 'chat',
+          path: '',
           name: 'chat',
           component: () => import('../views/chat/ChatView.vue'),
           meta: { title: '對話' },
@@ -29,6 +29,7 @@ const router = createRouter({
       path: '/',
       component: () => import('../views/dashboard/DashboardLayout.vue'),
       children: [
+        { path: '', redirect: '/chat' },
         {
           path: 'knowledge',
           name: 'knowledge',
