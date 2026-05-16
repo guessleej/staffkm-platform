@@ -1,4 +1,9 @@
-"""應用程式管理 API — Application Builder CRUD"""
+"""應用程式管理 API — Application Builder CRUD（workspace-scoped）。
+
+權限模型：
+  list / get / suggested-questions / chat   require_member  （成員可看可用）
+  create / update / delete                  require_writer / require_admin
+"""
 import json
 import uuid
 from datetime import datetime
@@ -14,6 +19,7 @@ from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
 from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
 from staffkm_core.utils.database import get_session
+from staffkm_tenant import TenantContext, require_admin, require_member, require_writer
 
 router = APIRouter()
 
@@ -74,15 +80,15 @@ class ApplicationOut(BaseModel):
 
 
 def _row_to_out(row) -> ApplicationOut:
-    """將資料庫 Row 物件轉換為 ApplicationOut。"""
+    """將資料庫 Row 物件轉換為 ApplicationOut（過濾掉非 schema 欄位如 workspace_id）。"""
     d = dict(row._mapping)
-    # JSONB 欄位在 asyncpg 中已是 Python 物件；若為字串則解析
     for field in ("suggested_questions", "knowledge_base_ids", "config"):
         if isinstance(d.get(field), str):
             d[field] = json.loads(d[field])
         elif d.get(field) is None:
             d[field] = [] if field != "config" else {}
-    return ApplicationOut(**d)
+    # 只保留 ApplicationOut 定義的欄位
+    return ApplicationOut(**{k: v for k, v in d.items() if k in ApplicationOut.model_fields})
 
 
 # ── 列表 ────────────────────────────────────────────────────────────────────
@@ -93,13 +99,17 @@ async def list_applications(
     page: int = 1,
     page_size: int = 20,
     status: str | None = None,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
     offset = (page - 1) * page_size
 
-    where_clause = "WHERE a.status != 'deleted'"
-    params: dict[str, Any] = {"limit": page_size, "offset": offset}
-
+    where_clause = "WHERE a.workspace_id = :workspace_id AND a.status != 'deleted'"
+    params: dict[str, Any] = {
+        "workspace_id": str(ctx.workspace_id),
+        "limit": page_size,
+        "offset": offset,
+    }
     if status:
         where_clause += " AND a.status = :status"
         params["status"] = status
@@ -142,10 +152,11 @@ async def list_applications(
     "",
     response_model=ApiResponse[ApplicationOut],
     status_code=status.HTTP_201_CREATED,
-    summary="建立新應用程式（管理員）",
+    summary="建立新應用程式（writer 以上）",
 )
 async def create_application(
     body: ApplicationCreate,
+    ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
     new_id = uuid.uuid4()
@@ -155,20 +166,21 @@ async def create_application(
         text(
             """
             INSERT INTO applications (
-                id, name, description, icon, type, status,
+                id, workspace_id, name, description, icon, type, status,
                 llm_model_id, system_prompt, welcome_message,
                 suggested_questions, knowledge_base_ids, config,
-                is_public, tenant_id, created_at, updated_at
+                is_public, tenant_id, created_at, updated_at, created_by
             ) VALUES (
-                :id, :name, :description, :icon, :type, :status,
+                :id, :workspace_id, :name, :description, :icon, :type, :status,
                 :llm_model_id, :system_prompt, :welcome_message,
                 :suggested_questions::jsonb, :knowledge_base_ids::jsonb, :config::jsonb,
-                :is_public, :tenant_id, :created_at, :updated_at
+                :is_public, :tenant_id, :created_at, :updated_at, :created_by
             )
             """
         ),
         {
             "id": str(new_id),
+            "workspace_id": str(ctx.workspace_id),
             "name": body.name,
             "description": body.description,
             "icon": body.icon,
@@ -184,6 +196,7 @@ async def create_application(
             "tenant_id": body.tenant_id,
             "created_at": now,
             "updated_at": now,
+            "created_by": str(ctx.user_id),
         },
     )
 
@@ -204,11 +217,15 @@ async def create_application(
 @router.get("/{app_id}", response_model=ApiResponse[ApplicationOut], summary="取得應用程式詳情")
 async def get_application(
     app_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
     row = await session.execute(
-        text("SELECT * FROM applications WHERE id = :id AND status != 'deleted'"),
-        {"id": str(app_id)},
+        text(
+            "SELECT * FROM applications "
+            "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
+        ),
+        {"id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     app_row = row.fetchone()
     if not app_row:
@@ -223,17 +240,20 @@ async def get_application(
 @router.put(
     "/{app_id}",
     response_model=ApiResponse[ApplicationOut],
-    summary="更新應用程式（管理員）",
+    summary="更新應用程式（writer 以上）",
 )
 async def update_application(
     app_id: uuid.UUID,
     body: ApplicationUpdate,
+    ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
-    # 確認應用程式存在
     check = await session.execute(
-        text("SELECT id FROM applications WHERE id = :id AND status != 'deleted'"),
-        {"id": str(app_id)},
+        text(
+            "SELECT id FROM applications "
+            "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
+        ),
+        {"id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     if not check.fetchone():
         raise HTTPException(status_code=404, detail="應用程式不存在")
@@ -242,8 +262,13 @@ async def update_application(
     if not updates:
         raise HTTPException(status_code=422, detail="未提供任何更新欄位")
 
-    set_parts: list[str] = ["updated_at = :updated_at"]
-    params: dict[str, Any] = {"id": str(app_id), "updated_at": datetime.utcnow()}
+    set_parts: list[str] = ["updated_at = :updated_at", "updated_by = :updated_by"]
+    params: dict[str, Any] = {
+        "id": str(app_id),
+        "ws": str(ctx.workspace_id),
+        "updated_at": datetime.utcnow(),
+        "updated_by": str(ctx.user_id),
+    }
 
     for field, value in updates.items():
         if field in ("suggested_questions", "knowledge_base_ids", "config"):
@@ -257,7 +282,10 @@ async def update_application(
             params[field] = value
 
     await session.execute(
-        text(f"UPDATE applications SET {', '.join(set_parts)} WHERE id = :id"),
+        text(
+            f"UPDATE applications SET {', '.join(set_parts)} "
+            f"WHERE id = :id AND workspace_id = :ws"
+        ),
         params,
     )
 
@@ -274,24 +302,34 @@ async def update_application(
 @router.delete(
     "/{app_id}",
     response_model=ApiResponse,
-    summary="刪除應用程式（管理員，軟刪除）",
+    summary="刪除應用程式（admin 以上，軟刪除）",
 )
 async def delete_application(
     app_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     check = await session.execute(
-        text("SELECT id FROM applications WHERE id = :id AND status != 'deleted'"),
-        {"id": str(app_id)},
+        text(
+            "SELECT id FROM applications "
+            "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
+        ),
+        {"id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     if not check.fetchone():
         raise HTTPException(status_code=404, detail="應用程式不存在")
 
     await session.execute(
         text(
-            "UPDATE applications SET status = 'deleted', updated_at = :now WHERE id = :id"
+            "UPDATE applications SET status = 'deleted', updated_at = :now, updated_by = :uid "
+            "WHERE id = :id AND workspace_id = :ws"
         ),
-        {"id": str(app_id), "now": datetime.utcnow()},
+        {
+            "id": str(app_id),
+            "ws": str(ctx.workspace_id),
+            "now": datetime.utcnow(),
+            "uid": str(ctx.user_id),
+        },
     )
     return ApiResponse(message="應用程式已刪除")
 
@@ -306,13 +344,15 @@ async def delete_application(
 )
 async def get_suggested_questions(
     app_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
     row = await session.execute(
         text(
-            "SELECT suggested_questions FROM applications WHERE id = :id AND status != 'deleted'"
+            "SELECT suggested_questions FROM applications "
+            "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
         ),
-        {"id": str(app_id)},
+        {"id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     app_row = row.fetchone()
     if not app_row:
@@ -344,11 +384,15 @@ async def chat_with_application(
     app_id: uuid.UUID,
     body: AppChatRequest,
     request: Request,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
     row = await session.execute(
-        text("SELECT * FROM applications WHERE id = :id AND status != 'deleted'"),
-        {"id": str(app_id)},
+        text(
+            "SELECT * FROM applications "
+            "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
+        ),
+        {"id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     app_row = row.fetchone()
     if not app_row:
@@ -363,20 +407,22 @@ async def chat_with_application(
 
     agent = await ApplicationAgent.create(app_dict, session=session)
 
-    ctx = AgentContext(
+    chat_ctx = AgentContext(
         session_id=body.session_id,
-        user_id=request.headers.get("X-User-ID", "anonymous"),
+        user_id=str(ctx.user_id),
         messages=body.messages,
         kb_ids=body.kb_ids,
+        workspace_id=str(ctx.workspace_id),
+        roles=[ctx.role.value],
     )
 
     async def event_generator():
         try:
-            async for token in agent.stream_response(ctx):
+            async for token in agent.stream_response(chat_ctx):
                 if await request.is_disconnected():
                     break
                 yield {"event": "token", "data": token}
-            yield {"event": "citations", "data": json.dumps(ctx.citations, ensure_ascii=False)}
+            yield {"event": "citations", "data": json.dumps(chat_ctx.citations, ensure_ascii=False)}
             yield {"event": "done", "data": "[DONE]"}
         except Exception as e:
             yield {"event": "error", "data": str(e)}
