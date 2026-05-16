@@ -1,0 +1,17 @@
+apiVersion: v2
+name: staffkm
+description: staffKM — Enterprise AI Knowledge Management Platform
+type: application
+version: 0.1.0
+appVersion: "2.0.0"
+home: https://github.com/guessleej/staffkm-platform
+sources:
+  - https://github.com/guessleej/staffkm-platform
+maintainers:
+  - name: staffKM Team
+keywords:
+  - ai
+  - knowledge-management
+  - rag
+  - multi-tenant
+icon: https://raw.githubusercontent.com/guessleej/staffkm-platform/main/apps/web/public/favicon.svg
