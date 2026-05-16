@@ -42,6 +42,7 @@ class ApplicationCreate(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
     is_public: bool = False
     tenant_id: str | None = None
+    workflow_manager: str = "simple"   # M2-2: simple/parallel/retry/batch/sandbox
 
 
 class ApplicationUpdate(BaseModel):
@@ -58,6 +59,7 @@ class ApplicationUpdate(BaseModel):
     skill_ids: list[str] | None = None       # D-2
     config: dict[str, Any] | None = None
     is_public: bool | None = None
+    workflow_manager: str | None = None      # M2-2
 
 
 class ApplicationOut(BaseModel):
@@ -76,6 +78,7 @@ class ApplicationOut(BaseModel):
     config: dict[str, Any]
     is_public: bool
     tenant_id: str | None
+    workflow_manager: str = "simple"         # M2-2
     created_at: datetime
     updated_at: datetime
     created_by: str | None
@@ -171,12 +174,14 @@ async def create_application(
                 id, workspace_id, name, description, icon, type, status,
                 llm_model_id, system_prompt, welcome_message,
                 suggested_questions, knowledge_base_ids, skill_ids, config,
-                is_public, tenant_id, created_at, updated_at, created_by
+                is_public, tenant_id, workflow_manager,
+                created_at, updated_at, created_by
             ) VALUES (
                 :id, :workspace_id, :name, :description, :icon, :type, :status,
                 :llm_model_id, :system_prompt, :welcome_message,
                 :suggested_questions::jsonb, :knowledge_base_ids::jsonb, :skill_ids::jsonb, :config::jsonb,
-                :is_public, :tenant_id, :created_at, :updated_at, :created_by
+                :is_public, :tenant_id, :workflow_manager,
+                :created_at, :updated_at, :created_by
             )
             """
         ),
@@ -194,6 +199,7 @@ async def create_application(
             "suggested_questions": json.dumps(body.suggested_questions, ensure_ascii=False),
             "knowledge_base_ids": json.dumps(body.knowledge_base_ids, ensure_ascii=False),
             "skill_ids": json.dumps(body.skill_ids, ensure_ascii=False),
+            "workflow_manager": body.workflow_manager,
             "config": json.dumps(body.config, ensure_ascii=False),
             "is_public": body.is_public,
             "tenant_id": body.tenant_id,

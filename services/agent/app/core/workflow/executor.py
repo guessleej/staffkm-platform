@@ -11,6 +11,9 @@ from app.config import settings
 log = structlog.get_logger()
 
 
+_VALID_MANAGERS = ("simple", "parallel", "retry", "batch", "sandbox")
+
+
 class WorkflowExecutor:
     def __init__(
         self,
@@ -20,7 +23,13 @@ class WorkflowExecutor:
         workspace_id: str | None = None,
         user_id: str | None = None,
         roles: list[str] | None = None,
+        workflow_manager: str = "simple",  # M2-2: simple/parallel/retry/batch/sandbox
     ):
+        # M2-2：執行策略
+        if workflow_manager not in _VALID_MANAGERS:
+            log.warning("workflow_manager_unknown", got=workflow_manager, fallback="simple")
+            workflow_manager = "simple"
+        self.workflow_manager = workflow_manager
         # 以 node_key 作為索引
         self.nodes = {n["node_key"]: n for n in nodes}
         self.edges = edges
@@ -63,6 +72,25 @@ class WorkflowExecutor:
         }
         current_key = self._find_start_node()
         visited = set()
+        # M2-2：每個 node 的累計嘗試次數（retry manager 用）
+        _node_attempts: dict[str, int] = {}
+
+        # 啟動 log 帶 manager 策略
+        log.info(
+            "workflow_execute_start",
+            manager=self.workflow_manager,
+            workspace_id=str(self.workspace_id or "-"),
+            user_id=str(self.user_id or "-"),
+            node_count=len(self.nodes),
+        )
+
+        # M2-2 stub manager 提示：parallel / batch / sandbox 行為由後續 PR 補上
+        if self.workflow_manager in ("parallel", "batch", "sandbox"):
+            log.warning(
+                "workflow_manager_stub",
+                manager=self.workflow_manager,
+                note="此策略行為尚未實作；本次以 simple 模式執行",
+            )
 
         while current_key and current_key not in visited:
             visited.add(current_key)
@@ -180,9 +208,30 @@ class WorkflowExecutor:
                     await self._exec_merge(config, context)
 
             except Exception as e:
+                # M2-2：manager='retry' 時自動重試（最多 3 次、指數退避）
+                attempts = _node_attempts.get(current_key, 0) + 1
+                _node_attempts[current_key] = attempts
+                max_attempts = 3 if self.workflow_manager == "retry" else 1
+                if attempts < max_attempts:
+                    import asyncio
+                    backoff_ms = 500 * (2 ** (attempts - 1))
+                    log.warning(
+                        "workflow_node_retry",
+                        node_key=current_key, type=node_type, attempt=attempts,
+                        backoff_ms=backoff_ms, error=str(e),
+                        **self._audit_fields(context),
+                    )
+                    yield {"event": "retry", "data": json.dumps({
+                        "node_key": current_key, "attempt": attempts, "backoff_ms": backoff_ms,
+                    })}
+                    await asyncio.sleep(backoff_ms / 1000.0)
+                    visited.discard(current_key)   # 取消 visited 標記讓 while 重跑該節點
+                    continue
+                # 超出 retry 上限或非 retry 策略
                 log.error(
                     "workflow_node_failed",
                     node_key=current_key, type=node_type, error=str(e),
+                    attempts=attempts, manager=self.workflow_manager,
                     **self._audit_fields(context),
                 )
                 yield {"event": "error", "data": json.dumps({"node_key": current_key, "error": str(e)})}

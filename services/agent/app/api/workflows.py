@@ -252,6 +252,16 @@ async def run_workflow(
         if isinstance(n.get("config"), str):
             n["config"] = json.loads(n["config"])
 
+    # M2-2：讀 application.workflow_manager 決定執行策略
+    mgr_row = await session.execute(
+        text("SELECT workflow_manager FROM applications WHERE id = :id"),
+        {"id": str(app_id)},
+    )
+    mgr_value = mgr_row.fetchone()
+    workflow_manager = (
+        dict(mgr_value._mapping).get("workflow_manager") if mgr_value else None
+    ) or "simple"
+
     # 多租戶上下文：一路傳到所有 _exec_* node
     executor = WorkflowExecutor(
         nodes=nodes,
@@ -259,6 +269,7 @@ async def run_workflow(
         workspace_id=str(ctx.workspace_id),
         user_id=str(ctx.user_id),
         roles=[ctx.role.value],
+        workflow_manager=workflow_manager,
     )
 
     async def event_generator():
