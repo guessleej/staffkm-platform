@@ -33,9 +33,27 @@
         <p class="text-gray-400 text-sm mt-1">點擊右上角新增您的第一個 AI 應用</p>
       </div>
 
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <template v-else>
+        <!-- D-6：Project 過濾指示 chip -->
         <div
-          v-for="app in applications"
+          v-if="activeProject"
+          class="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-700 text-xs"
+        >
+          <span class="text-base leading-none">{{ activeProject.emoji || '#' }}</span>
+          <span>目前 Project：{{ activeProject.name }}（顯示 {{ displayedApps.length }} / {{ applications.length }} 個）</span>
+          <button
+            @click="projects.switchTo(null)"
+            class="text-brand-500 hover:text-brand-700 transition text-base leading-none"
+            title="清除 Project 過濾"
+          >×</button>
+        </div>
+
+        <div v-if="activeProject && !displayedApps.length" class="text-center py-20 text-sm text-neutral-500">
+          此 Project 尚未掛任何應用
+        </div>
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div
+            v-for="app in displayedApps"
           :key="app.id"
           class="relative bg-white rounded-xl border p-5 hover:shadow-md transition-all cursor-pointer group"
           :class="batch.isSelected(app.id)
@@ -99,6 +117,7 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- 分享連結 Dialog -->
@@ -378,6 +397,7 @@ import { modelProviderApi, type AiModel } from '../../api/modelProvider'
 import { http } from '../../api/index'
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
+import { useProjectStore } from '../../stores/project'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -385,6 +405,16 @@ const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const applications = ref<Application[]>([])
+
+// ── D-6：Project 過濾 ─────────────────────────────────────────────────
+const projects = useProjectStore()
+const activeProject = computed(() => projects.active)
+const displayedApps = computed(() => {
+  const p = activeProject.value
+  if (!p) return applications.value
+  const ids = new Set(p.application_ids || [])
+  return applications.value.filter(a => ids.has(a.id))
+})
 
 // ── 批量選擇 ───────────────────────────────────────────────────────────
 const batch = useBatchSelect()

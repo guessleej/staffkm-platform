@@ -47,6 +47,15 @@
         <div>
           <h1 class="text-lg font-semibold text-neutral-900">{{ activeFolderName }}</h1>
           <p class="text-xs text-neutral-500 mt-0.5">{{ $t('knowledge.docCount', { n: filteredKbs.length }) }}</p>
+          <!-- D-6：Project 過濾指示 -->
+          <div
+            v-if="activeProject"
+            class="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 text-[11px]"
+          >
+            <span>{{ activeProject.emoji || '#' }}</span>
+            <span>Project：{{ activeProject.name }}</span>
+            <button @click="projects.switchTo(null)" class="text-brand-500 hover:text-brand-700">×</button>
+          </div>
         </div>
         <button
           @click="showCreate = true"
@@ -295,6 +304,7 @@ import { IconClose, IconDelete, IconKnowledge, IconPlus, IconSpinner } from '../
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import FolderTree, { type FolderNode } from '../../components/common/FolderTree.vue'
+import { useProjectStore } from '../../stores/project'
 
 const kbs = ref<any[]>([])
 const folders = ref<KbFolder[]>([])
@@ -323,10 +333,22 @@ const activeFolderId = ref<string | null>(null)
 // ── 批量選擇 ───────────────────────────────────────────────────────────
 const batch = useBatchSelect()
 
+// ── D-6：Project 過濾 ─────────────────────────────────────────────────
+const projects = useProjectStore()
+const activeProject = computed(() => projects.active)
+
 // ── computed ───────────────────────────────────────────────────────────
 const filteredKbs = computed(() => {
-  if (activeFolderId.value === null) return kbs.value
-  return kbs.value.filter((k) => k.folder_id === activeFolderId.value)
+  let list = kbs.value
+  // 先依 Project（D-6），再依 Folder（C-3）
+  if (activeProject.value) {
+    const ids = new Set(activeProject.value.knowledge_base_ids || [])
+    list = list.filter((k) => ids.has(k.id))
+  }
+  if (activeFolderId.value !== null) {
+    list = list.filter((k) => k.folder_id === activeFolderId.value)
+  }
+  return list
 })
 
 const activeFolderName = computed(() => {
