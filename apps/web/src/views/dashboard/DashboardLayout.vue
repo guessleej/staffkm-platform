@@ -23,28 +23,28 @@
 
       <!-- 中：主導覽 -->
       <nav class="flex-1 flex items-center justify-center gap-1 min-w-0 overflow-x-auto">
-        <HNavItem to="/chat" label="對話">
+        <HNavItem to="/chat" :label="$t('nav.chat')">
           <template #icon><IconChat :size="16" /></template>
         </HNavItem>
-        <HNavItem to="/applications" label="應用">
+        <HNavItem to="/applications" :label="$t('nav.apps')">
           <template #icon><IconApps :size="16" /></template>
         </HNavItem>
-        <HNavItem to="/knowledge" label="知識庫">
+        <HNavItem to="/knowledge" :label="$t('nav.knowledge')">
           <template #icon><IconKnowledge :size="16" /></template>
         </HNavItem>
-        <HNavItem to="/agents" label="代理人">
+        <HNavItem to="/agents" :label="$t('nav.agents')">
           <template #icon><IconAgent :size="16" /></template>
         </HNavItem>
 
         <template v-if="auth.hasRole(['admin'])">
           <span class="mx-2 w-px h-5 bg-neutral-200"></span>
-          <HNavItem to="/admin/users" label="使用者">
+          <HNavItem to="/admin/users" :label="$t('nav.users')">
             <template #icon><IconUsers :size="16" /></template>
           </HNavItem>
-          <HNavItem to="/admin/models" label="模型">
+          <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>
-          <HNavItem to="/admin/system" label="設定">
+          <HNavItem to="/admin/system" :label="$t('nav.settings')">
             <template #icon><IconSettings :size="16" /></template>
           </HNavItem>
         </template>

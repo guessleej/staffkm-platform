@@ -8,7 +8,7 @@
       <button
         @click="$emit('toggle')"
         class="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition flex-shrink-0"
-        :title="collapsed ? '展開對話列表' : '收起對話列表'"
+        :title="collapsed ? $t('chat.newChat') : ''"
       >
         <IconMenu :size="16" />
       </button>
@@ -33,10 +33,10 @@
         @click="$emit('new-chat')"
         class="w-full h-9 flex items-center gap-2 rounded-lg text-sm font-medium transition-colors border border-neutral-200 hover:bg-neutral-50 text-neutral-700"
         :class="collapsed ? 'justify-center px-0' : 'px-3'"
-        :title="collapsed ? '新對話' : undefined"
+        :title="collapsed ? $t('chat.newChat') : undefined"
       >
         <IconPlus :size="14" />
-        <span v-if="!collapsed">新對話</span>
+        <span v-if="!collapsed">{{ $t('chat.newChat') }}</span>
       </button>
     </div>
 
@@ -63,7 +63,7 @@
       <p
         v-if="!groups.length"
         class="text-center text-xs text-neutral-400 py-8"
-      >尚無對話記錄</p>
+      >{{ $t('chat.historyEmpty') }}</p>
     </nav>
 
     <!-- Collapsed body: empty (only toggle + new-chat visible) -->
@@ -77,10 +77,10 @@
         :to="link.to"
         class="flex items-center gap-2 h-9 rounded-lg text-sm text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
         :class="collapsed ? 'justify-center' : 'px-2.5'"
-        :title="collapsed ? link.label : undefined"
+        :title="collapsed ? $t(link.key) : undefined"
       >
         <component :is="link.icon" :size="16" />
-        <span v-if="!collapsed">{{ link.label }}</span>
+        <span v-if="!collapsed">{{ $t(link.key) }}</span>
       </router-link>
     </div>
   </aside>
@@ -115,10 +115,11 @@ const groups = computed(() =>
 )
 
 // 順序對齊 DashboardLayout 頂部水平導覽，避免認知混淆
+// 用 i18n key 而非 hardcoded 字串，切語系即時更新
 const adminLinks = [
-  { to: '/applications', label: '應用',   icon: IconApps },
-  { to: '/knowledge',    label: '知識庫', icon: IconKnowledge },
-  { to: '/agents',       label: '代理人', icon: IconAgent },
-  { to: '/admin/system', label: '設定',   icon: IconSettings },
+  { to: '/applications', key: 'nav.apps',      icon: IconApps },
+  { to: '/knowledge',    key: 'nav.knowledge', icon: IconKnowledge },
+  { to: '/agents',       key: 'nav.agents',    icon: IconAgent },
+  { to: '/admin/system', key: 'nav.settings',  icon: IconSettings },
 ]
 </script>
