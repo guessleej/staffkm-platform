@@ -228,6 +228,28 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
         updated_by          UUID
     )
     """,
+
+    # ── M4 啟動：Long-term Memory Store ─────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS long_term_memories (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        user_id         UUID,
+        application_id  UUID,
+        scope           VARCHAR(16) NOT NULL DEFAULT 'user',  -- user | app | team
+        content         TEXT NOT NULL,
+        tags            JSONB NOT NULL DEFAULT '[]',
+        importance      INTEGER NOT NULL DEFAULT 5,           -- 1~10
+        access_count    INTEGER NOT NULL DEFAULT 0,
+        last_accessed_at TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_memories_workspace ON long_term_memories(workspace_id, scope)",
+    "CREATE INDEX IF NOT EXISTS idx_memories_user      ON long_term_memories(user_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_memories_app       ON long_term_memories(application_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_memories_content_gin ON long_term_memories USING gin (to_tsvector('simple', content))",
 ]
 
 
