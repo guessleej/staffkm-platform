@@ -37,9 +37,26 @@
         <div
           v-for="app in applications"
           :key="app.id"
-          class="bg-white rounded-xl border border-gray-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
-          @click="enterApp(app)"
+          class="relative bg-white rounded-xl border p-5 hover:shadow-md transition-all cursor-pointer group"
+          :class="batch.isSelected(app.id)
+            ? 'border-indigo-400 ring-1 ring-indigo-200'
+            : 'border-gray-200 hover:border-indigo-300'"
+          @click="batch.hasSelection.value ? batch.toggle(app.id) : enterApp(app)"
         >
+          <!-- 批量選取 checkbox（hover 或選中時顯示）-->
+          <button
+            class="absolute top-3 right-3 w-5 h-5 flex items-center justify-center rounded border transition opacity-0 group-hover:opacity-100"
+            :class="batch.isSelected(app.id)
+              ? 'bg-indigo-600 border-indigo-600 text-white opacity-100'
+              : 'bg-white border-gray-300 hover:border-indigo-400 text-transparent'"
+            @click.stop="batch.toggle(app.id)"
+            :title="batch.isSelected(app.id) ? '取消選取' : '選取此項'"
+          >
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+          </button>
+
           <!-- 應用圖示 -->
           <div class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl mb-4"
                :style="{ background: appGradient(app.id) }">
@@ -340,6 +357,15 @@
       </div>
     </div>
   </div>
+
+  <!-- 批量選擇浮動工具列 -->
+  <BatchSelectToolbar :count="batch.count.value" @clear="batch.clear()">
+    <button
+      v-if="auth.hasRole(['admin'])"
+      @click="batchDelete"
+      class="px-2.5 py-1.5 rounded-lg text-sm text-white/90 hover:bg-white/10 hover:text-white transition"
+    >刪除</button>
+  </BatchSelectToolbar>
 </template>
 
 <script setup lang="ts">
@@ -350,6 +376,8 @@ import { applicationApi, type Application } from '../../api/application'
 import { apiKeyApi, type ApiKey } from '../../api/apiKey'
 import { modelProviderApi, type AiModel } from '../../api/modelProvider'
 import { http } from '../../api/index'
+import { useBatchSelect } from '../../composables/useBatchSelect'
+import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -357,6 +385,20 @@ const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const applications = ref<Application[]>([])
+
+// ── 批量選擇 ───────────────────────────────────────────────────────────
+const batch = useBatchSelect()
+
+async function batchDelete() {
+  const ids = Array.from(batch.selected.value)
+  if (ids.length === 0) return
+  if (!confirm(`確定要刪除 ${ids.length} 個應用？此操作無法復原。`)) return
+  for (const id of ids) {
+    try { await applicationApi.delete(id) } catch { /* swallow */ }
+  }
+  applications.value = applications.value.filter(a => !ids.includes(a.id))
+  batch.clear()
+}
 const knowledgeBases = ref<any[]>([])
 const rerankerModels = ref<AiModel[]>([])
 const showDialog = ref(false)

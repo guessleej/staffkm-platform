@@ -44,8 +44,23 @@
         <div
           v-for="kb in kbs"
           :key="kb.id"
-          class="bg-surface-raised rounded-xl border border-neutral-200 hover:border-brand-300 hover:shadow-md transition-all overflow-hidden"
+          class="relative bg-surface-raised rounded-xl border hover:shadow-md transition-all overflow-hidden group"
+          :class="batch.isSelected(kb.id)
+            ? 'border-brand-400 ring-1 ring-brand-200'
+            : 'border-neutral-200 hover:border-brand-300'"
         >
+          <!-- 批量選取 checkbox -->
+          <button
+            class="absolute top-3 right-3 z-10 w-5 h-5 flex items-center justify-center rounded border transition opacity-0 group-hover:opacity-100"
+            :class="batch.isSelected(kb.id)
+              ? 'bg-brand-600 border-brand-600 text-white opacity-100'
+              : 'bg-white border-neutral-300 hover:border-brand-400 text-transparent'"
+            @click.stop="batch.toggle(kb.id)"
+          >
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+          </button>
           <div class="px-5 pt-5 pb-4">
             <div class="flex items-start justify-between mb-3 gap-3">
               <div class="flex items-start gap-3 min-w-0">
@@ -152,17 +167,41 @@
       </div>
     </Transition>
   </Teleport>
+
+  <!-- 批量選擇浮動工具列 -->
+  <BatchSelectToolbar :count="batch.count.value" @clear="batch.clear()">
+    <button
+      @click="batchDelete"
+      class="px-2.5 py-1.5 rounded-lg text-sm text-white/90 hover:bg-white/10 hover:text-white transition"
+    >刪除</button>
+  </BatchSelectToolbar>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { knowledgeApi } from '../../api/knowledge'
 import { IconClose, IconDelete, IconKnowledge, IconPlus, IconSpinner } from '../../components/icons'
+import { useBatchSelect } from '../../composables/useBatchSelect'
+import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 
 const kbs = ref<any[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
 const form = ref({ name: '', description: '' })
+
+// ── 批量選擇 ───────────────────────────────────────────────────────────
+const batch = useBatchSelect()
+
+async function batchDelete() {
+  const ids = Array.from(batch.selected.value)
+  if (ids.length === 0) return
+  if (!confirm(`確定要刪除 ${ids.length} 個知識庫？其下的文件與向量資料會一併移除。`)) return
+  for (const id of ids) {
+    try { await knowledgeApi.deleteBase(id) } catch { /* swallow */ }
+  }
+  batch.clear()
+  await load()
+}
 
 function statusClass(s: string) {
   return {
