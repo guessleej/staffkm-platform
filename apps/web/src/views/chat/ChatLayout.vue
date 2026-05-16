@@ -16,8 +16,10 @@
       <header
         class="h-12 px-4 flex items-center justify-between border-b border-neutral-100 flex-shrink-0"
       >
-        <!-- 中央顯示：當前 conversation title 或 model -->
-        <div class="flex items-center gap-2 min-w-0">
+        <!-- 中央顯示：Project picker + model -->
+        <div class="flex items-center gap-3 min-w-0">
+          <ProjectPicker />
+          <span class="w-px h-5 bg-neutral-200"></span>
           <span class="text-xs uppercase tracking-widest text-neutral-400">模型</span>
           <span class="text-sm font-mono text-neutral-700 truncate">gemma4:e4b</span>
         </div>
@@ -104,6 +106,7 @@ import { onClickOutside } from '@vueuse/core'
 
 import ChatHistoryDrawer from '../../components/chat/ChatHistoryDrawer.vue'
 import ArtifactPane from '../../components/chat/ArtifactPane.vue'
+import ProjectPicker from '../../components/project/ProjectPicker.vue'
 import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
