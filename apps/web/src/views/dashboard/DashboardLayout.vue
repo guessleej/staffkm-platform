@@ -155,12 +155,14 @@ import {
 } from '../../components/icons'
 
 import { useAuthStore } from '../../stores/auth'
+import { useProjectStore } from '../../stores/project'
 import { useUIStore } from '../../stores/ui'
 import { useWorkspaceStore } from '../../stores/workspace'
 
 const auth = useAuthStore()
 const ui = useUIStore()
 const workspace = useWorkspaceStore()
+const projects = useProjectStore()
 const router = useRouter()
 
 const open = ref(false)
@@ -179,7 +181,9 @@ async function onLogout() {
   router.push('/login')
 }
 
-onMounted(() => {
-  if (workspace.workspaces.length === 0) workspace.load()
+onMounted(async () => {
+  if (workspace.workspaces.length === 0) await workspace.load()
+  // D-6：載入 projects 讓「目前 Project」過濾在管理頁面也能用
+  projects.load()
 })
 </script>
