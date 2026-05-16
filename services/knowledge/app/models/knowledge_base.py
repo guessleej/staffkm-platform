@@ -80,6 +80,11 @@ class Document(Base, UUIDPrimaryKeyMixin, AuditMixin):
     error_message: Mapped[str | None] = mapped_column(Text)
     meta: Mapped[dict] = mapped_column(JSONB, default=dict)
 
+    # Round 10-1：MaxKB parity
+    tags: Mapped[list] = mapped_column(JSONB, default=list)
+    hit_strategy: Mapped[str] = mapped_column(String(16), default="rag")  # rag | direct | both
+    is_enabled: Mapped[bool] = mapped_column(default=True)
+
     knowledge_base: Mapped["KnowledgeBase"] = relationship(back_populates="documents")
     paragraphs: Mapped[list["Paragraph"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 

@@ -105,6 +105,11 @@ async def list_documents(
             "progress_message": (d.meta or {}).get("progress_message", ""),
             "task_id": (d.meta or {}).get("celery_task_id"),
             "error_message": d.error_message,
+            # Round 10-1: MaxKB parity
+            "tags":         d.tags or [],
+            "hit_strategy": d.hit_strategy or "rag",
+            "is_enabled":   bool(d.is_enabled),
+            "created_at":   d.created_at.isoformat() if d.created_at else None,
         }
         for d in docs
     ])
@@ -129,3 +134,224 @@ async def delete_document_api(
 
     await session.delete(doc)
     return ApiResponse(message="文件已刪除")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Round 10-1：文檔操作擴充（MaxKB parity）
+# ═══════════════════════════════════════════════════════════════════════
+from io import BytesIO
+from typing import Any
+from fastapi import Form
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+
+class DocSettingsPatch(BaseModel):
+    """單一或部分欄位更新；空欄不動。"""
+    tags:         list[str] | None = None
+    hit_strategy: str | None = Field(default=None, pattern="^(rag|direct|both)$")
+    is_enabled:   bool | None = None
+    name:         str | None = None
+
+
+class DocMigrate(BaseModel):
+    target_kb_id: uuid.UUID
+
+
+class DocBatchOp(BaseModel):
+    document_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=500)
+
+
+async def _load_doc(doc_id, session) -> Document:
+    q = WorkspaceScopedQuery(Document).select().where(Document.id == doc_id)
+    doc = (await session.execute(q)).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文件不存在或不屬於此工作區")
+    return doc
+
+
+@router.patch("/doc/{doc_id}/settings", response_model=ApiResponse)
+async def update_doc_settings(
+    doc_id: uuid.UUID,
+    body: DocSettingsPatch,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """更新文件設定：tags / hit_strategy / is_enabled / name。"""
+    doc = await _load_doc(doc_id, session)
+    data = body.dict(exclude_unset=True)
+    for k, v in data.items():
+        setattr(doc, k, v)
+    await session.commit()
+    return ApiResponse(message="文件設定已更新", data={
+        "tags": doc.tags or [], "hit_strategy": doc.hit_strategy,
+        "is_enabled": doc.is_enabled, "name": doc.name,
+    })
+
+
+@router.post("/doc/{doc_id}/migrate", response_model=ApiResponse)
+async def migrate_document(
+    doc_id: uuid.UUID,
+    body: DocMigrate,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """把文件搬到同 workspace 的另一個 KB。
+
+    paragraphs / embeddings 一起跟著走（外鍵 ON DELETE CASCADE 不適用，這裡只改 knowledge_base_id）。
+    """
+    doc = await _load_doc(doc_id, session)
+    target = await _verify_kb_in_workspace(body.target_kb_id, ctx, session)
+    if doc.knowledge_base_id == target.id:
+        return ApiResponse(message="目標 KB 與目前相同；無變動")
+    doc.knowledge_base_id = target.id
+    await session.commit()
+    return ApiResponse(message="文件已遷移", data={
+        "document_id": str(doc.id),
+        "target_kb_id": str(target.id),
+    })
+
+
+@router.get("/doc/{doc_id}/download")
+async def download_original(
+    doc_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """下載原始檔。"""
+    from app.core.storage import download_document
+    doc = await _load_doc(doc_id, session)
+    if not doc.storage_path:
+        raise HTTPException(status_code=404, detail="文件原檔不存在")
+    try:
+        data = download_document(doc.storage_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"讀取原檔失敗：{e}") from e
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{doc.name}"',
+        },
+    )
+
+
+@router.post("/doc/{doc_id}/replace", response_model=ApiResponse)
+async def replace_original(
+    doc_id: uuid.UUID,
+    file: UploadFile = File(...),
+    keep_chunks: bool = Form(False),
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """以新檔取代原檔。預設會清掉舊 paragraphs 並重新處理；keep_chunks=true 則只換原檔不重切。"""
+    doc = await _load_doc(doc_id, session)
+    ext = "." + file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    if ext not in settings.ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支援的檔案格式：{ext}")
+    contents = await file.read()
+    if len(contents) > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"檔案超過 {settings.MAX_FILE_SIZE_MB}MB 限制")
+
+    # 刪舊原檔
+    if doc.storage_path:
+        try:
+            delete_document(doc.storage_path)
+        except Exception:
+            pass
+
+    new_key = f"documents/{doc.id}/{file.filename}"
+    new_path = upload_document(contents, new_key)
+    doc.storage_path = new_path
+    doc.file_size    = len(contents)
+    doc.file_type    = ext.lstrip(".")
+    doc.name         = file.filename
+    doc.error_message = None
+
+    task_id: str | None = None
+    if not keep_chunks:
+        # 觸發重切：清 paragraphs 由 process_document 自己處理（PENDING 標記即可）
+        doc.status = DocStatus.PENDING
+        doc.paragraph_count = 0
+        doc.char_count = 0
+        task = process_document.delay(str(doc.id))
+        task_id = task.id
+        doc.meta = {**(doc.meta or {}), "celery_task_id": task_id, "progress": 0}
+
+    await session.commit()
+    return ApiResponse(message="文件已替換", data={
+        "document_id": str(doc.id),
+        "task_id":     task_id,
+        "keep_chunks": keep_chunks,
+    })
+
+
+@router.post("/{kb_id}/batch-toggle", response_model=ApiResponse)
+async def batch_toggle(
+    kb_id: uuid.UUID,
+    body: DocBatchOp,
+    enabled: bool = True,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """批量啟用 / 停用文件。"""
+    await _verify_kb_in_workspace(kb_id, ctx, session)
+    from sqlalchemy import update as sql_update
+    res = await session.execute(
+        sql_update(Document)
+        .where(Document.id.in_(body.document_ids))
+        .where(Document.workspace_id == ctx.workspace_id)
+        .where(Document.knowledge_base_id == kb_id)
+        .values(is_enabled=enabled)
+    )
+    await session.commit()
+    return ApiResponse(message=f"{'啟用' if enabled else '停用'} 已套用",
+                       data={"updated": res.rowcount})
+
+
+@router.post("/{kb_id}/batch-delete", response_model=ApiResponse)
+async def batch_delete(
+    kb_id: uuid.UUID,
+    body: DocBatchOp,
+    ctx: TenantContext = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """批量刪除文件（含原檔）。"""
+    await _verify_kb_in_workspace(kb_id, ctx, session)
+    q = (
+        WorkspaceScopedQuery(Document).select()
+        .where(Document.id.in_(body.document_ids))
+        .where(Document.knowledge_base_id == kb_id)
+    )
+    docs: list[Document] = list((await session.execute(q)).scalars().all())
+    for d in docs:
+        if d.storage_path:
+            try: delete_document(d.storage_path)
+            except Exception: pass
+        await session.delete(d)
+    await session.commit()
+    return ApiResponse(message="批量刪除完成", data={"deleted": len(docs)})
+
+
+# ── 標籤管理（workspace 級）──────────────────────────────────────────
+@router.get("/tags", response_model=ApiResponse)
+async def list_workspace_tags(
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """彙整 workspace 內所有文件出現過的標籤 + 出現次數。"""
+    from sqlalchemy import text
+    rows = await session.execute(
+        text(
+            "SELECT tag, COUNT(*) AS n "
+            "FROM documents d, jsonb_array_elements_text(d.tags) AS tag "
+            "WHERE d.workspace_id = :ws "
+            "GROUP BY tag ORDER BY n DESC, tag"
+        ),
+        {"ws": str(ctx.workspace_id)},
+    )
+    items: list[dict[str, Any]] = [
+        {"tag": r._mapping["tag"], "count": int(r._mapping["n"])}
+        for r in rows.fetchall()
+    ]
+    return ApiResponse(data=items)
