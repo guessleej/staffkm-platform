@@ -75,6 +75,11 @@
 import { onMounted, reactive, ref } from 'vue'
 import { skillApi, type SkillEntity } from '../../api/extras'
 import { IconPlus } from '../../components/icons'
+import { useDialog } from '../../composables/useDialog'
+import { useToast } from '../../composables/useToast'
+
+const dialog = useDialog()
+const toast = useToast()
 
 const items = ref<SkillEntity[]>([])
 const loading = ref(true)
@@ -97,8 +102,14 @@ async function onCreate() {
   await load()
 }
 async function onDelete(id: string) {
-  if (!confirm('確定要刪除此 Skill？')) return
-  await skillApi.remove(id); await load()
+  if (!(await dialog.confirm('確定要刪除此 Skill？此動作無法復原。', { tone: 'danger', confirmLabel: '刪除' }))) return
+  try {
+    await skillApi.remove(id)
+    toast.success('Skill 已刪除')
+    await load()
+  } catch (e: any) {
+    toast.error('刪除失敗：' + (e?.message || e))
+  }
 }
 onMounted(load)
 </script>

@@ -165,6 +165,11 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { toolApi, type ToolEntity, type ToolExecResult } from '../../api/extras'
 import { IconPlus } from '../../components/icons'
 import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
+import { useDialog } from '../../composables/useDialog'
+import { useToast } from '../../composables/useToast'
+
+const dialog = useDialog()
+const toast = useToast()
 
 const allItems = ref<ToolEntity[]>([])
 const loading = ref(true)
@@ -189,8 +194,14 @@ async function onCreate() {
   await load()
 }
 async function onDelete(id: string) {
-  if (!confirm('確定要刪除此工具？')) return
-  await toolApi.remove(id); await load()
+  if (!(await dialog.confirm('確定要刪除此工具？此動作無法復原。', { tone: 'danger', confirmLabel: '刪除' }))) return
+  try {
+    await toolApi.remove(id)
+    toast.success('工具已刪除')
+    await load()
+  } catch (e: any) {
+    toast.error('刪除失敗：' + (e?.message || e))
+  }
 }
 
 // ── 試跑 (D-1) ─────────────────────────────────────────────────────────
