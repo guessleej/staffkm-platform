@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="bg-white border-b px-6 py-4 flex items-center gap-3 shadow-sm">
       <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl" :style="{ background: gradient }">
-        {{ app?.icon || '🤖' }}
+        {{ app?.icon || 'AI' }}
       </div>
       <div>
         <h1 class="font-semibold text-gray-900">{{ app?.name || '載入中…' }}</h1>
@@ -17,7 +17,7 @@
     <!-- 歡迎畫面 -->
     <div v-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center px-6 text-center">
       <div class="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl mb-6" :style="{ background: gradient }">
-        {{ app?.icon || '🤖' }}
+        {{ app?.icon || 'AI' }}
       </div>
       <h2 class="text-xl font-semibold text-gray-900 mb-2">{{ app?.welcome_message || '你好！有什麼我可以幫助你的？' }}</h2>
       <p class="text-sm text-gray-400 mb-8">{{ app?.description }}</p>
@@ -43,7 +43,7 @@
       >
         <div v-if="msg.role === 'assistant'" class="max-w-[85%] flex items-start gap-3">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" :style="{ background: gradient }">
-            {{ app?.icon || '🤖' }}
+            {{ app?.icon || 'AI' }}
           </div>
           <div class="bg-white border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
             <p class="text-sm text-gray-800 whitespace-pre-wrap">{{ msg.content }}</p>
@@ -177,7 +177,7 @@ async function sendMessage(text?: string) {
     }
   } catch {
     const msg = messages.value.find(m => m.id === aMsg.id)
-    if (msg && !msg.content) msg.content = '⚠️ 回應時發生錯誤，請稍後再試。'
+    if (msg && !msg.content) msg.content = '錯誤：回應時發生錯誤，請稍後再試。'
   }
 
   const msg = messages.value.find(m => m.id === aMsg.id)

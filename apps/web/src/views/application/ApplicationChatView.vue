@@ -106,7 +106,7 @@
           <div v-if="msg.role === 'assistant'" class="max-w-[85%] flex items-start gap-3">
             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 mt-0.5"
                  :style="{ background: appGradient(appId) }">
-              {{ application?.icon || '🤖' }}
+              {{ application?.icon || 'AI' }}
             </div>
             <div>
               <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
@@ -279,7 +279,7 @@ async function sendMessage() {
           } else if (pendingEvent === 'citations') {
             try { citations = JSON.parse(data) } catch { /* ignore */ }
           } else if (pendingEvent === 'error') {
-            convStore.appendToken(assistantMsg.id, `\n\n⚠️ ${data}`)
+            convStore.appendToken(assistantMsg.id, `\n\n錯誤：${data}`)
           }
           // reset after data line consumed
           pendingEvent = ''
@@ -292,7 +292,7 @@ async function sendMessage() {
     convStore.finishAssistantMessage(assistantMsg.id, citations)
   } catch (e) {
     convStore.finishAssistantMessage(assistantMsg.id, [])
-    convStore.appendToken(assistantMsg.id, '\n\n⚠️ 回應時發生錯誤，請稍後再試。')
+    convStore.appendToken(assistantMsg.id, '\n\n錯誤：回應時發生錯誤，請稍後再試。')
   }
 }
 
@@ -309,11 +309,11 @@ function appGradient(id: string) {
   return `linear-gradient(135deg, hsl(${hue},70%,88%), hsl(${(hue + 40) % 360},70%,88%))`
 }
 function appEmoji(name: string) {
-  const map: Record<string, string> = { 'sop': '📋', '請假': '🗓️', '採購': '🛒', '財務': '💰', '人事': '👥', '公文': '📄', '法規': '⚖️', '知識': '📚' }
+  const map: Record<string, string> = { 'sop': 'SOP', '請假': '假', '採購': '購', '財務': '財', '人事': '人', '公文': '文', '法規': '法', '知識': '知' }
   for (const [k, v] of Object.entries(map)) {
     if (name.includes(k)) return v
   }
-  return '🤖'
+  return 'AI'
 }
 
 onMounted(load)

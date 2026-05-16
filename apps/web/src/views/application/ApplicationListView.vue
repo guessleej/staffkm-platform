@@ -65,16 +65,16 @@
           <div v-if="auth.hasRole(['admin'])" class="flex gap-2 mt-4 pt-4 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
             <button v-if="app.type === 'workflow'" @click.stop="router.push(`/applications/${app.id}/workflow`)"
                     class="flex-1 text-center text-xs text-purple-500 hover:text-purple-700 py-1 rounded-lg hover:bg-purple-50 transition font-medium">
-              ⚙️ 編輯流程
+              編輯流程
             </button>
             <button @click.stop="openEditDialog(app)" class="flex-1 text-center text-xs text-gray-500 hover:text-indigo-600 py-1 rounded-lg hover:bg-indigo-50 transition">
               編輯
             </button>
             <button @click.stop="openShareDialog(app)" class="flex-1 text-center text-xs text-gray-500 hover:text-teal-600 py-1 rounded-lg hover:bg-teal-50 transition" title="分享連結">
-              🔗 分享
+              分享
             </button>
             <button @click.stop="openApiKeyDialog(app)" class="flex-1 text-center text-xs text-gray-500 hover:text-amber-600 py-1 rounded-lg hover:bg-amber-50 transition" title="API Keys">
-              🔑 API Key
+              API Key
             </button>
             <button @click.stop="deleteApp(app.id)" class="flex-1 text-center text-xs text-gray-500 hover:text-rose-600 py-1 rounded-lg hover:bg-rose-50 transition">
               刪除
@@ -563,11 +563,11 @@ function formatDate(iso: string) {
 }
 
 function appEmoji(name: string) {
-  const map: Record<string, string> = { 'sop': '📋', '請假': '🗓️', '採購': '🛒', '財務': '💰', '人事': '👥', '公文': '📄', '法規': '⚖️', '知識': '📚' }
+  const map: Record<string, string> = { 'sop': 'SOP', '請假': '假', '採購': '購', '財務': '財', '人事': '人', '公文': '文', '法規': '法', '知識': '知' }
   for (const [k, v] of Object.entries(map)) {
     if (name.includes(k)) return v
   }
-  return '🤖'
+  return 'APP'
 }
 
 onMounted(load)

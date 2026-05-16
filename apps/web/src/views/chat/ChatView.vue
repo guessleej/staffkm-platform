@@ -43,7 +43,7 @@
       <!-- 無選擇狀態 -->
       <div v-if="!activeConvId" class="flex-1 flex items-center justify-center">
         <div class="text-center">
-          <p class="text-4xl mb-4">🤖</p>
+          <p class="text-xs uppercase tracking-widest text-neutral-400 mb-2">尚未選取對話</p>
           <h3 class="text-lg font-semibold text-gray-700 mb-2">選擇或新增對話</h3>
           <p class="text-sm text-gray-400">從左側選取對話，或點選「新增對話」開始諮詢</p>
         </div>
@@ -72,7 +72,7 @@
                 <p class="text-xs text-gray-400">參考來源：</p>
                 <div v-for="(c, i) in msg.citations" :key="i"
                   class="text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1 text-amber-800">
-                  📄 {{ c.doc_name }} (相符度 {{ (c.score * 100).toFixed(1) }}%)
+                  {{ c.doc_name }}（相符度 {{ (c.score * 100).toFixed(1) }}%）
                 </div>
               </div>
             </div>

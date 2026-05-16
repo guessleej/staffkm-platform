@@ -8,7 +8,7 @@ import LogicFlow from '@logicflow/core'
 export interface NodeMeta {
   color: string   // header / border color
   bg: string      // card background
-  icon: string    // emoji icon
+  icon: string    // 2–3 字元節點縮寫（顯示於節點 header）
   label: string   // 中文名稱
   w: number       // 節點寬度
   h: number       // 節點高度
@@ -19,25 +19,25 @@ export interface NodeMeta {
 
 export const NODE_META: Record<string, NodeMeta> = {
   start:               { color: '#10b981', bg: '#ecfdf5', icon: '▶', label: '開始', w: 160, h: 64, noInput: true },
-  llm:                 { color: '#6366f1', bg: '#eef2ff', icon: '🤖', label: 'AI 對話', w: 190, h: 72 },
-  knowledge_retrieval: { color: '#f59e0b', bg: '#fffbeb', icon: '📚', label: '知識庫檢索', w: 190, h: 72 },
-  condition:           { color: '#8b5cf6', bg: '#f5f3ff', icon: '◇', label: '條件判斷', w: 190, h: 84, dualOutput: true },
-  variable:            { color: '#06b6d4', bg: '#ecfeff', icon: '{}', label: '變數賦值', w: 190, h: 72 },
-  http_request:        { color: '#3b82f6', bg: '#eff6ff', icon: '🌐', label: 'HTTP 請求', w: 190, h: 72 },
-  answer:              { color: '#10b981', bg: '#ecfdf5', icon: '💬', label: '回覆訊息', w: 190, h: 72, noOutput: true },
-  loop:                { color: '#f97316', bg: '#fff7ed', icon: '↻', label: '迴圈', w: 190, h: 72 },
-  loop_break:          { color: '#ef4444', bg: '#fef2f2', icon: '⏹', label: '中斷迴圈', w: 190, h: 64, noOutput: true },
-  intent:              { color: '#8b5cf6', bg: '#f5f3ff', icon: '🎯', label: '意圖識別', w: 190, h: 72 },
-  parameter_extraction:{ color: '#06b6d4', bg: '#ecfeff', icon: '🔍', label: '參數萃取', w: 190, h: 72 },
-  reranker:            { color: '#f59e0b', bg: '#fffbeb', icon: '⚖️', label: 'Reranker', w: 190, h: 72 },
-  speech_to_text:      { color: '#3b82f6', bg: '#eff6ff', icon: '🎤', label: '語音轉文字', w: 190, h: 72 },
-  text_to_speech:      { color: '#6366f1', bg: '#eef2ff', icon: '🔊', label: '文字轉語音', w: 190, h: 72 },
-  image_understand:    { color: '#f97316', bg: '#fff7ed', icon: '🖼', label: '圖像理解', w: 190, h: 72 },
-  image_generate:      { color: '#ec4899', bg: '#fdf2f8', icon: '🎨', label: '圖像生成', w: 190, h: 72 },
-  document_extract:    { color: '#64748b', bg: '#f8fafc', icon: '📄', label: '文件擷取', w: 190, h: 72 },
-  document_split:      { color: '#64748b', bg: '#f8fafc', icon: '✂️', label: '文件分段', w: 190, h: 72 },
-  form:                { color: '#10b981', bg: '#ecfdf5', icon: '📋', label: '表單收集', w: 190, h: 72 },
-  mcp_tool:            { color: '#6366f1', bg: '#eef2ff', icon: '🔧', label: 'MCP 工具', w: 190, h: 72 },
+  llm:                 { color: '#6366f1', bg: '#eef2ff', icon: 'AI',  label: 'AI 對話', w: 190, h: 72 },
+  knowledge_retrieval: { color: '#f59e0b', bg: '#fffbeb', icon: 'KB',  label: '知識庫檢索', w: 190, h: 72 },
+  condition:           { color: '#8b5cf6', bg: '#f5f3ff', icon: 'IF',  label: '條件判斷', w: 190, h: 84, dualOutput: true },
+  variable:            { color: '#06b6d4', bg: '#ecfeff', icon: 'VAR', label: '變數賦值', w: 190, h: 72 },
+  http_request:        { color: '#3b82f6', bg: '#eff6ff', icon: 'API', label: 'HTTP 請求', w: 190, h: 72 },
+  answer:              { color: '#10b981', bg: '#ecfdf5', icon: 'OUT', label: '回覆訊息', w: 190, h: 72, noOutput: true },
+  loop:                { color: '#f97316', bg: '#fff7ed', icon: 'LP',  label: '迴圈', w: 190, h: 72 },
+  loop_break:          { color: '#ef4444', bg: '#fef2f2', icon: 'BRK', label: '中斷迴圈', w: 190, h: 64, noOutput: true },
+  intent:              { color: '#8b5cf6', bg: '#f5f3ff', icon: 'INT', label: '意圖識別', w: 190, h: 72 },
+  parameter_extraction:{ color: '#06b6d4', bg: '#ecfeff', icon: 'EX',  label: '參數萃取', w: 190, h: 72 },
+  reranker:            { color: '#f59e0b', bg: '#fffbeb', icon: 'RR',  label: 'Reranker', w: 190, h: 72 },
+  speech_to_text:      { color: '#3b82f6', bg: '#eff6ff', icon: 'STT', label: '語音轉文字', w: 190, h: 72 },
+  text_to_speech:      { color: '#6366f1', bg: '#eef2ff', icon: 'TTS', label: '文字轉語音', w: 190, h: 72 },
+  image_understand:    { color: '#f97316', bg: '#fff7ed', icon: 'IMG', label: '圖像理解', w: 190, h: 72 },
+  image_generate:      { color: '#ec4899', bg: '#fdf2f8', icon: 'GEN', label: '圖像生成', w: 190, h: 72 },
+  document_extract:    { color: '#64748b', bg: '#f8fafc', icon: 'DOC', label: '文件擷取', w: 190, h: 72 },
+  document_split:      { color: '#64748b', bg: '#f8fafc', icon: 'SPL', label: '文件分段', w: 190, h: 72 },
+  form:                { color: '#10b981', bg: '#ecfdf5', icon: 'FRM', label: '表單收集', w: 190, h: 72 },
+  mcp_tool:            { color: '#6366f1', bg: '#eef2ff', icon: 'MCP', label: 'MCP 工具', w: 190, h: 72 },
 }
 
 // ─── 預設 config ───────────────────────────────────────────────────────────────

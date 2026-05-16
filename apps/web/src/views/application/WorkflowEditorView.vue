@@ -70,7 +70,7 @@
         <!-- 無節點提示 -->
         <div v-if="nodeCount === 0"
              class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <div class="text-4xl mb-4 opacity-30">🔀</div>
+          <div class="text-xs uppercase tracking-widest text-neutral-400 mb-2 opacity-60">空白畫布</div>
           <p class="text-sm text-gray-400 opacity-60">從左側拖曳節點到畫布開始建立工作流程</p>
         </div>
 
