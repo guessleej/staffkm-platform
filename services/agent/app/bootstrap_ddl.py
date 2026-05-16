@@ -135,6 +135,31 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
 
     # ── D-2：Application 引用 Skill ─────────────────────────────────
     "ALTER TABLE applications ADD COLUMN IF NOT EXISTS skill_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
+
+    # ── D-5：Folder 通用化（app / tool / skill / data_source 共用）─────
+    """
+    CREATE TABLE IF NOT EXISTS entity_folders (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        entity_kind     VARCHAR(32) NOT NULL,
+        parent_id       UUID,
+        name            VARCHAR(128) NOT NULL,
+        sort_order      INTEGER NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_entity_folders_ws_kind ON entity_folders(workspace_id, entity_kind)",
+    "CREATE INDEX IF NOT EXISTS idx_entity_folders_parent ON entity_folders(parent_id)",
+    "ALTER TABLE applications  ADD COLUMN IF NOT EXISTS folder_id UUID",
+    "ALTER TABLE tools         ADD COLUMN IF NOT EXISTS folder_id UUID",
+    "ALTER TABLE skills        ADD COLUMN IF NOT EXISTS folder_id UUID",
+    "ALTER TABLE data_sources  ADD COLUMN IF NOT EXISTS folder_id UUID",
+    "CREATE INDEX IF NOT EXISTS idx_applications_folder ON applications(folder_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tools_folder        ON tools(folder_id)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_folder       ON skills(folder_id)",
+    "CREATE INDEX IF NOT EXISTS idx_data_sources_folder ON data_sources(folder_id)",
 ]
 
 

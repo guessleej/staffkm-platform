@@ -27,6 +27,7 @@ _LEGACY_PREFIXES = (
     "/api/v1/tools",
     "/api/v1/skills",
     "/api/v1/data-sources",
+    "/api/v1/folders",
 )
 
 # 不重寫的例外 path（公開存取或 pre-auth endpoint）

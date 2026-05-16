@@ -30,3 +30,4 @@ def make_proxy_router(prefix: str) -> APIRouter:
 tools_router        = make_proxy_router("tools")
 skills_router       = make_proxy_router("skills")
 data_sources_router = make_proxy_router("data-sources")
+folders_router      = make_proxy_router("folders")

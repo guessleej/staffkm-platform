@@ -11,7 +11,7 @@ from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import StructuredLoggingMiddleware
 from app.middleware.rate_limit import setup_rate_limiter
 from app.routers import health, knowledge, agent, auth, chat, integration, admin, applications, api_keys, public, workspaces, projects
-from app.routers._generic_proxy import tools_router, skills_router, data_sources_router
+from app.routers._generic_proxy import tools_router, skills_router, data_sources_router, folders_router
 
 log = structlog.get_logger()
 
@@ -70,3 +70,4 @@ app.include_router(projects.router, prefix="/api/v1/projects", tags=["Project（
 app.include_router(tools_router, prefix="/api/v1/tools", tags=["Tool（新 backlog）"])
 app.include_router(skills_router, prefix="/api/v1/skills", tags=["Skill（新 backlog）"])
 app.include_router(data_sources_router, prefix="/api/v1/data-sources", tags=["Data Source（新 backlog）"])
+app.include_router(folders_router, prefix="/api/v1/folders", tags=["Entity Folders（D-5）"])
