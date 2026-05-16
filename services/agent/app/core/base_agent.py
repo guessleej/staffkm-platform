@@ -13,7 +13,7 @@ log = structlog.get_logger()
 
 
 class AgentContext:
-    """單次對話的執行上下文。"""
+    """單次對話的執行上下文（RFC-001 Stage 2: workspace-scoped）。"""
 
     def __init__(
         self,
@@ -21,11 +21,16 @@ class AgentContext:
         user_id: str,
         messages: list[dict],
         kb_ids: list[str],
+        workspace_id: str | None = None,
+        roles: list[str] | None = None,
     ):
         self.session_id = session_id
         self.user_id = user_id
         self.messages = messages
         self.kb_ids = kb_ids
+        # 多租戶：呼叫 knowledge / model service 等下游時帶在 header 中
+        self.workspace_id = workspace_id
+        self.roles = roles or []
         self.citations: list[dict] = []
         self.metadata: dict[str, Any] = {}
 
@@ -42,21 +47,49 @@ class BaseAdminAgent(ABC):
     def __init__(self):
         self._llm = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-    async def retrieve_context(self, query: str, kb_ids: list[str]) -> list[dict]:
-        """呼叫 Knowledge Service 取得相關段落。"""
+    async def retrieve_context(
+        self,
+        query: str,
+        kb_ids: list[str],
+        workspace_id: str | None = None,
+        user_id: str | None = None,
+        roles: list[str] | None = None,
+    ) -> list[dict]:
+        """呼叫 Knowledge Service 取得相關段落（workspace-scoped）。
+
+        若未提供 workspace_id 則打 legacy 路徑，靠 knowledge service 的
+        LegacyURLBridge 重寫到 default workspace（過渡期相容）。
+        """
         try:
+            if workspace_id:
+                url = (
+                    f"{settings.KNOWLEDGE_SERVICE_URL}"
+                    f"/api/v1/workspace/{workspace_id}/knowledge/search"
+                )
+            else:
+                url = f"{settings.KNOWLEDGE_SERVICE_URL}/api/v1/knowledge/search"
+            headers = {}
+            if user_id:
+                headers["X-User-ID"] = user_id
+            if roles:
+                headers["X-User-Roles"] = ",".join(roles)
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
-                    f"{settings.KNOWLEDGE_SERVICE_URL}/api/v1/knowledge/search",
+                    url,
                     json={
                         "query": query,
                         "kb_ids": kb_ids,
                         "top_k": 5,
                         "similarity_threshold": 0.45,
                     },
+                    headers=headers,
                 )
                 if resp.status_code == 200:
                     return resp.json().get("data", {}).get("citations", [])
+                log.warning(
+                    "knowledge_retrieval_non_200",
+                    status=resp.status_code, body=resp.text[:200],
+                )
         except Exception as e:
             log.warning("knowledge_retrieval_failed", error=str(e))
         return []
@@ -79,8 +112,14 @@ class BaseAdminAgent(ABC):
     async def stream_response(self, ctx: AgentContext) -> AsyncIterator[str]:
         user_query = ctx.messages[-1]["content"] if ctx.messages else ""
 
-        # RAG 檢索
-        citations = await self.retrieve_context(user_query, ctx.kb_ids)
+        # RAG 檢索（帶 workspace + user 認證 header 給下游 knowledge service）
+        citations = await self.retrieve_context(
+            user_query,
+            ctx.kb_ids,
+            workspace_id=ctx.workspace_id,
+            user_id=ctx.user_id,
+            roles=ctx.roles,
+        )
         ctx.citations = citations
 
         rag_user_message = self._build_rag_prompt(citations, user_query)

@@ -1,4 +1,10 @@
-"""Workflow API — 管理 application 的 workflow 節點與執行"""
+"""Workflow API — 管理 application 的 workflow 節點與執行（workspace-scoped）。
+
+權限模型：
+  GET   /workflow         require_member  （任何成員可看）
+  POST  /workflow         require_writer  （editor 以上可改）
+  POST  /workflow/chat    require_member  （任何成員可執行）
+"""
 import json
 import uuid
 from typing import Any
@@ -12,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.workflow.executor import WorkflowExecutor
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
+from staffkm_tenant import TenantContext, require_member, require_writer
 
 router = APIRouter()
 
@@ -45,6 +52,21 @@ class WorkflowChatRequest(BaseModel):
     session_id: str = ""
 
 
+async def _ensure_app_in_workspace(
+    session: AsyncSession, app_id: uuid.UUID, workspace_id
+) -> None:
+    """檢查 application 是否存在且屬於當前 workspace；否則 404。"""
+    check = await session.execute(
+        text(
+            "SELECT id FROM applications "
+            "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
+        ),
+        {"id": str(app_id), "ws": str(workspace_id)},
+    )
+    if not check.fetchone():
+        raise HTTPException(status_code=404, detail="應用程式不存在")
+
+
 # ── 取得工作流程 ────────────────────────────────────────────────────────────
 
 
@@ -55,32 +77,37 @@ class WorkflowChatRequest(BaseModel):
 )
 async def get_workflow(
     app_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
+    await _ensure_app_in_workspace(session, app_id, ctx.workspace_id)
+
     nodes_rows = await session.execute(
         text(
-            "SELECT * FROM workflow_nodes WHERE application_id = :app_id ORDER BY created_at"
+            "SELECT * FROM workflow_nodes "
+            "WHERE application_id = :app_id AND workspace_id = :ws "
+            "ORDER BY created_at"
         ),
-        {"app_id": str(app_id)},
+        {"app_id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     edges_rows = await session.execute(
-        text("SELECT * FROM workflow_edges WHERE application_id = :app_id"),
-        {"app_id": str(app_id)},
+        text(
+            "SELECT * FROM workflow_edges "
+            "WHERE application_id = :app_id AND workspace_id = :ws"
+        ),
+        {"app_id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     nodes = [dict(r._mapping) for r in nodes_rows.fetchall()]
     edges = [dict(r._mapping) for r in edges_rows.fetchall()]
 
-    # 確保 config 是 dict
     for n in nodes:
         if isinstance(n.get("config"), str):
             n["config"] = json.loads(n["config"])
-        # position 已是 JSONB dict
         pos = n.get("position") or {"x": 0, "y": 0}
         if isinstance(pos, str):
             pos = json.loads(pos)
         n["position"] = pos
 
-    # condition 欄位可能是 JSONB
     for e in edges:
         cond = e.get("condition")
         if isinstance(cond, str):
@@ -98,32 +125,33 @@ async def get_workflow(
 @router.post(
     "/{app_id}/workflow",
     response_model=ApiResponse,
-    summary="儲存工作流程（覆寫）",
+    summary="儲存工作流程（覆寫，editor 以上）",
 )
 async def save_workflow(
     app_id: uuid.UUID,
     body: WorkflowSave,
+    ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
-    # 確認 application 存在
-    check = await session.execute(
-        text("SELECT id FROM applications WHERE id = :id AND status != 'deleted'"),
-        {"id": str(app_id)},
-    )
-    if not check.fetchone():
-        raise HTTPException(status_code=404, detail="應用程式不存在")
+    await _ensure_app_in_workspace(session, app_id, ctx.workspace_id)
 
-    # 清除舊的工作流程
+    # 清除舊的工作流程（限定 workspace 內）
     await session.execute(
-        text("DELETE FROM workflow_edges WHERE application_id = :app_id"),
-        {"app_id": str(app_id)},
+        text(
+            "DELETE FROM workflow_edges "
+            "WHERE application_id = :app_id AND workspace_id = :ws"
+        ),
+        {"app_id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     await session.execute(
-        text("DELETE FROM workflow_nodes WHERE application_id = :app_id"),
-        {"app_id": str(app_id)},
+        text(
+            "DELETE FROM workflow_nodes "
+            "WHERE application_id = :app_id AND workspace_id = :ws"
+        ),
+        {"app_id": str(app_id), "ws": str(ctx.workspace_id)},
     )
 
-    # 插入節點
+    # 插入節點（同時寫 workspace_id）
     for node in body.nodes:
         node_id = node.get("id") or str(uuid.uuid4())
         node_key = node.get("node_key") or node_id
@@ -132,12 +160,19 @@ async def save_workflow(
             position = json.loads(position)
         await session.execute(
             text("""
-                INSERT INTO workflow_nodes (id, application_id, node_type, node_key, label, config, position)
-                VALUES (:id, :app_id, :node_type, :node_key, :label, :config::jsonb, :position::jsonb)
+                INSERT INTO workflow_nodes (
+                    id, application_id, workspace_id, node_type, node_key,
+                    label, config, position
+                )
+                VALUES (
+                    :id, :app_id, :ws, :node_type, :node_key,
+                    :label, :config::jsonb, :position::jsonb
+                )
             """),
             {
                 "id": node_id,
                 "app_id": str(app_id),
+                "ws": str(ctx.workspace_id),
                 "node_type": node.get("node_type", "start"),
                 "node_key": node_key,
                 "label": node.get("label", ""),
@@ -146,19 +181,27 @@ async def save_workflow(
             },
         )
 
-    # 插入邊
+    # 插入邊（同時寫 workspace_id）
     for edge in body.edges:
         edge_id = edge.get("id") or str(uuid.uuid4())
         condition = edge.get("condition")
-        condition_json = json.dumps(condition, ensure_ascii=False) if condition is not None else None
+        condition_json = (
+            json.dumps(condition, ensure_ascii=False) if condition is not None else None
+        )
         await session.execute(
             text("""
-                INSERT INTO workflow_edges (id, application_id, source_node_key, target_node_key, condition)
-                VALUES (:id, :app_id, :source, :target, :condition::jsonb)
+                INSERT INTO workflow_edges (
+                    id, application_id, workspace_id, source_node_key,
+                    target_node_key, condition
+                )
+                VALUES (
+                    :id, :app_id, :ws, :source, :target, :condition::jsonb
+                )
             """),
             {
                 "id": edge_id,
                 "app_id": str(app_id),
+                "ws": str(ctx.workspace_id),
                 "source": edge["source_node_key"],
                 "target": edge["target_node_key"],
                 "condition": condition_json,
@@ -179,18 +222,25 @@ async def run_workflow(
     app_id: uuid.UUID,
     body: WorkflowChatRequest,
     request: Request,
+    ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
-    # 載入節點與邊
+    await _ensure_app_in_workspace(session, app_id, ctx.workspace_id)
+
     nodes_rows = await session.execute(
         text(
-            "SELECT * FROM workflow_nodes WHERE application_id = :app_id ORDER BY created_at"
+            "SELECT * FROM workflow_nodes "
+            "WHERE application_id = :app_id AND workspace_id = :ws "
+            "ORDER BY created_at"
         ),
-        {"app_id": str(app_id)},
+        {"app_id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     edges_rows = await session.execute(
-        text("SELECT * FROM workflow_edges WHERE application_id = :app_id"),
-        {"app_id": str(app_id)},
+        text(
+            "SELECT * FROM workflow_edges "
+            "WHERE application_id = :app_id AND workspace_id = :ws"
+        ),
+        {"app_id": str(app_id), "ws": str(ctx.workspace_id)},
     )
     nodes = [dict(r._mapping) for r in nodes_rows.fetchall()]
     edges = [dict(r._mapping) for r in edges_rows.fetchall()]
@@ -202,12 +252,19 @@ async def run_workflow(
         if isinstance(n.get("config"), str):
             n["config"] = json.loads(n["config"])
 
-    executor = WorkflowExecutor(nodes=nodes, edges=edges)
+    # 多租戶上下文：一路傳到所有 _exec_* node
+    executor = WorkflowExecutor(
+        nodes=nodes,
+        edges=edges,
+        workspace_id=str(ctx.workspace_id),
+        user_id=str(ctx.user_id),
+        roles=[ctx.role.value],
+    )
 
     async def event_generator():
         async for event in executor.execute(
             user_input=body.user_input,
-            user_id=request.headers.get("X-User-ID", "anonymous"),
+            user_id=str(ctx.user_id),
         ):
             yield event
 

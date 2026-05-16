@@ -12,11 +12,23 @@ log = structlog.get_logger()
 
 
 class WorkflowExecutor:
-    def __init__(self, nodes: list[dict], edges: list[dict], app_config: dict = None):
+    def __init__(
+        self,
+        nodes: list[dict],
+        edges: list[dict],
+        app_config: dict = None,
+        workspace_id: str | None = None,
+        user_id: str | None = None,
+        roles: list[str] | None = None,
+    ):
         # 以 node_key 作為索引
         self.nodes = {n["node_key"]: n for n in nodes}
         self.edges = edges
         self.app_config = app_config or {}
+        # RFC-001 Stage 2：多租戶上下文，於 _exec_* 呼叫下游服務時帶入
+        self.workspace_id = workspace_id
+        self.user_id = user_id
+        self.roles = roles or []
         # 建立有向圖（key -> [key, ...]）
         self.children: dict[str, list[str]] = {n: [] for n in self.nodes}
         self.edge_conditions: dict[tuple, Any] = {}
@@ -42,7 +54,13 @@ class WorkflowExecutor:
         self, user_input: str, user_id: str = "anonymous"
     ) -> AsyncIterator[dict]:
         """執行工作流程，以 SSE 事件方式 yield 結果"""
-        context: dict[str, Any] = {"user_input": user_input}
+        # 多租戶上下文塞進 context dict，所有 _exec_* node 都能讀到
+        context: dict[str, Any] = {
+            "user_input": user_input,
+            "workspace_id": self.workspace_id,
+            "_user_id": user_id or self.user_id,
+            "_roles": self.roles,
+        }
         current_key = self._find_start_node()
         visited = set()
 
