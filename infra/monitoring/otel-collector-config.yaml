@@ -1,0 +1,56 @@
+# OpenTelemetry Collector 設定（M5 GA）
+#
+# 接收 staffKM 各服務 OTLP gRPC（4317）/ HTTP（4318）；
+# 匯出到 Prometheus（metrics scrape）+ Jaeger（traces）+ stdout（debug）。
+
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+
+processors:
+  # 加上 deployment.environment 標籤
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: ${env:STAFFKM_ENV}
+        action: upsert
+  # 5s flush 或滿 8192 spans
+  batch:
+    timeout: 5s
+    send_batch_size: 8192
+  # 防止記憶體爆掉
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: staffkm
+    const_labels:
+      env: ${env:STAFFKM_ENV}
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls: { insecure: true }
+  logging:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters:  [otlp/jaeger, logging]
+    metrics:
+      receivers:  [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters:  [prometheus]
+    logs:
+      receivers:  [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters:  [logging]
