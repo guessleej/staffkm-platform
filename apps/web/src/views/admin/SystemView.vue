@@ -1,15 +1,17 @@
 <template>
-  <div class="flex flex-col h-full">
-    <div class="h-14 border-b border-gray-200 px-6 flex items-center bg-white">
-      <h2 class="font-semibold text-gray-800">{{ title }}</h2>
-    </div>
-    <div class="flex-1 flex items-center justify-center text-gray-400">
-      <p>此頁面開發中…</p>
-    </div>
-  </div>
+  <UnderConstructionView
+    title="系統設定"
+    description="調整全域偏好、預設嵌入模型、檔案上限、Hybrid Search 權重、安全策略等。目前此頁面尚在開發中。"
+    :features="[
+      '預設 embedding 模型 / reranker 設定',
+      'Hybrid Search RRF 權重調整',
+      '檔案上傳大小與型別白名單',
+      '密碼策略、登入失敗鎖定',
+      '備份 / 還原 / 匯出（後續 Phase）',
+    ]"
+  />
 </template>
+
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
-const route = useRoute()
-const title = String(route.meta.title || '頁面')
+import UnderConstructionView from '../../components/common/UnderConstructionView.vue'
 </script>
