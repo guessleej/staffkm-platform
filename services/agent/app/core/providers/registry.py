@@ -20,6 +20,9 @@ from typing import Type
 
 from .anthropic import AnthropicProvider
 from .base import BaseProvider
+from .bedrock import BedrockProvider
+from .cohere import CohereProvider
+from .gemini import GeminiProvider
 from .openai_compat import OpenAICompatProvider
 
 
@@ -64,16 +67,17 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
                  recommended_models=["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"],
                  notes="走 messages API；system 自動拆成頂層欄位。"),
     ProviderMeta("bedrock", "AWS Bedrock", "bedrock",
-                 notes="走 boto3，需 AWS 認證；後續 PR 接入。"),
+                 notes="走 aioboto3 + SigV4；目前支援 Claude on Bedrock。需在部署環境安裝 aioboto3。"),
     ProviderMeta("gemini", "Google Gemini", "gemini",
                  default_base_url="https://generativelanguage.googleapis.com",
                  recommended_models=["gemini-2.5-pro", "gemini-2.5-flash"],
-                 notes="後續 PR 接入；可暫用 OpenAI-compat /v1beta/openai 端點。"),
+                 notes="走 generateContent REST + API key；system 自動轉 systemInstruction。"),
     ProviderMeta("vertex_ai", "Google Vertex AI", "vertex_ai",
                  notes="需 GCP service account；後續 PR 接入。"),
     ProviderMeta("cohere", "Cohere", "cohere",
                  default_base_url="https://api.cohere.com",
-                 notes="後續 PR 接入。"),
+                 recommended_models=["command-r-plus", "command-r"],
+                 notes="走 Cohere v2 chat REST + Bearer token。"),
     ProviderMeta("mistral", "Mistral AI", "openai_compat",
                  default_base_url="https://api.mistral.ai/v1",
                  recommended_models=["mistral-large-latest", "mistral-small-latest"]),
@@ -118,12 +122,11 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
 _ADAPTER_TABLE: dict[str, Type[BaseProvider]] = {
     "openai_compat": OpenAICompatProvider,
     "anthropic":  AnthropicProvider,   # M3 中段-A
-    # 以下為 placeholder，後續 PR 補真正 adapter；
-    # 目前 fallback 到 OpenAICompatProvider 以避免執行期錯誤
-    "bedrock":    OpenAICompatProvider,
-    "gemini":     OpenAICompatProvider,
+    "gemini":     GeminiProvider,      # M3 中段-B
+    "cohere":     CohereProvider,      # M3 中段-B
+    "bedrock":    BedrockProvider,     # M3 中段-B（需 aioboto3）
+    # 以下尚未實作，fallback 到 OpenAICompatProvider 以避免執行期錯誤
     "vertex_ai":  OpenAICompatProvider,
-    "cohere":     OpenAICompatProvider,
     "minimax":    OpenAICompatProvider,
 }
 
