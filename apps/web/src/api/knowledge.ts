@@ -1,11 +1,26 @@
 import { http } from './index'
 
+export interface KbFolder {
+  id:           string
+  workspace_id: string
+  parent_id:    string | null
+  name:         string
+  sort_order:   number
+  kb_count:     number
+  created_at:   string
+  updated_at:   string
+}
+
+export interface KbFolderNode extends KbFolder {
+  children: KbFolderNode[]
+}
+
 export const knowledgeApi = {
   async listBases(page = 1, pageSize = 20) {
     const { data } = await http.get('/knowledge/bases', { params: { page, page_size: pageSize } })
     return data
   },
-  async createBase(payload: { name: string; description?: string; is_public?: boolean }) {
+  async createBase(payload: { name: string; description?: string; is_public?: boolean; folder_id?: string | null }) {
     const { data } = await http.post('/knowledge/bases', payload)
     return data.data
   },
@@ -38,5 +53,26 @@ export const knowledgeApi = {
       query, kb_id: kbId, top_k: topK, similarity_threshold: 0.3,
     })
     return data.data
+  },
+
+  // ── Folders (RFC-006 C-3) ────────────────────────────────────────────────
+  async listFolders(): Promise<KbFolder[]> {
+    const { data } = await http.get('/knowledge/folders')
+    return data.data || []
+  },
+  async folderTree(): Promise<KbFolderNode[]> {
+    const { data } = await http.get('/knowledge/folders/tree')
+    return data.data || []
+  },
+  async createFolder(payload: { name: string; parent_id?: string | null; sort_order?: number }): Promise<KbFolder> {
+    const { data } = await http.post('/knowledge/folders', payload)
+    return data.data
+  },
+  async updateFolder(id: string, patch: Partial<{ name: string; parent_id: string | null; sort_order: number }>): Promise<KbFolder> {
+    const { data } = await http.put(`/knowledge/folders/${id}`, patch)
+    return data.data
+  },
+  async deleteFolder(id: string): Promise<void> {
+    await http.delete(`/knowledge/folders/${id}`)
   },
 }
