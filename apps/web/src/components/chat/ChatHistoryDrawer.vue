@@ -114,10 +114,11 @@ const groups = computed(() =>
   ),
 )
 
+// 順序對齊 DashboardLayout 頂部水平導覽，避免認知混淆
 const adminLinks = [
-  { to: '/knowledge',    label: '知識庫',   icon: IconKnowledge },
-  { to: '/applications', label: '應用',     icon: IconApps },
-  { to: '/agents',       label: '代理人',   icon: IconAgent },
-  { to: '/admin/system', label: '設定',     icon: IconSettings },
+  { to: '/applications', label: '應用',   icon: IconApps },
+  { to: '/knowledge',    label: '知識庫', icon: IconKnowledge },
+  { to: '/agents',       label: '代理人', icon: IconAgent },
+  { to: '/admin/system', label: '設定',   icon: IconSettings },
 ]
 </script>

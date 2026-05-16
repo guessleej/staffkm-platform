@@ -92,10 +92,12 @@ import ChatHistoryDrawer from '../../components/chat/ChatHistoryDrawer.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
 import { useConversationStore } from '../../stores/conversation'
+import { useWorkspaceStore } from '../../stores/workspace'
 
 const auth = useAuthStore()
 const ui = useUIStore()
 const convStore = useConversationStore()
+const workspace = useWorkspaceStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -134,7 +136,9 @@ async function onLogout() {
   router.push('/login')
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 同時載入 workspace 與對話列表；workspace 沒選會導致管理頁面 API 全 404
+  if (workspace.workspaces.length === 0) await workspace.load()
   convStore.fetchConversations()
 })
 </script>
