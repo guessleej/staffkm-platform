@@ -31,7 +31,7 @@
           <p class="text-xs text-neutral-500 line-clamp-2 min-h-[2rem]">
             {{ d.description || '尚未填寫說明' }}
           </p>
-          <div class="mt-3 flex items-center justify-between">
+          <div class="mt-3 flex items-center justify-between flex-wrap gap-2">
             <span
               class="text-[11px] px-2 py-0.5 rounded-full"
               :class="d.is_enabled ? 'bg-success-50 text-success-700' : 'bg-neutral-100 text-neutral-500'"
@@ -39,10 +39,31 @@
             <span v-if="d.last_synced_at" class="text-[10px] text-neutral-400">
               同步：{{ new Date(d.last_synced_at).toLocaleString('zh-TW') }}
             </span>
-            <button
-              @click="onDelete(d.id)"
-              class="text-xs text-neutral-400 hover:text-danger-600 transition"
-            >刪除</button>
+            <div class="flex items-center gap-2">
+              <button
+                @click="onTest(d.id)"
+                :disabled="testingId === d.id"
+                class="text-xs text-brand-600 hover:text-brand-800 transition disabled:opacity-40"
+              >{{ testingId === d.id ? '測試中…' : '測試連線' }}</button>
+              <button
+                @click="onDelete(d.id)"
+                class="text-xs text-neutral-400 hover:text-danger-600 transition"
+              >刪除</button>
+            </div>
+          </div>
+          <!-- 測試結果（D-3）-->
+          <div
+            v-if="testResults[d.id]"
+            class="mt-2 px-3 py-2 text-xs rounded-md border"
+            :class="testResults[d.id].success
+              ? 'border-success-200 bg-success-50 text-success-800'
+              : 'border-danger-200 bg-danger-50 text-danger-700'"
+          >
+            <p class="font-semibold">
+              {{ testResults[d.id].success ? '成功' : '失敗' }}
+              <span class="font-normal ml-2">{{ testResults[d.id].elapsed_ms }} ms</span>
+            </p>
+            <p class="mt-0.5 text-neutral-700">{{ testResults[d.id].detail }}</p>
           </div>
         </div>
       </div>
@@ -92,7 +113,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { dataSourceApi, type DataSourceEntity } from '../../api/extras'
+import { dataSourceApi, type DataSourceEntity, type DataSourceTestResult } from '../../api/extras'
 import { IconPlus } from '../../components/icons'
 
 const items = ref<DataSourceEntity[]>([])
@@ -115,5 +136,27 @@ async function onDelete(id: string) {
   if (!confirm('確定要刪除此資料來源？')) return
   await dataSourceApi.remove(id); await load()
 }
+
+// ── 連線測試 (D-3) ────────────────────────────────────────────────
+const testingId = ref<string | null>(null)
+const testResults = reactive<Record<string, DataSourceTestResult>>({})
+
+async function onTest(id: string) {
+  testingId.value = id
+  try {
+    testResults[id] = await dataSourceApi.test(id)
+    // 測試成功時 backend 已更新 last_synced_at，refresh 列表反映
+    if (testResults[id].success) await load()
+  } catch (e: any) {
+    testResults[id] = {
+      success: false, elapsed_ms: 0,
+      detail: e?.message || String(e),
+      config_ok: false, missing: [],
+    }
+  } finally {
+    testingId.value = null
+  }
+}
+
 onMounted(load)
 </script>
