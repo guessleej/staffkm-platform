@@ -23,7 +23,9 @@ from .base import BaseProvider
 from .bedrock import BedrockProvider
 from .cohere import CohereProvider
 from .gemini import GeminiProvider
+from .minimax import MiniMaxProvider
 from .openai_compat import OpenAICompatProvider
+from .vertex_ai import VertexAIProvider
 
 
 @dataclass
@@ -73,7 +75,8 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
                  recommended_models=["gemini-2.5-pro", "gemini-2.5-flash"],
                  notes="走 generateContent REST + API key；system 自動轉 systemInstruction。"),
     ProviderMeta("vertex_ai", "Google Vertex AI", "vertex_ai",
-                 notes="需 GCP service account；後續 PR 接入。"),
+                 recommended_models=["gemini-2.5-pro", "gemini-2.5-flash"],
+                 notes="走 GCP aiplatform REST + Bearer access_token；config 須帶 region / project_id。"),
     ProviderMeta("cohere", "Cohere", "cohere",
                  default_base_url="https://api.cohere.com",
                  recommended_models=["command-r-plus", "command-r"],
@@ -108,7 +111,8 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
                  default_base_url="https://api.baichuan-ai.com/v1"),
     ProviderMeta("minimax", "MiniMax", "minimax",
                  default_base_url="https://api.minimax.chat",
-                 notes="後續 PR 接入專屬 adapter。"),
+                 recommended_models=["abab6.5s-chat", "abab6.5g-chat"],
+                 notes="走 chatcompletion_v2 REST + Bearer api_key。"),
     ProviderMeta("siliconflow", "SiliconFlow", "openai_compat",
                  default_base_url="https://api.siliconflow.cn/v1"),
     ProviderMeta("yi", "01.AI (Yi)", "openai_compat",
@@ -125,9 +129,8 @@ _ADAPTER_TABLE: dict[str, Type[BaseProvider]] = {
     "gemini":     GeminiProvider,      # M3 中段-B
     "cohere":     CohereProvider,      # M3 中段-B
     "bedrock":    BedrockProvider,     # M3 中段-B（需 aioboto3）
-    # 以下尚未實作，fallback 到 OpenAICompatProvider 以避免執行期錯誤
-    "vertex_ai":  OpenAICompatProvider,
-    "minimax":    OpenAICompatProvider,
+    "vertex_ai":  VertexAIProvider,    # M3 收尾
+    "minimax":    MiniMaxProvider,     # M3 收尾
 }
 
 
