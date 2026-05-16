@@ -111,12 +111,14 @@ import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
 import { useConversationStore } from '../../stores/conversation'
+import { useProjectStore } from '../../stores/project'
 import { useWorkspaceStore } from '../../stores/workspace'
 
 const auth = useAuthStore()
 const ui = useUIStore()
 const convStore = useConversationStore()
 const workspace = useWorkspaceStore()
+const projects = useProjectStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -160,8 +162,10 @@ function onLocaleChange(code: string) {
 }
 
 onMounted(async () => {
-  // 同時載入 workspace 與對話列表；workspace 沒選會導致管理頁面 API 全 404
+  // workspace 必須先載入，否則後續 project / conversation API 都拿不到資料
   if (workspace.workspaces.length === 0) await workspace.load()
+  // 對話列表 + project 列表並行載入
   convStore.fetchConversations()
+  projects.load()
 })
 </script>

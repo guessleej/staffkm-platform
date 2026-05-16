@@ -23,6 +23,7 @@ _LEGACY_PREFIXES = (
     "/api/v1/agents",
     "/api/v1/applications",
     "/api/v1/api-keys",
+    "/api/v1/projects",
 )
 
 # 不重寫的例外 path（公開存取或 pre-auth endpoint）

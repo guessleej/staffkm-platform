@@ -10,7 +10,7 @@ from app.config import settings
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import StructuredLoggingMiddleware
 from app.middleware.rate_limit import setup_rate_limiter
-from app.routers import health, knowledge, agent, auth, chat, integration, admin, applications, api_keys, public, workspaces
+from app.routers import health, knowledge, agent, auth, chat, integration, admin, applications, api_keys, public, workspaces, projects
 
 log = structlog.get_logger()
 
@@ -65,3 +65,4 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["系統管理"])
 app.include_router(applications.router, prefix="/api/v1/applications", tags=["Application Builder"])
 app.include_router(api_keys.router, prefix="/api/v1/api-keys", tags=["API Key 管理"])
 app.include_router(public.router, prefix="/api/v1/public/applications", tags=["公開存取"])
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["Project（RFC-006）"])

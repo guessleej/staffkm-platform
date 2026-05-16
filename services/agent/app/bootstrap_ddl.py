@@ -45,6 +45,38 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS workspace_id UUID",
     f"UPDATE api_keys SET workspace_id = '{DEFAULT_WORKSPACE_ID}' WHERE workspace_id IS NULL",
     "CREATE INDEX IF NOT EXISTS idx_api_keys_workspace ON api_keys(workspace_id)",
+
+    # ── projects（RFC-006 Phase C-1：Project 抽象層後端落地）────────────
+    """
+    CREATE TABLE IF NOT EXISTS projects (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        description     TEXT,
+        emoji           VARCHAR(8),
+        system_prompt   TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID,
+        updated_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id)",
+
+    # project_resources：(project_id, kind, resource_id) 三元組關聯
+    # kind 限定 'kb' | 'app'，未來可擴 'tool' / 'skill' 等
+    """
+    CREATE TABLE IF NOT EXISTS project_resources (
+        project_id   UUID NOT NULL,
+        kind         VARCHAR(16) NOT NULL,
+        resource_id  VARCHAR(64) NOT NULL,
+        attached_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        attached_by  UUID,
+        PRIMARY KEY (project_id, kind, resource_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_project_resources_project ON project_resources(project_id)",
+    "CREATE INDEX IF NOT EXISTS idx_project_resources_kind ON project_resources(kind, resource_id)",
 ]
 
 

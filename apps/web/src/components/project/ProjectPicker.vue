@@ -147,17 +147,22 @@ function pick(id: string) {
   open.value = false
 }
 
-function confirmCreate() {
+async function confirmCreate() {
   const name = draft.name.trim()
   if (!name) return
-  store.create({
-    name,
-    description: draft.description.trim() || undefined,
-    emoji: (draft.emoji || '#').slice(0, 2),
-  })
-  draft.name = ''
-  draft.description = ''
-  draft.emoji = '#'
-  newDialog.value = false
+  try {
+    await store.create({
+      name,
+      description: draft.description.trim() || undefined,
+      emoji: (draft.emoji || '#').slice(0, 2),
+    })
+    draft.name = ''
+    draft.description = ''
+    draft.emoji = '#'
+    newDialog.value = false
+  } catch (e) {
+    // 保留 dialog 開著讓使用者重試
+    console.error('create project failed', e)
+  }
 }
 </script>
