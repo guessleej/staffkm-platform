@@ -80,3 +80,88 @@ async def delete_paragraph(
         raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
     await session.delete(p)
     return ApiResponse(message="段落已刪除")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Round 10-2：段落層級 Q&A 生成 / 編輯
+# ═══════════════════════════════════════════════════════════════════════
+from pydantic import BaseModel, Field
+from typing import Literal
+
+
+class QAGenerateReq(BaseModel):
+    n: int = Field(default=3, ge=1, le=10)
+    model: str | None = None
+    append: bool = False  # True = 加到既有；False = 覆蓋
+
+
+class QAItem(BaseModel):
+    question: str = Field(..., min_length=1, max_length=512)
+    answer:   str = Field(..., min_length=1, max_length=2048)
+    source:   Literal["auto", "manual"] = "manual"
+
+
+class QAReplaceReq(BaseModel):
+    qa: list[QAItem]
+
+
+@router.post("/{paragraph_id}/generate-qa", response_model=ApiResponse)
+async def generate_qa(
+    paragraph_id: uuid.UUID,
+    body: QAGenerateReq,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """對指定段落呼叫 LLM 產生 Q&A pairs。"""
+    from app.core.qa_generator import generate_qa_for_text
+
+    q = WorkspaceScopedQuery(Paragraph).select().where(Paragraph.id == paragraph_id)
+    p = (await session.execute(q)).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
+
+    try:
+        new_pairs = await generate_qa_for_text(p.content, n=body.n, model=body.model)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    if body.append:
+        existing = list(p.qa_pairs or [])
+        existing.extend(new_pairs)
+        p.qa_pairs = existing
+    else:
+        p.qa_pairs = new_pairs
+    await session.commit()
+    return ApiResponse(message=f"已產生 {len(new_pairs)} 組 Q&A", data={
+        "qa_pairs": p.qa_pairs,
+    })
+
+
+@router.get("/{paragraph_id}/qa", response_model=ApiResponse)
+async def list_qa(
+    paragraph_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    q = WorkspaceScopedQuery(Paragraph).select().where(Paragraph.id == paragraph_id)
+    p = (await session.execute(q)).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
+    return ApiResponse(data=p.qa_pairs or [])
+
+
+@router.put("/{paragraph_id}/qa", response_model=ApiResponse)
+async def replace_qa(
+    paragraph_id: uuid.UUID,
+    body: QAReplaceReq,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """整批替換段落的 qa_pairs（包含手動編輯 / 刪除單筆後 PUT 回來）。"""
+    q = WorkspaceScopedQuery(Paragraph).select().where(Paragraph.id == paragraph_id)
+    p = (await session.execute(q)).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
+    p.qa_pairs = [pair.model_dump() for pair in body.qa]
+    await session.commit()
+    return ApiResponse(message="qa_pairs 已更新", data={"count": len(p.qa_pairs)})

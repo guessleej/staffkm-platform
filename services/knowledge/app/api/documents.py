@@ -355,3 +355,90 @@ async def list_workspace_tags(
         for r in rows.fetchall()
     ]
     return ApiResponse(data=items)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Round 10-2：文檔層級 Q&A 批量生成
+# ═══════════════════════════════════════════════════════════════════════
+class DocGenerateQAReq(BaseModel):
+    per_paragraph: int = Field(default=2, ge=1, le=5)
+    max_paragraphs: int = Field(default=20, ge=1, le=200)
+    model: str | None = None
+    overwrite: bool = False
+
+
+@router.post("/doc/{doc_id}/generate-questions", response_model=ApiResponse)
+async def generate_document_questions(
+    doc_id: uuid.UUID,
+    body: DocGenerateQAReq,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """對文件內每個段落跑 LLM 產 Q&A，彙整出 document.questions（給 application suggested_questions 用）。
+
+    為防暴衝：預設最多處理前 20 段、每段最多 2 組。
+    overwrite=False 時段落已有 qa_pairs 會跳過。
+    """
+    from app.core.qa_generator import generate_qa_for_text
+    from app.models.knowledge_base import Paragraph
+    from sqlalchemy import select as sql_select
+
+    doc = await _load_doc(doc_id, session)
+    rows = await session.execute(
+        sql_select(Paragraph)
+        .where(Paragraph.document_id == doc.id)
+        .where(Paragraph.workspace_id == ctx.workspace_id)
+        .order_by(Paragraph.order_index)
+        .limit(body.max_paragraphs)
+    )
+    paragraphs: list[Paragraph] = list(rows.scalars().all())
+    if not paragraphs:
+        return ApiResponse(message="文件尚無段落；請先等待向量化完成")
+
+    processed = 0
+    aggregated_qs: list[str] = []
+    last_error: str | None = None
+    for p in paragraphs:
+        if not body.overwrite and p.qa_pairs:
+            for pair in p.qa_pairs:
+                if pair.get("question"):
+                    aggregated_qs.append(pair["question"])
+            continue
+        try:
+            new_pairs = await generate_qa_for_text(p.content, n=body.per_paragraph, model=body.model)
+        except RuntimeError as e:
+            last_error = str(e)
+            break
+        p.qa_pairs = new_pairs
+        for pair in new_pairs:
+            aggregated_qs.append(pair["question"])
+        processed += 1
+
+    # 去重 + 保留前 20 個給 doc.questions
+    seen: set[str] = set()
+    uniq_qs: list[str] = []
+    for q in aggregated_qs:
+        if q in seen:
+            continue
+        seen.add(q)
+        uniq_qs.append(q)
+        if len(uniq_qs) >= 20:
+            break
+    doc.questions = uniq_qs
+    await session.commit()
+
+    return ApiResponse(
+        message=(f"已處理 {processed} 段，彙整 {len(uniq_qs)} 個常見問題"
+                 + (f"；於最後一段失敗：{last_error}" if last_error else "")),
+        data={"processed": processed, "questions": uniq_qs},
+    )
+
+
+@router.get("/doc/{doc_id}/questions", response_model=ApiResponse)
+async def list_document_questions(
+    doc_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    doc = await _load_doc(doc_id, session)
+    return ApiResponse(data=doc.questions or [])

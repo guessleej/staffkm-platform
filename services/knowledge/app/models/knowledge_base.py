@@ -79,6 +79,8 @@ class Document(Base, UUIDPrimaryKeyMixin, AuditMixin):
     char_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
     meta: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # Round 10-2：彙整文件層級的常見問題（前端 FAQ / 智能體 suggested questions 來源）
+    questions: Mapped[list] = mapped_column(JSONB, default=list)
 
     # Round 10-1：MaxKB parity
     tags: Mapped[list] = mapped_column(JSONB, default=list)
@@ -113,6 +115,8 @@ class Paragraph(Base, UUIDPrimaryKeyMixin, AuditMixin):
     char_count: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     meta: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # Round 10-2：段落層級 Q&A pairs（[{question, answer, source: auto|manual}]）
+    qa_pairs: Mapped[list] = mapped_column(JSONB, default=list)
     # 預計算的 tsvector，供 FTS 使用（CJK 分字後以 simple 字典索引）
     search_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR, nullable=True)
 

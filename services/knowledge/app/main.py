@@ -61,12 +61,16 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_size INTEGER NOT NULL DEFAULT 512",
     "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_overlap INTEGER NOT NULL DEFAULT 64",
 
-    # 6. Round 10-1：文檔操作擴充（標籤 / 命中策略 / 啟用狀態 / 來源 KB audit）
+    # 6. Round 10-1：文檔操作擴充（標籤 / 命中策略 / 啟用狀態）
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb",
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS hit_strategy VARCHAR(16) NOT NULL DEFAULT 'rag'",
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT TRUE",
     "CREATE INDEX IF NOT EXISTS idx_documents_tags_gin ON documents USING gin (tags)",
     "CREATE INDEX IF NOT EXISTS idx_documents_kb_enabled ON documents (knowledge_base_id, is_enabled)",
+
+    # 7. Round 10-2：Q&A 生成
+    "ALTER TABLE paragraphs ADD COLUMN IF NOT EXISTS qa_pairs JSONB NOT NULL DEFAULT '[]'::jsonb",
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS questions JSONB NOT NULL DEFAULT '[]'::jsonb",
 ]
 
 
