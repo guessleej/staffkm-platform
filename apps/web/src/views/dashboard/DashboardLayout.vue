@@ -1,104 +1,157 @@
 <template>
-  <div class="flex h-screen bg-surface-base text-neutral-900 overflow-hidden">
+  <div class="flex flex-col h-screen bg-surface-base text-neutral-900 overflow-hidden">
 
     <!-- ════════════════════════════════════════
-         側欄
+         頂部導覽列：Brand · 主導覽（置中）· 工具
     ════════════════════════════════════════ -->
-    <aside
-      class="bg-surface-raised border-r border-neutral-200 flex flex-col flex-shrink-0 transition-[width] duration-300 ease-out"
-      :class="ui.sidebarCollapsed ? 'w-[64px]' : 'w-[240px]'"
+    <header
+      class="h-14 px-5 flex items-center gap-4 bg-surface-raised border-b border-neutral-200 sticky top-0 z-20"
     >
-      <!-- Brand -->
-      <div class="h-14 flex items-center border-b border-neutral-200 flex-shrink-0"
-           :class="ui.sidebarCollapsed ? 'justify-center px-3' : 'px-4 gap-2.5'">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-             style="background: linear-gradient(135deg, hsl(var(--color-brand-500)), hsl(var(--color-brand-700)))">
+      <!-- 左：品牌 -->
+      <router-link to="/" class="flex items-center gap-2.5 flex-shrink-0 mr-2">
+        <div
+          class="w-8 h-8 rounded-lg flex items-center justify-center"
+          style="background: linear-gradient(135deg, hsl(var(--color-brand-500)), hsl(var(--color-brand-700)))"
+        >
           <span class="text-white text-[13px] font-bold tracking-tight">S</span>
         </div>
-        <div v-if="!ui.sidebarCollapsed" class="min-w-0">
-          <p class="font-semibold text-neutral-900 text-sm leading-tight">staffKM</p>
-          <p class="text-[10px] text-neutral-400 leading-tight tracking-wide uppercase">內部知識平台</p>
+        <div class="hidden sm:block min-w-0 leading-tight">
+          <p class="font-semibold text-neutral-900 text-sm">staffKM</p>
+          <p class="text-[10px] text-neutral-400 tracking-wide uppercase">內部知識平台</p>
         </div>
-      </div>
+      </router-link>
 
-      <!-- Workspace Switcher（折疊時隱藏） -->
-      <div v-if="!ui.sidebarCollapsed" class="p-2.5 border-b border-neutral-100">
-        <WorkspaceSwitcher />
-      </div>
-
-      <!-- 主導覽 -->
-      <nav class="flex-1 overflow-y-auto py-3"
-           :class="ui.sidebarCollapsed ? 'px-2 space-y-1' : 'px-2.5 space-y-0.5'">
-        <p v-if="!ui.sidebarCollapsed" class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 pb-2">
-          工作區
-        </p>
-        <NavItem to="/chat" label="對話" :collapsed="ui.sidebarCollapsed">
+      <!-- 中：主導覽 -->
+      <nav class="flex-1 flex items-center justify-center gap-1 min-w-0 overflow-x-auto">
+        <HNavItem to="/chat" label="對話">
           <template #icon><IconChat :size="16" /></template>
-        </NavItem>
-        <NavItem to="/applications" label="應用" :collapsed="ui.sidebarCollapsed">
+        </HNavItem>
+        <HNavItem to="/applications" label="應用">
           <template #icon><IconApps :size="16" /></template>
-        </NavItem>
-        <NavItem to="/knowledge" label="知識庫" :collapsed="ui.sidebarCollapsed">
+        </HNavItem>
+        <HNavItem to="/knowledge" label="知識庫">
           <template #icon><IconKnowledge :size="16" /></template>
-        </NavItem>
-        <NavItem to="/agents" label="代理人" :collapsed="ui.sidebarCollapsed">
+        </HNavItem>
+        <HNavItem to="/agents" label="代理人">
           <template #icon><IconAgent :size="16" /></template>
-        </NavItem>
+        </HNavItem>
 
         <template v-if="auth.hasRole(['admin'])">
-          <div v-if="!ui.sidebarCollapsed" class="pt-4 mt-3 border-t border-neutral-100">
-            <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider px-3 pb-2">系統管理</p>
-          </div>
-          <div v-else class="my-3 mx-3 border-t border-neutral-100"></div>
-          <NavItem to="/admin/users" label="使用者" :collapsed="ui.sidebarCollapsed">
+          <span class="mx-2 w-px h-5 bg-neutral-200"></span>
+          <HNavItem to="/admin/users" label="使用者">
             <template #icon><IconUsers :size="16" /></template>
-          </NavItem>
-          <NavItem to="/admin/models" label="模型" :collapsed="ui.sidebarCollapsed">
+          </HNavItem>
+          <HNavItem to="/admin/models" label="模型">
             <template #icon><IconCpu :size="16" /></template>
-          </NavItem>
-          <NavItem to="/admin/system" label="設定" :collapsed="ui.sidebarCollapsed">
+          </HNavItem>
+          <HNavItem to="/admin/system" label="設定">
             <template #icon><IconSettings :size="16" /></template>
-          </NavItem>
+          </HNavItem>
         </template>
       </nav>
 
-      <!-- 折疊狀態的展開按鈕 -->
-      <div v-if="ui.sidebarCollapsed" class="px-2 py-2 border-t border-neutral-100">
+      <!-- 右：Workspace · Theme · 使用者 -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="hidden md:block w-[200px]">
+          <WorkspaceSwitcher />
+        </div>
+
         <button
-          @click="ui.toggleSidebar()"
-          title="展開側欄"
-          class="w-full h-9 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
+          @click="ui.toggleTheme()"
+          class="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+          :title="ui.isDark ? '切換到淺色模式' : '切換到深色模式'"
         >
-          <IconChevronRight :size="16" />
+          <svg v-if="!ui.isDark" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+          <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4" />
+            <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+          </svg>
         </button>
+
+        <!-- 使用者選單 -->
+        <div ref="menuRef" class="relative">
+          <button
+            @click="open = !open"
+            class="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg hover:bg-neutral-100 transition-colors"
+          >
+            <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0">
+              {{ initials }}
+            </div>
+            <span class="text-sm text-neutral-700 hidden lg:inline truncate max-w-[120px]">
+              {{ auth.user?.display_name || auth.user?.username || '—' }}
+            </span>
+            <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+
+          <transition
+            enter-active-class="transition duration-150 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            leave-active-class="transition duration-100 ease-in"
+            leave-to-class="opacity-0 -translate-y-1"
+          >
+            <div v-if="open"
+                 class="absolute right-0 mt-1.5 w-56 bg-surface-raised rounded-xl border border-neutral-200 shadow-lg overflow-hidden">
+              <div class="px-4 py-3 border-b border-neutral-100">
+                <p class="text-sm font-semibold text-neutral-900 truncate">
+                  {{ auth.user?.display_name || auth.user?.username }}
+                </p>
+                <p class="text-xs text-neutral-500 truncate">
+                  {{ auth.user?.email || auth.user?.department || '' }}
+                </p>
+              </div>
+              <div class="p-1">
+                <router-link
+                  v-if="auth.hasRole(['admin'])"
+                  to="/admin/system"
+                  class="flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                  @click="open = false"
+                >
+                  <IconSettings :size="16" />
+                  系統設定
+                </router-link>
+                <button
+                  @click="onLogout"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                  </svg>
+                  登出
+                </button>
+              </div>
+            </div>
+          </transition>
+        </div>
       </div>
-    </aside>
+    </header>
 
     <!-- ════════════════════════════════════════
          主內容
     ════════════════════════════════════════ -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <AppTopbar />
-      <main class="flex-1 overflow-y-auto bg-surface-base">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
-      </main>
-    </div>
+    <main class="flex-1 overflow-y-auto bg-surface-base">
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { onClickOutside } from '@vueuse/core'
 
-import AppTopbar from '../../components/common/AppTopbar.vue'
-import NavItem from '../../components/common/NavItem.vue'
+import HNavItem from '../../components/common/HNavItem.vue'
 import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
 import {
   IconChat, IconApps, IconKnowledge, IconAgent,
-  IconUsers, IconCpu, IconSettings, IconChevronRight,
+  IconUsers, IconCpu, IconSettings,
 } from '../../components/icons'
 
 import { useAuthStore } from '../../stores/auth'
@@ -108,6 +161,23 @@ import { useWorkspaceStore } from '../../stores/workspace'
 const auth = useAuthStore()
 const ui = useUIStore()
 const workspace = useWorkspaceStore()
+const router = useRouter()
+
+const open = ref(false)
+const menuRef = ref<HTMLElement | null>(null)
+onClickOutside(menuRef, () => { open.value = false })
+
+const initials = computed(() => {
+  const name = auth.user?.display_name || auth.user?.username || '?'
+  if (/[一-鿿]/.test(name)) return name.slice(0, 1)
+  return name.slice(0, 2).toUpperCase()
+})
+
+async function onLogout() {
+  open.value = false
+  auth.logout()
+  router.push('/login')
+}
 
 onMounted(() => {
   if (workspace.workspaces.length === 0) workspace.load()
