@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
+from app.core.token_count import count_messages, count_text
 from app.core.usage import QuotaExceeded, UsageRecord, check_quota, record_usage
 from staffkm_core.utils import database as _db
 from app.scenarios import SCENARIO_REGISTRY
@@ -130,17 +131,14 @@ async def chat_with_application(
         roles=[ctx_t.role.value],
     )
 
-    # 粗估 prompt tokens：以「字元 / 4」近似（中英文混合最穩；後續可換 tiktoken）
-    def _approx_tokens(s: str) -> int:
-        return max(1, len(s) // 4)
-
-    prompt_text = "\n".join(m.get("content", "") for m in body.messages if m.get("content"))
-    prompt_tokens_est = _approx_tokens(prompt_text)
+    # Round 8-4：用 tiktoken 精算 prompt tokens（fallback char/4 內建在 count_messages）
+    model_hint = agent._model or "gpt-4o-mini"
+    prompt_tokens_est = count_messages(body.messages, model=model_hint)
 
     async def event_generator():
         import time
         start = time.monotonic()
-        out_chars = 0
+        out_buffer: list[str] = []
         status = "ok"
         err: str | None = None
         try:
@@ -148,7 +146,7 @@ async def chat_with_application(
                 if await request.is_disconnected():
                     status = "client_disconnect"
                     break
-                out_chars += len(token or "")
+                out_buffer.append(token or "")
                 yield {"event": "token", "data": token}
 
             yield {
@@ -164,7 +162,8 @@ async def chat_with_application(
         # M3 收尾：寫一筆 usage log（用獨立 session，避免請求 session 已關閉）
         try:
             elapsed_ms = int((time.monotonic() - start) * 1000)
-            completion_tokens_est = _approx_tokens("x" * out_chars) if out_chars else 0
+            # Round 8-4：對輸出字串做精算（而非用 char/4 對「x" * out_chars」）
+            completion_tokens_est = count_text("".join(out_buffer), model=model_hint)
             sess_factory = _db._session_factory
             if sess_factory is not None:
                 async with sess_factory() as us_session:
