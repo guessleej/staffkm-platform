@@ -26,6 +26,16 @@
           重新整理
         </button>
         <button
+          @click="onExportExcel"
+          class="inline-flex items-center gap-1.5 h-8 px-3 text-xs text-neutral-600 bg-surface-raised border border-neutral-200 rounded-lg hover:border-brand-400 hover:text-brand-600 transition-colors"
+          title="匯出全部文檔到 Excel"
+        >匯出 Excel</button>
+        <button
+          @click="onExportZip"
+          class="inline-flex items-center gap-1.5 h-8 px-3 text-xs text-neutral-600 bg-surface-raised border border-neutral-200 rounded-lg hover:border-brand-400 hover:text-brand-600 transition-colors"
+          title="匯出全部文檔內容 ZIP"
+        >匯出 ZIP</button>
+        <button
           @click="($refs.fileInput as HTMLInputElement).click()"
           class="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
         >
@@ -154,13 +164,27 @@
                 {{ formatSize(doc.file_size) }}
               </td>
               <td class="px-5 py-3">
-                <button
-                  @click="onDelete(doc)"
-                  class="text-neutral-300 hover:text-danger-600 hover:bg-danger-50 transition-colors p-1.5 rounded-md"
-                  title="刪除"
-                >
-                  <IconDelete :size="14" />
-                </button>
+                <div class="flex items-center gap-1">
+                  <a :href="downloadUrl(doc)" download
+                     class="text-neutral-400 hover:text-brand-600 transition-colors p-1.5 rounded-md"
+                     title="下載原件">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                  </a>
+                  <button @click="onGenerateQuestions(doc)"
+                          class="text-neutral-400 hover:text-brand-600 transition-colors p-1.5 rounded-md"
+                          title="生成問題">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                    </svg>
+                  </button>
+                  <button @click="onDelete(doc)"
+                          class="text-neutral-300 hover:text-danger-600 hover:bg-danger-50 transition-colors p-1.5 rounded-md"
+                          title="刪除">
+                    <IconDelete :size="14" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -275,6 +299,48 @@ async function onDelete(doc: any) {
   } catch (e: any) {
     alert('刪除失敗：' + (e.response?.data?.detail || e.message))
   }
+}
+
+// ── Round 10 — MaxKB parity 操作 ─────────────────────────────────
+function downloadUrl(doc: any): string {
+  return knowledgeApi.downloadDocUrl?.(doc.id) ||
+    `/api/v1/knowledge/documents/doc/${doc.id}/download`
+}
+
+async function onGenerateQuestions(doc: any) {
+  if (!confirm(`對「${doc.name}」自動生成常見問題？\n會呼叫 LLM，可能需要幾十秒。`)) return
+  try {
+    const r = await knowledgeApi.generateDocQuestions(doc.id, { per_paragraph: 2, max_paragraphs: 20 })
+    alert(`已產生 ${r?.questions?.length ?? 0} 個常見問題`)
+  } catch (e: any) {
+    alert('生成失敗：' + (e.response?.data?.detail || e.message))
+  }
+}
+
+async function onExportExcel() {
+  try {
+    const blob = await knowledgeApi.exportExcel(kbId.value, [])
+    _saveBlob(blob, `kb-${kbId.value}.xlsx`)
+  } catch (e: any) {
+    alert('匯出失敗：' + (e.response?.data?.detail || e.message))
+  }
+}
+
+async function onExportZip() {
+  try {
+    const blob = await knowledgeApi.exportZip(kbId.value, [])
+    _saveBlob(blob, `kb-${kbId.value}.zip`)
+  } catch (e: any) {
+    alert('匯出失敗：' + (e.response?.data?.detail || e.message))
+  }
+}
+
+function _saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click()
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 100)
 }
 
 // ─── UI helpers ────────────────────────────────────────────────
