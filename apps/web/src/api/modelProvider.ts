@@ -66,3 +66,21 @@ export const modelProviderApi = {
     return http.delete(`/admin/models/models/${modelId}`)
   },
 }
+
+// ── Model Provider Registry（M3 中段-C）───────────────────────────────
+export interface ProviderRegistryEntry {
+  type:                string
+  label:               string
+  adapter_type:        string
+  default_base_url:    string | null
+  recommended_models:  string[]
+  needs_api_key:       boolean
+  notes:               string
+}
+
+export const providerRegistryApi = {
+  async list(): Promise<ProviderRegistryEntry[]> {
+    const r = await http.get('/model-providers/registry')
+    return r.data?.data ?? []
+  },
+}

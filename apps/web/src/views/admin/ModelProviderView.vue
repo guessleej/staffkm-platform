@@ -111,23 +111,31 @@
           </div>
           <div>
             <label class="form-label">類型</label>
-            <select v-model="providerForm.provider_type" class="form-input">
-              <option value="openai">OpenAI / 相容 API</option>
-              <option value="ollama">Ollama（本地）</option>
-              <option value="azure">Azure OpenAI</option>
-              <option value="anthropic">Anthropic Claude</option>
+            <select v-model="providerForm.provider_type" class="form-input" @change="onProviderTypeChange">
+              <option v-for="r in registry" :key="r.type" :value="r.type">{{ r.label }}</option>
               <option value="custom">自訂</option>
             </select>
+            <p v-if="selectedRegistry?.notes" class="mt-1 text-[11px] text-gray-500">
+              {{ selectedRegistry.notes }}
+            </p>
           </div>
           <div>
-            <label class="form-label">Base URL（選填）</label>
+            <label class="form-label">
+              Base URL（選填）
+              <span v-if="selectedRegistry?.default_base_url" class="ml-1 text-[11px] text-gray-400">
+                預設：{{ selectedRegistry.default_base_url }}
+              </span>
+            </label>
             <input v-model="providerForm.base_url" class="form-input font-mono text-sm"
-                   placeholder="https://api.openai.com/v1"/>
+                   :placeholder="selectedRegistry?.default_base_url || 'https://api.openai.com/v1'"/>
           </div>
-          <div>
+          <div v-if="selectedRegistry?.needs_api_key !== false">
             <label class="form-label">API Key</label>
             <input v-model="providerForm.api_key" type="password" class="form-input font-mono text-sm"
                    :placeholder="editingProvider ? '留空保持不變' : 'sk-...'"/>
+          </div>
+          <div v-else class="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-2">
+            此供應商為地端服務，無需 API Key
           </div>
         </div>
         <div class="px-6 pb-6 flex justify-end gap-3">
@@ -148,8 +156,14 @@
         <div class="p-6 space-y-4">
           <div>
             <label class="form-label">模型 ID</label>
-            <input v-model="modelForm.model_name" class="form-input font-mono text-sm"
+            <input v-model="modelForm.model_name" class="form-input font-mono text-sm" list="recommended-models"
                    placeholder="gpt-4o / llama3 / text-embedding-3-small"/>
+            <datalist id="recommended-models">
+              <option v-for="m in recommendedModelsForCurrent" :key="m" :value="m" />
+            </datalist>
+            <p v-if="recommendedModelsForCurrent.length" class="mt-1 text-[11px] text-gray-500">
+              建議：{{ recommendedModelsForCurrent.join(' · ') }}
+            </p>
           </div>
           <div>
             <label class="form-label">顯示名稱（選填）</label>
@@ -182,8 +196,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { modelProviderApi, type ModelProvider, type AiModel } from '../../api/modelProvider'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { modelProviderApi, providerRegistryApi, type ModelProvider, type AiModel, type ProviderRegistryEntry } from '../../api/modelProvider'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -198,6 +212,26 @@ const currentProvider = ref<ModelProvider | null>(null)
 
 const providerForm = reactive({ name: '', provider_type: 'openai', base_url: '', api_key: '' })
 const modelForm = reactive({ model_name: '', model_type: 'llm', display_name: '', is_default: false })
+
+// M3 中段-C：Provider Registry
+const registry = ref<ProviderRegistryEntry[]>([])
+const selectedRegistry = computed<ProviderRegistryEntry | undefined>(() =>
+  registry.value.find(r => r.type === providerForm.provider_type),
+)
+const recommendedModelsForCurrent = computed<string[]>(() => {
+  const meta = registry.value.find(r => r.type === currentProvider.value?.provider_type)
+  return meta?.recommended_models ?? []
+})
+async function loadRegistry() {
+  try { registry.value = await providerRegistryApi.list() }
+  catch (e) { console.warn('provider registry load failed:', e) }
+}
+function onProviderTypeChange() {
+  const meta = selectedRegistry.value
+  if (meta?.default_base_url && !providerForm.base_url) {
+    providerForm.base_url = meta.default_base_url
+  }
+}
 
 async function loadProviders() {
   loading.value = true
@@ -298,7 +332,7 @@ function modelTypeBadge(type: string) {
   return m[type] ?? 'badge-gray'
 }
 
-onMounted(loadProviders)
+onMounted(async () => { await Promise.all([loadProviders(), loadRegistry()]) })
 </script>
 
 <style scoped>
