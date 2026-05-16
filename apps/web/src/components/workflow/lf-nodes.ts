@@ -38,6 +38,18 @@ export const NODE_META: Record<string, NodeMeta> = {
   document_split:      { color: '#64748b', bg: '#f8fafc', icon: 'SPL', label: '文件分段', w: 190, h: 72 },
   form:                { color: '#10b981', bg: '#ecfdf5', icon: 'FRM', label: '表單收集', w: 190, h: 72 },
   mcp_tool:            { color: '#6366f1', bg: '#eef2ff', icon: 'MCP', label: 'MCP 工具', w: 190, h: 72 },
+
+  // ── M2 新增節點（scaffold；executor 細部行為由後續 PR 補）─────────
+  wait:                { color: '#94a3b8', bg: '#f1f5f9', icon: 'WAIT', label: '等待', w: 160, h: 64 },
+  switch:              { color: '#8b5cf6', bg: '#f5f3ff', icon: 'SW',  label: '多分支', w: 190, h: 84, dualOutput: true },
+  map:                 { color: '#f59e0b', bg: '#fffbeb', icon: 'MAP', label: '逐項處理', w: 190, h: 72 },
+  reduce:              { color: '#ec4899', bg: '#fdf2f8', icon: 'RED', label: '聚合運算', w: 190, h: 72 },
+  webhook:             { color: '#3b82f6', bg: '#eff6ff', icon: 'HOOK', label: 'Webhook 觸發', w: 190, h: 72, noInput: true },
+  notify:              { color: '#10b981', bg: '#ecfdf5', icon: 'NOT', label: '推播通知', w: 190, h: 72 },
+  email:               { color: '#0ea5e9', bg: '#f0f9ff', icon: 'EML', label: '寄送郵件', w: 190, h: 72 },
+  schedule:            { color: '#a855f7', bg: '#faf5ff', icon: 'CRON', label: '排程觸發', w: 190, h: 72, noInput: true },
+  transform:           { color: '#06b6d4', bg: '#ecfeff', icon: 'TRF', label: '資料轉換', w: 190, h: 72 },
+  merge:               { color: '#64748b', bg: '#f8fafc', icon: 'MRG', label: '合併資料流', w: 190, h: 72 },
 }
 
 // ─── 預設 config ───────────────────────────────────────────────────────────────
@@ -63,6 +75,18 @@ export function getDefaultConfig(nodeType: string): Record<string, any> {
     document_split:      { input_variable: 'document_text', strategy: 'fixed', chunk_size: 500, chunk_overlap: 50, output_variable: 'chunks' },
     form:                { fields: [{ name: 'user_name', label: '姓名', type: 'text', required: true, default: '', options: [] }] },
     mcp_tool:            { server_url: '', tool_name: '', tool_params_template: '{"query": "{{user_input}}"}', output_variable: 'mcp_result', timeout: 30 },
+
+    // ── M2 新節點預設 config ───────────────────────────────────────
+    wait:                { seconds: 5 },
+    switch:              { variable: 'user_input', cases: [{ match: '', next_node_key: '' }], default_next_node_key: '' },
+    map:                 { list_variable: 'items', item_variable: 'item', body_nodes: [], output_variable: 'mapped' },
+    reduce:              { list_variable: 'items', op: 'sum', output_variable: 'total' },
+    webhook:             { path: '/webhook/' + Math.random().toString(36).slice(2, 8), secret: '', output_variable: 'webhook_payload' },
+    notify:              { channel: 'in_app', template: '{{user_input}}', target_var: '' },
+    email:               { to_var: 'recipient_email', subject_template: '', body_template: '' },
+    schedule:            { cron: '0 9 * * 1-5', timezone: 'Asia/Taipei' },
+    transform:           { input_variable: 'input', expression: '{{input}}', output_variable: 'transformed' },
+    merge:               { source_variables: ['a', 'b'], output_variable: 'merged' },
   }
   return defaults[nodeType] ?? {}
 }
@@ -87,7 +111,16 @@ export const PALETTE_GROUPS = [
   },
   {
     label: '整合',
-    items: ['http_request', 'form', 'mcp_tool'] as const,
+    items: ['http_request', 'form', 'mcp_tool', 'webhook', 'email', 'notify'] as const,
+  },
+  // ── M2 新增節點 ────────────────────────────────────────────────
+  {
+    label: '進階流程控制',
+    items: ['wait', 'switch', 'map', 'reduce', 'merge', 'transform'] as const,
+  },
+  {
+    label: '觸發',
+    items: ['webhook', 'schedule'] as const,
   },
 ]
 

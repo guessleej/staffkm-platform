@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.middleware.legacy_bridge import LegacyURLBridge
@@ -78,7 +78,8 @@ app.include_router(skills.router,        prefix=f"{_PREFIX}/skills",       tags=
 app.include_router(data_sources.router,    prefix=f"{_PREFIX}/data-sources", tags=["Data Source（新 backlog）"])
 app.include_router(datasource_test.router, prefix=f"{_PREFIX}/data-sources", tags=["Data Source 連線測試（D-3）"])
 app.include_router(entity_folders.router,  prefix=f"{_PREFIX}/folders",      tags=["Entity Folders（D-5）"])
-app.include_router(app_versions.router,    prefix=f"{_PREFIX}/applications", tags=["Application 版本控制（D-7）"])
+app.include_router(app_versions.router,      prefix=f"{_PREFIX}/applications", tags=["Application 版本控制（D-7）"])
+app.include_router(workflow_versions.router, prefix=f"{_PREFIX}/applications", tags=["Workflow 版本控制（M2）"])
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])

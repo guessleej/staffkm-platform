@@ -176,6 +176,25 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_app_versions_app ON application_versions(application_id, version_number DESC)",
     "CREATE INDEX IF NOT EXISTS idx_app_versions_workspace ON application_versions(workspace_id)",
+
+    # ── M2：Workflow 版本控制（snapshot + manager 策略）─────────────
+    """
+    CREATE TABLE IF NOT EXISTS workflow_versions (
+        id              UUID PRIMARY KEY,
+        application_id  UUID NOT NULL,
+        workspace_id    UUID NOT NULL,
+        version_number  INTEGER NOT NULL,
+        nodes           JSONB NOT NULL DEFAULT '[]'::jsonb,
+        edges           JSONB NOT NULL DEFAULT '[]'::jsonb,
+        note            TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_wf_versions_app ON workflow_versions(application_id, version_number DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_wf_versions_workspace ON workflow_versions(workspace_id)",
+    # Application 加 workflow_manager 欄位（執行策略）
+    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS workflow_manager VARCHAR(16) NOT NULL DEFAULT 'simple'",
 ]
 
 
