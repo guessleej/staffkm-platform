@@ -7,15 +7,15 @@
     >
       <div class="text-center mb-10">
         <h1 class="text-2xl font-semibold text-neutral-900 mb-2">
-          有什麼可以協助你的？
+          {{ $t('chat.welcome') }}
         </h1>
-        <p class="text-sm text-neutral-500">輸入問題開始對話，或從左側選擇歷史對話</p>
+        <p class="text-sm text-neutral-500">{{ $t('chat.welcomeHint') }}</p>
       </div>
 
       <ChatInput
         v-model="draft"
         :disabled="sending"
-        placeholder="輸入訊息給 staffKM"
+        :placeholder="$t('chat.inputPlaceholder')"
         class="w-full"
         @submit="onSubmit"
       />
@@ -82,7 +82,7 @@
           <ChatInput
             v-model="draft"
             :disabled="sending"
-            placeholder="繼續對話…"
+            :placeholder="$t('chat.continuePlaceholder')"
             @submit="onSubmit"
           />
         </div>
