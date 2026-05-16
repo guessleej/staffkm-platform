@@ -8,11 +8,13 @@
 註：M3 啟動階段只先提供 OpenAI-compatible adapter；
 其餘 provider 走相同介面，後續 PR 補上專屬 adapter（如 Anthropic / Bedrock / Gemini 等）。
 """
+from .anthropic import AnthropicProvider
 from .base import BaseProvider, ChatRequest, ChatResponse, EmbedRequest, EmbedResponse
 from .openai_compat import OpenAICompatProvider
 from .registry import PROVIDER_REGISTRY, ProviderMeta, get_adapter, list_providers
 
 __all__ = [
+    "AnthropicProvider",
     "BaseProvider",
     "ChatRequest",
     "ChatResponse",
