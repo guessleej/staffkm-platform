@@ -91,6 +91,9 @@
         <router-view />
       </main>
     </div>
+
+    <!-- 右側 Artifact 預覽欄（store.isOpen 控制 slide-in）-->
+    <ArtifactPane />
   </div>
 </template>
 
@@ -100,6 +103,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
 import ChatHistoryDrawer from '../../components/chat/ChatHistoryDrawer.vue'
+import ArtifactPane from '../../components/chat/ArtifactPane.vue'
 import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'

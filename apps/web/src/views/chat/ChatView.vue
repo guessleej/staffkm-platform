@@ -50,7 +50,7 @@
               class="whitespace-pre-wrap"
               :class="msg.role === 'user' ? 'text-neutral-900' : 'text-neutral-800'"
             >{{ msg.content }}</div>
-            <!-- 引用來源 -->
+            <!-- 引用來源（點開展開 ArtifactPane）-->
             <ul
               v-if="msg.citations?.length"
               class="mt-2 space-y-1 text-xs text-neutral-500"
@@ -58,7 +58,8 @@
               <li
                 v-for="(c, i) in msg.citations"
                 :key="i"
-                class="border-l-2 border-neutral-200 pl-2"
+                class="border-l-2 border-neutral-200 pl-2 cursor-pointer hover:text-neutral-900 hover:border-neutral-400 transition"
+                @click="openCitation(c)"
               >{{ c.doc_name }} · 相符度 {{ (c.score * 100).toFixed(0) }}%</li>
             </ul>
           </article>
@@ -96,11 +97,21 @@ import { useRoute } from 'vue-router'
 
 import ChatInput from '../../components/chat/ChatInput.vue'
 import { useConversationStore } from '../../stores/conversation'
+import { useArtifactStore } from '../../stores/artifact'
 import { http } from '../../api'
 import { streamChat } from '../../api/chat'
 
 const route = useRoute()
 const convStore = useConversationStore()
+const artifact = useArtifactStore()
+
+function openCitation(c: { doc_name: string; content: string }) {
+  artifact.open({
+    kind: 'document',
+    title: c.doc_name || '引用來源',
+    content: c.content || '（無內容）',
+  })
+}
 
 const draft = ref('')
 const sending = ref(false)
