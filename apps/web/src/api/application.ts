@@ -61,3 +61,28 @@ export const applicationApi = {
     return `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/applications/${appId}/chat`
   },
 }
+
+// ── Application 版本控制（D-7）─────────────────────────────────────────
+export interface AppVersion {
+  id: string
+  application_id: string
+  version_number: number
+  note: string | null
+  created_at: string
+  created_by: string | null
+}
+
+export const appVersionApi = {
+  async list(appId: string): Promise<AppVersion[]> {
+    const r = await http.get(`/applications/${appId}/versions`)
+    return r.data?.data ?? []
+  },
+  async create(appId: string, note?: string): Promise<AppVersion> {
+    const r = await http.post(`/applications/${appId}/versions`, { note: note || null })
+    return r.data?.data
+  },
+  async restore(appId: string, versionNumber: number): Promise<AppVersion> {
+    const r = await http.post(`/applications/${appId}/versions/${versionNumber}/restore`)
+    return r.data?.data
+  },
+}
