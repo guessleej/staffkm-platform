@@ -63,6 +63,24 @@ module.exports = {
         sunken:  hsl('surface-sunken'),
       },
 
+      // 設計系統 v1.1：dark-mode-aware foreground tokens
+      // 用法：text-fg / text-fg-secondary / text-fg-tertiary / text-fg-on-brand
+      fg: {
+        DEFAULT:    hsl('text-primary'),
+        primary:    hsl('text-primary'),
+        secondary:  hsl('text-secondary'),
+        tertiary:   hsl('text-tertiary'),
+        'on-brand': hsl('text-on-brand'),
+        disabled:   hsl('text-disabled'),
+      },
+      // border alias 對齊 design-tokens（既有 border-neutral-* 仍可用）
+      bd: {
+        subtle:   hsl('border-subtle'),
+        DEFAULT:  hsl('border-default'),
+        strong:   hsl('border-strong'),
+        focus:    hsl('border-focus'),
+      },
+
       // Tailwind 慣用別名（讓既有 class 不必全改）
       gray:   brandScale('neutral'),
       slate:  brandScale('neutral'),
