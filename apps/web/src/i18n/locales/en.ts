@@ -1,5 +1,5 @@
 /**
- * English (en) — stub. 待後續逐 key 填寫，未填則 fallback 到 zh-TW。
+ * English (en) — second-class locale; falls back to zh-TW for missing keys.
  */
 export default {
   common: {
@@ -17,16 +17,40 @@ export default {
     duplicate: 'Duplicate',
     settings:  'Settings',
     logout:    'Log out',
+    enable:    'Enable',
+    disable:   'Disable',
+    enabled:   'Enabled',
+    disabled:  'Disabled',
+    name:      'Name',
+    description:'Description',
+    actions:   'Actions',
+    refresh:   'Refresh',
+    back:      'Back',
+    close:     'Close',
+    add:       'Add',
+    remove:    'Remove',
+    yes:       'Yes',
+    no:        'No',
+    success:   'Success',
+    failed:    'Failed',
+    required:  'Required',
   },
 
   nav: {
-    chat:      'Chat',
-    apps:      'Apps',
-    knowledge: 'Knowledge',
-    agents:    'Agents',
-    users:     'Users',
-    models:    'Models',
-    settings:  'Settings',
+    chat:        'Chat',
+    apps:        'Apps',
+    knowledge:   'Knowledge',
+    agents:      'Agents',
+    users:       'Users',
+    models:      'Models',
+    settings:    'Settings',
+    tools:       'Tools',
+    skills:      'Skills',
+    datasources: 'Data sources',
+    usage:       'Token usage',
+    triggers:    'Triggers',
+    memory:      'Memory',
+    mcp:         'MCP Hub',
   },
 
   chat: {
@@ -58,6 +82,38 @@ export default {
     typeWorkflow:'Workflow',
   },
 
+  tool: {
+    title:        'Tools',
+    create:       'New tool',
+    countLabel:   '{n} total',
+    emptyHint:    'No tools yet. A tool can be an HTTP API, MCP server, or shell command.',
+    kindHttp:     'HTTP API',
+    kindMcp:      'MCP',
+    kindShell:    'Shell',
+    kindCustom:   'Custom',
+    tryRun:       'Try run',
+    deleteConfirm:'Delete this tool?',
+  },
+
+  skill: {
+    title:        'Skills (reusable prompts)',
+    create:       'New skill',
+    emptyHint:    'No skills yet. Skills are reusable prompt templates shared across applications.',
+    promptTpl:    'Prompt template',
+    deleteConfirm:'Delete this skill?',
+  },
+
+  datasource: {
+    title:        'Data sources',
+    create:       'New data source',
+    testConn:     'Test connection',
+    syncNow:      'Sync now',
+    lastSynced:   'Last synced: {at}',
+    kindPostgres: 'PostgreSQL',
+    kindMysql:    'MySQL',
+    kindApi:      'HTTP API',
+  },
+
   batch: {
     select:       'Batch select',
     selectedCount:'{n} selected',
@@ -83,5 +139,87 @@ export default {
   theme: {
     light:        'Switch to light mode',
     dark:         'Switch to dark mode',
+  },
+
+  admin: {
+    usersTitle:    'User management',
+    modelsTitle:   'Model providers',
+    systemTitle:   'System settings',
+    usageTitle:    'Token usage / Quota',
+  },
+
+  usage: {
+    monthLabel:        'This month ({m})',
+    tokensTotal:       'Total tokens',
+    costUsd:           'Cost (USD)',
+    requests:          'Requests',
+    usedOf:            'Used / Cap',
+    noQuota:           'No cap (unlimited)',
+    quotaSection:      'Quota settings',
+    quotaHint:         'Leave blank for unlimited. Requests beyond cap will return 429.',
+    monthlyTokenCap:   'Monthly token cap',
+    monthlyCostCap:    'Monthly cost cap (USD)',
+    notLimited:        'unlimited',
+    saveQuota:         'Save quota',
+    recentTitle:       'Recent usage (up to 50)',
+    empty:             'No usage records yet',
+    refreshed:         'Refreshed',
+  },
+
+  provider: {
+    typeLabel:         'Type',
+    baseUrl:           'Base URL (optional)',
+    apiKey:            'API key',
+    localNoKey:        'On-prem provider, no API key needed',
+    defaultBase:       'Default: {url}',
+    modelId:           'Model ID',
+    modelDisplayName:  'Display name (optional)',
+    modelType:         'Model type',
+    isDefault:         'Set as default for this type',
+    recommended:       'Recommended: {list}',
+  },
+
+  trigger: {
+    title:           'Scheduled triggers',
+    create:          'New trigger',
+    kind:            'Kind',
+    kindInterval:    'Interval',
+    kindCron:        'Cron',
+    kindWebhook:     'Webhook',
+    intervalSec:     'Interval (sec)',
+    cronExpr:        'Cron expression',
+    nextFire:        'Next fire',
+    lastFire:        'Last fired',
+    runsTitle:       'Run history',
+    statusQueued:    'Queued',
+    statusRunning:   'Running',
+    statusOk:        'OK',
+    statusError:     'Error',
+  },
+
+  memory: {
+    title:           'Long-term memory',
+    create:          'New memory',
+    content:         'Content',
+    scope:           'Scope',
+    scopeUser:       'User',
+    scopeApp:        'App',
+    scopeTeam:       'Team',
+    importance:      'Importance',
+    tags:            'Tags',
+    searchPlaceholder:'Search memories…',
+    empty:           'No memories yet. Add manually or let workflow capture them.',
+  },
+
+  mcp: {
+    title:           'MCP Hub',
+    createServer:    'New MCP server',
+    transport:       'Transport',
+    url:             'Endpoint URL',
+    refresh:         'Refresh tools',
+    cachedTools:     'Cached tools',
+    lastRefreshed:   'Last refreshed: {at}',
+    callTool:        'Call tool',
+    empty:           'No MCP servers registered yet.',
   },
 }
