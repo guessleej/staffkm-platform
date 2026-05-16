@@ -2,17 +2,16 @@
 
 GET /media-providers/registry — 列出支援的 image / tts / stt provider
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.core.media import MEDIA_PROVIDER_REGISTRY
 from staffkm_core.schemas.response import ApiResponse
-from staffkm_tenant import TenantContext, require_member
 
 router = APIRouter()
 
 
 @router.get("/registry", response_model=ApiResponse, summary="列出支援的 Media Provider")
-async def get_registry(_ctx: TenantContext = Depends(require_member)):
+async def get_registry():
     return ApiResponse(data=[
         {
             "type":               m.type,

@@ -94,9 +94,7 @@ app.include_router(datasource_test.router, prefix=f"{_PREFIX}/data-sources", tag
 app.include_router(entity_folders.router,  prefix=f"{_PREFIX}/folders",      tags=["Entity Folders（D-5）"])
 app.include_router(app_versions.router,      prefix=f"{_PREFIX}/applications", tags=["Application 版本控制（D-7）"])
 app.include_router(workflow_versions.router, prefix=f"{_PREFIX}/applications", tags=["Workflow 版本控制（M2）"])
-app.include_router(model_providers.router,   prefix=f"{_PREFIX}/model-providers", tags=["Model Provider Registry（M3）"])
 app.include_router(usage.router,             prefix=f"{_PREFIX}",              tags=["Token 用量 + Quota（M3）"])
-app.include_router(media_providers.router,   prefix=f"{_PREFIX}/media-providers", tags=["Media Provider Registry（M4）"])
 app.include_router(memories.router,          prefix=f"{_PREFIX}/memories",     tags=["Long-term Memory（M4）"])
 app.include_router(triggers.router,          prefix=f"{_PREFIX}/triggers",     tags=["Event Triggers（M4）"])
 app.include_router(mcp_servers.router,       prefix=f"{_PREFIX}/mcp",          tags=["MCP Hub（M4）"])
@@ -104,6 +102,10 @@ app.include_router(mcp_servers.router,       prefix=f"{_PREFIX}/mcp",          t
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])
 app.include_router(api_keys.public_router,    prefix="/api/v1/api-keys",            tags=["API Key 驗證"])
+
+# ── 全域唯讀 Registry（workspace-agnostic；任何登入者可讀）─────────────
+app.include_router(model_providers.router,   prefix="/api/v1/model-providers", tags=["Model Provider Registry（M3）"])
+app.include_router(media_providers.router,   prefix="/api/v1/media-providers", tags=["Media Provider Registry（M4）"])
 
 
 @app.get("/health")
