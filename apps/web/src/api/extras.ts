@@ -44,6 +44,21 @@ function makeCrud<T extends BaseEntity, C, U>(prefix: string) {
   }
 }
 
-export const toolApi        = makeCrud<ToolEntity, Partial<ToolEntity>, Partial<ToolEntity>>('tools')
+export interface ToolExecResult {
+  success:    boolean
+  status:     number | null
+  output:     Record<string, unknown> | null
+  text:       string | null
+  elapsed_ms: number
+  error?:     string | null
+}
+
+export const toolApi = {
+  ...makeCrud<ToolEntity, Partial<ToolEntity>, Partial<ToolEntity>>('tools'),
+  execute: async (id: string, inputs: Record<string, unknown>): Promise<ToolExecResult> => {
+    const { data } = await http.post(`/tools/${id}/execute`, { inputs })
+    return data.data
+  },
+}
 export const skillApi       = makeCrud<SkillEntity, Partial<SkillEntity>, Partial<SkillEntity>>('skills')
 export const dataSourceApi  = makeCrud<DataSourceEntity, Partial<DataSourceEntity>, Partial<DataSourceEntity>>('data-sources')
