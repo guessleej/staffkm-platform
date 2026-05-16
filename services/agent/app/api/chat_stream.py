@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
+from app.core.usage import QuotaExceeded, UsageRecord, check_quota, record_usage
+from staffkm_core.utils import database as _db
 from app.scenarios import SCENARIO_REGISTRY
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_member
@@ -111,6 +113,12 @@ async def chat_with_application(
         elif app_dict.get(field) is None:
             app_dict[field] = [] if field != "config" else {}
 
+    # M3 收尾：呼叫前先檢查 workspace quota
+    try:
+        await check_quota(session, str(ctx_t.workspace_id))
+    except QuotaExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
+
     agent = await ApplicationAgent.create(app_dict, session=session)
 
     ctx = AgentContext(
@@ -122,11 +130,25 @@ async def chat_with_application(
         roles=[ctx_t.role.value],
     )
 
+    # 粗估 prompt tokens：以「字元 / 4」近似（中英文混合最穩；後續可換 tiktoken）
+    def _approx_tokens(s: str) -> int:
+        return max(1, len(s) // 4)
+
+    prompt_text = "\n".join(m.get("content", "") for m in body.messages if m.get("content"))
+    prompt_tokens_est = _approx_tokens(prompt_text)
+
     async def event_generator():
+        import time
+        start = time.monotonic()
+        out_chars = 0
+        status = "ok"
+        err: str | None = None
         try:
             async for token in agent.stream_response(ctx):
                 if await request.is_disconnected():
+                    status = "client_disconnect"
                     break
+                out_chars += len(token or "")
                 yield {"event": "token", "data": token}
 
             yield {
@@ -136,6 +158,32 @@ async def chat_with_application(
             yield {"event": "done", "data": "[DONE]"}
 
         except Exception as e:
+            status, err = "error", str(e)
             yield {"event": "error", "data": str(e)}
+
+        # M3 收尾：寫一筆 usage log（用獨立 session，避免請求 session 已關閉）
+        try:
+            elapsed_ms = int((time.monotonic() - start) * 1000)
+            completion_tokens_est = _approx_tokens("x" * out_chars) if out_chars else 0
+            sess_factory = _db._session_factory
+            if sess_factory is not None:
+                async with sess_factory() as us_session:
+                    await record_usage(us_session, UsageRecord(
+                        workspace_id=str(ctx_t.workspace_id),
+                        user_id=str(ctx_t.user_id),
+                        application_id=str(app_id),
+                        provider_type=agent._provider_type,
+                        model=agent._model,
+                        prompt_tokens=prompt_tokens_est,
+                        completion_tokens=completion_tokens_est,
+                        total_tokens=prompt_tokens_est + completion_tokens_est,
+                        latency_ms=elapsed_ms,
+                        status=status,
+                        error=err,
+                    ))
+                    await us_session.commit()
+        except Exception as log_err:
+            # 計帳失敗不影響使用者體驗
+            yield {"event": "usage_log_error", "data": str(log_err)}
 
     return EventSourceResponse(event_generator())
