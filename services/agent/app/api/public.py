@@ -1,4 +1,12 @@
-"""公開存取 API — 不需 JWT 的公開 Application 對話"""
+"""公開存取 API — 不需 JWT 的公開 Application 對話（workspace-aware）。
+
+設計重點：
+  - Endpoint 本身不掛 TenantContextMiddleware（路徑不含 /workspace/）。
+  - 但 application 在 DB 內仍有 workspace_id；我們從該 row 取出後傳給
+    AgentContext，使 RAG 呼叫 knowledge service 時能命中正確 workspace
+    的知識庫，避免公開應用變成「跨 workspace 資料外洩管道」。
+  - 公開應用必須 is_public = true，否則一律 404。
+"""
 import json
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,11 +30,15 @@ class PublicChatRequest(BaseModel):
 
 
 @router.get("/{app_id}", response_model=ApiResponse, summary="取得公開應用程式資訊")
-async def get_public_application(app_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+async def get_public_application(
+    app_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
     row = await session.execute(
         text(
             "SELECT id, name, description, icon, welcome_message, suggested_questions "
-            "FROM applications WHERE id = :id AND status != 'deleted' AND is_public = true"
+            "FROM applications "
+            "WHERE id = :id AND status != 'deleted' AND is_public = true"
         ),
         {"id": str(app_id)},
     )
@@ -47,7 +59,10 @@ async def public_chat(
     session: AsyncSession = Depends(get_session),
 ):
     row = await session.execute(
-        text("SELECT * FROM applications WHERE id = :id AND status != 'deleted' AND is_public = true"),
+        text(
+            "SELECT * FROM applications "
+            "WHERE id = :id AND status != 'deleted' AND is_public = true"
+        ),
         {"id": str(app_id)},
     )
     app_row = row.fetchone()
@@ -61,12 +76,20 @@ async def public_chat(
         elif app_dict.get(field) is None:
             app_dict[field] = [] if field != "config" else {}
 
+    # 從 application row 取出 workspace_id，傳給 AgentContext，
+    # 讓 RAG 檢索能正確 scope 到該 workspace 的知識庫
+    app_workspace_id = app_dict.get("workspace_id")
+    app_workspace_id_str = str(app_workspace_id) if app_workspace_id else None
+
     agent = await ApplicationAgent.create(app_dict, session=session)
     ctx = AgentContext(
         session_id=body.session_id,
         user_id="public",
         messages=body.messages,
         kb_ids=body.kb_ids,
+        workspace_id=app_workspace_id_str,
+        # 公開存取無 RBAC 角色；knowledge service 若要授權需另設「public」角色
+        roles=[],
     )
 
     async def event_generator():
