@@ -1,5 +1,11 @@
 /* ─── Color tokens — HSL 三元組以利動態主題切換 ──────────────────────────
  *
+ * v2 修訂（RFC-006 對話為中心）：
+ *   - Neutral 改為 0% 飽和度（純灰），高對比、文字更銳利
+ *   - Brand 保留，但 surface/text 預設不用 brand 著色，僅保留為互動色
+ *   - Border 三階保留語意，但 default 與 subtle 差距收窄
+ *   - Dark mode：近黑而非純黑（OLED 友好、減少偽影）
+ *
  * 命名：--color-{role}[-{shade}]
  * 角色：brand / neutral / success / warning / danger / info
  * 階度：50 ~ 950（10 階）
@@ -9,7 +15,7 @@
  */
 
 :root {
-  /* ── Brand（預設 indigo 家族；換主題只改這 11 行）──────────────── */
+  /* ── Brand（indigo；保留為「互動／品牌焦點」色，不再大面積使用）──── */
   --color-brand-50:  238 100% 97%;
   --color-brand-100: 240  95% 94%;
   --color-brand-200: 241  90% 88%;
@@ -22,98 +28,98 @@
   --color-brand-900: 246  47% 28%;
   --color-brand-950: 250  60% 15%;
 
-  /* ── Neutral（warm gray）─────────────────────────────────────────── */
-  --color-neutral-50:  30 20% 98%;
-  --color-neutral-100: 30 16% 95%;
-  --color-neutral-200: 30 14% 90%;
-  --color-neutral-300: 30 12% 80%;
-  --color-neutral-400: 30 10% 65%;
-  --color-neutral-500: 30  8% 50%;
-  --color-neutral-600: 30  9% 38%;
-  --color-neutral-700: 30 10% 28%;
-  --color-neutral-800: 30 12% 18%;
-  --color-neutral-900: 30 14% 12%;
-  --color-neutral-950: 30 18%  6%;
+  /* ── Neutral（純灰 0% 飽和，去暖色調，提高對比）─────────────────── */
+  --color-neutral-50:   0 0% 99%;
+  --color-neutral-100:  0 0% 96%;
+  --color-neutral-200:  0 0% 92%;
+  --color-neutral-300:  0 0% 84%;
+  --color-neutral-400:  0 0% 64%;
+  --color-neutral-500:  0 0% 48%;
+  --color-neutral-600:  0 0% 36%;
+  --color-neutral-700:  0 0% 24%;
+  --color-neutral-800:  0 0% 15%;
+  --color-neutral-900:  0 0% 10%;
+  --color-neutral-950:  0 0% 6%;
 
-  /* ── Semantic（10 階完整版，與 brand/neutral 對齊）──────────────── */
-  --color-success-50:  151 78% 95%;
-  --color-success-100: 151 75% 88%;
-  --color-success-200: 152 70% 78%;
-  --color-success-300: 152 65% 65%;
-  --color-success-400: 152 65% 50%;
-  --color-success-500: 152 70% 38%;
-  --color-success-600: 154 75% 30%;
-  --color-success-700: 156 75% 23%;
-  --color-success-800: 158 75% 18%;
-  --color-success-900: 160 75% 13%;
+  /* ── Semantic（10 階完整版，飽和度略降以配合扁平風）─────────────── */
+  --color-success-50:  151 70% 95%;
+  --color-success-100: 151 65% 88%;
+  --color-success-200: 152 60% 78%;
+  --color-success-300: 152 55% 64%;
+  --color-success-400: 152 55% 48%;
+  --color-success-500: 152 60% 38%;
+  --color-success-600: 154 65% 30%;
+  --color-success-700: 156 65% 23%;
+  --color-success-800: 158 65% 18%;
+  --color-success-900: 160 65% 13%;
 
-  --color-warning-50:  45 100% 95%;
-  --color-warning-100: 44  95% 88%;
-  --color-warning-200: 42  92% 78%;
-  --color-warning-300: 40  92% 65%;
-  --color-warning-400: 38  92% 55%;
-  --color-warning-500: 36  92% 50%;
-  --color-warning-600: 32  92% 42%;
-  --color-warning-700: 28  90% 35%;
-  --color-warning-800: 24  88% 28%;
-  --color-warning-900: 22  86% 22%;
+  --color-warning-50:  45 95% 95%;
+  --color-warning-100: 44 88% 88%;
+  --color-warning-200: 42 85% 78%;
+  --color-warning-300: 40 85% 64%;
+  --color-warning-400: 38 85% 54%;
+  --color-warning-500: 36 85% 48%;
+  --color-warning-600: 32 85% 40%;
+  --color-warning-700: 28 82% 33%;
+  --color-warning-800: 24 80% 26%;
+  --color-warning-900: 22 78% 20%;
 
-  --color-danger-50:   0 88% 96%;
-  --color-danger-100:  0 90% 92%;
-  --color-danger-200:  0 88% 84%;
-  --color-danger-300:  0 85% 73%;
-  --color-danger-400:  0 80% 64%;
-  --color-danger-500:  0 78% 56%;
-  --color-danger-600:  0 75% 48%;
-  --color-danger-700:  0 72% 40%;
-  --color-danger-800:  0 70% 32%;
-  --color-danger-900:  0 68% 25%;
+  --color-danger-50:   0 82% 96%;
+  --color-danger-100:  0 82% 92%;
+  --color-danger-200:  0 80% 84%;
+  --color-danger-300:  0 78% 72%;
+  --color-danger-400:  0 72% 62%;
+  --color-danger-500:  0 70% 54%;
+  --color-danger-600:  0 68% 46%;
+  --color-danger-700:  0 65% 38%;
+  --color-danger-800:  0 62% 30%;
+  --color-danger-900:  0 60% 23%;
 
-  --color-info-50:    206 95% 95%;
-  --color-info-100:   208 92% 88%;
-  --color-info-200:   210 90% 78%;
-  --color-info-300:   210 88% 65%;
-  --color-info-400:   210 85% 56%;
-  --color-info-500:   210 85% 50%;
-  --color-info-600:   212 80% 42%;
-  --color-info-700:   214 75% 35%;
-  --color-info-800:   216 72% 28%;
-  --color-info-900:   218 70% 22%;
+  --color-info-50:    206 90% 95%;
+  --color-info-100:   208 86% 88%;
+  --color-info-200:   210 84% 78%;
+  --color-info-300:   210 82% 64%;
+  --color-info-400:   210 78% 54%;
+  --color-info-500:   210 78% 48%;
+  --color-info-600:   212 74% 40%;
+  --color-info-700:   214 70% 33%;
+  --color-info-800:   216 66% 26%;
+  --color-info-900:   218 64% 20%;
 
-  /* ── Surface（語意化背景；dark mode 翻轉 1↔900）───────────────── */
-  --color-surface-base:    var(--color-neutral-50);   /* 頁面底色 */
-  --color-surface-raised:  0 0% 100%;                 /* 卡片 */
-  --color-surface-overlay: 0 0% 100%;                 /* modal / popover */
-  --color-surface-sunken:  var(--color-neutral-100);  /* 凹陷區 */
+  /* ── Surface（語意化背景；單一純白底，去階層感）──────────────── */
+  --color-surface-base:    0 0% 100%;                  /* 頁面底色 — 純白 */
+  --color-surface-raised:  0 0% 100%;                  /* 卡片 — 同底色，靠 border 區分 */
+  --color-surface-overlay: 0 0% 100%;                  /* modal / popover */
+  --color-surface-sunken:  var(--color-neutral-50);    /* 凹陷區（極淡灰）*/
 
-  /* ── Text ────────────────────────────────────────────────────────── */
+  /* ── Text（高對比，去多餘層次）─────────────────────────────────── */
   --color-text-primary:    var(--color-neutral-900);
   --color-text-secondary:  var(--color-neutral-600);
-  --color-text-tertiary:   var(--color-neutral-400);
+  --color-text-tertiary:   var(--color-neutral-500);
   --color-text-on-brand:   0 0% 100%;
   --color-text-disabled:   var(--color-neutral-300);
 
-  /* ── Border ──────────────────────────────────────────────────────── */
+  /* ── Border（subtle ↔ default 收窄；strong 保留供 hover/focus）── */
   --color-border-subtle:   var(--color-neutral-100);
   --color-border-default:  var(--color-neutral-200);
-  --color-border-strong:   var(--color-neutral-400);
+  --color-border-strong:   var(--color-neutral-300);
   --color-border-focus:    var(--color-brand-500);
 }
 
-/* ── Dark mode（簡單翻轉，可後續細調）───────────────────────────── */
+/* ── Dark mode（近黑而非純黑，OLED 友好）───────────────────────── */
 :root.dark,
 [data-theme="dark"] {
   --color-surface-base:    var(--color-neutral-950);
   --color-surface-raised:  var(--color-neutral-900);
   --color-surface-overlay: var(--color-neutral-800);
-  --color-surface-sunken:  var(--color-neutral-900);
+  --color-surface-sunken:  0 0% 4%;
 
   --color-text-primary:    var(--color-neutral-50);
   --color-text-secondary:  var(--color-neutral-300);
-  --color-text-tertiary:   var(--color-neutral-500);
+  --color-text-tertiary:   var(--color-neutral-400);
   --color-text-disabled:   var(--color-neutral-700);
 
   --color-border-subtle:   var(--color-neutral-800);
   --color-border-default:  var(--color-neutral-700);
-  --color-border-strong:   var(--color-neutral-500);
+  --color-border-strong:   var(--color-neutral-600);
 }
