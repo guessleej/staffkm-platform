@@ -104,6 +104,12 @@ const router = createRouter({
           meta: { title: '模型供應商', roles: ['admin'] },
         },
         {
+          path: 'admin/usage',
+          name: 'admin-usage',
+          component: () => import('../views/admin/UsageView.vue'),
+          meta: { title: 'Token 用量 / Quota', roles: ['admin'] },
+        },
+        {
           path: 'admin/system',
           name: 'admin-system',
           component: () => import('../views/admin/SystemView.vue'),

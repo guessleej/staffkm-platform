@@ -106,6 +106,17 @@
               <div class="p-1">
                 <router-link
                   v-if="auth.hasRole(['admin'])"
+                  to="/admin/usage"
+                  class="flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                  @click="open = false"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 13l3-3 4 4 5-7"/>
+                  </svg>
+                  Token 用量
+                </router-link>
+                <router-link
+                  v-if="auth.hasRole(['admin'])"
                   to="/admin/system"
                   class="flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
                   @click="open = false"
