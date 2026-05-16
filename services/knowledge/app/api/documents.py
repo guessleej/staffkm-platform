@@ -442,3 +442,109 @@ async def list_document_questions(
 ):
     doc = await _load_doc(doc_id, session)
     return ApiResponse(data=doc.questions or [])
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Round 10-3：匯出（Excel / ZIP）
+# ═══════════════════════════════════════════════════════════════════════
+class ExportSelectReq(BaseModel):
+    """指定 document_ids；空陣列 = 整個 KB 全匯。"""
+    document_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+def _doc_to_dict(d: Document) -> dict[str, Any]:
+    return {
+        "id":              d.id,
+        "name":            d.name,
+        "file_type":       d.file_type,
+        "file_size":       d.file_size,
+        "status":          d.status,
+        "paragraph_count": d.paragraph_count,
+        "char_count":      d.char_count,
+        "tags":            d.tags or [],
+        "hit_strategy":    d.hit_strategy,
+        "is_enabled":      d.is_enabled,
+        "created_at":      d.created_at.isoformat() if d.created_at else None,
+        "questions":       d.questions or [],
+    }
+
+
+async def _resolve_docs(
+    session, ctx: TenantContext, kb_id: uuid.UUID, doc_ids: list[uuid.UUID],
+) -> list[Document]:
+    await _verify_kb_in_workspace(kb_id, ctx, session)
+    q = (
+        WorkspaceScopedQuery(Document).select()
+        .where(Document.knowledge_base_id == kb_id)
+    )
+    if doc_ids:
+        q = q.where(Document.id.in_(doc_ids))
+    return list((await session.execute(q)).scalars().all())
+
+
+@router.post("/{kb_id}/export/excel")
+async def export_documents_excel(
+    kb_id: uuid.UUID,
+    body: ExportSelectReq,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.core.exporter import to_excel_bytes
+    docs = await _resolve_docs(session, ctx, kb_id, body.document_ids)
+    data = to_excel_bytes([_doc_to_dict(d) for d in docs])
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="kb-{kb_id}.xlsx"'},
+    )
+
+
+@router.post("/{kb_id}/export/zip")
+async def export_documents_zip(
+    kb_id: uuid.UUID,
+    body: ExportSelectReq,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.core.exporter import to_zip_bytes
+    from app.models.knowledge_base import Paragraph
+    from sqlalchemy import select as sql_select
+
+    docs = await _resolve_docs(session, ctx, kb_id, body.document_ids)
+    doc_dicts = [_doc_to_dict(d) for d in docs]
+
+    # 預載所有 paragraphs（一次 query，避免 N+1）
+    doc_ids = [d.id for d in docs]
+    paras_by_doc: dict[str, list[dict]] = {str(i): [] for i in doc_ids}
+    if doc_ids:
+        rows = await session.execute(
+            sql_select(Paragraph)
+            .where(Paragraph.document_id.in_(doc_ids))
+            .where(Paragraph.workspace_id == ctx.workspace_id)
+            .order_by(Paragraph.document_id, Paragraph.order_index)
+        )
+        for p in rows.scalars().all():
+            paras_by_doc.setdefault(str(p.document_id), []).append({
+                "order_index": p.order_index,
+                "title":       p.title,
+                "content":     p.content,
+            })
+
+    def _get_paragraphs(doc_id: str) -> list[dict]:
+        return paras_by_doc.get(doc_id, [])
+
+    # 彙整所有 doc.questions 為 ZIP 根 questions.json
+    all_qs: list[str] = []
+    seen: set[str] = set()
+    for d in doc_dicts:
+        for q in d.get("questions") or []:
+            if q not in seen:
+                seen.add(q)
+                all_qs.append(q)
+
+    data = to_zip_bytes(doc_dicts, _get_paragraphs, questions_aggregate=all_qs)
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="kb-{kb_id}.zip"'},
+    )
