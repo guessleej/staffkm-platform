@@ -160,6 +160,22 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_tools_folder        ON tools(folder_id)",
     "CREATE INDEX IF NOT EXISTS idx_skills_folder       ON skills(folder_id)",
     "CREATE INDEX IF NOT EXISTS idx_data_sources_folder ON data_sources(folder_id)",
+
+    # ── D-7：Application 版本控制（snapshot + rollback）─────────────
+    """
+    CREATE TABLE IF NOT EXISTS application_versions (
+        id              UUID PRIMARY KEY,
+        application_id  UUID NOT NULL,
+        workspace_id    UUID NOT NULL,
+        version_number  INTEGER NOT NULL,
+        snapshot        JSONB NOT NULL,
+        note            TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_app_versions_app ON application_versions(application_id, version_number DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_app_versions_workspace ON application_versions(workspace_id)",
 ]
 
 
