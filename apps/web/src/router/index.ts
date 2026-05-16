@@ -10,20 +10,25 @@ const router = createRouter({
       component: () => import('../views/login/LoginView.vue'),
       meta: { public: true },
     },
+    // ── 對話為中心的 layout（claude.ai 風格）─────────────────────────
     {
       path: '/',
-      component: () => import('../views/dashboard/DashboardLayout.vue'),
+      component: () => import('../views/chat/ChatLayout.vue'),
       children: [
-        {
-          path: '',
-          redirect: '/chat',
-        },
+        { path: '', redirect: '/chat' },
         {
           path: 'chat',
           name: 'chat',
           component: () => import('../views/chat/ChatView.vue'),
-          meta: { title: '智慧問答' },
+          meta: { title: '對話' },
         },
+      ],
+    },
+    // ── 管理介面（沿用原 DashboardLayout）─────────────────────────
+    {
+      path: '/',
+      component: () => import('../views/dashboard/DashboardLayout.vue'),
+      children: [
         {
           path: 'knowledge',
           name: 'knowledge',
