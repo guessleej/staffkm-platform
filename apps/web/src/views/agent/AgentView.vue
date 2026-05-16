@@ -49,14 +49,14 @@ const loading = ref(true)
 const router = useRouter()
 
 const ICONS: Record<string, string> = {
-  official_doc: '📋',
-  hr_leave: '👤',
-  procurement: '🛒',
-  budget: '💰',
-  sop: '📑',
-  onboarding: '🎓',
+  official_doc: '公文',
+  hr_leave: '人事',
+  procurement: '採購',
+  budget: '預算',
+  sop: 'SOP',
+  onboarding: '到職',
 }
-function scenarioIcon(id: string) { return ICONS[id] ?? '🤖' }
+function scenarioIcon(id: string) { return ICONS[id] ?? 'AGT' }
 
 async function load() {
   const { data } = await http.get('/agents')

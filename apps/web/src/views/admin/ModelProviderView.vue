@@ -286,8 +286,8 @@ async function deleteModel(modelId: string, providerId: string) {
 }
 
 function providerIcon(type: string) {
-  const m: Record<string, string> = { openai: '⚡', ollama: '🦙', azure: '☁️', anthropic: '🔷', custom: '🔧' }
-  return m[type] ?? '🤖'
+  const m: Record<string, string> = { openai: 'OAI', ollama: 'OLL', azure: 'AZ', anthropic: 'ANT', custom: 'CST' }
+  return m[type] ?? 'LLM'
 }
 function providerIconBg(type: string) {
   const m: Record<string, string> = { openai: 'bg-emerald-50', ollama: 'bg-orange-50', azure: 'bg-sky-50', anthropic: 'bg-violet-50', custom: 'bg-gray-100' }

@@ -63,10 +63,10 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Model
-              <span class="text-emerald-600 font-normal ml-1">🔒 系統鎖定</span>
+              <span class="text-emerald-600 font-normal ml-1">[系統鎖定]</span>
             </label>
             <div class="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <span class="text-base">🏠</span>
+              <span class="px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-800 text-[10px] font-semibold">本地</span>
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-mono text-emerald-900 font-semibold">gemma4:e4b</div>
                 <div class="text-[11px] text-emerald-700">Google Gemma 4 · 多模態 · 128K context · 內網執行</div>
