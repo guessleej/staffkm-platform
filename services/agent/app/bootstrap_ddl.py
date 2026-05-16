@@ -251,7 +251,7 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "CREATE INDEX IF NOT EXISTS idx_memories_app       ON long_term_memories(application_id, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_memories_content_gin ON long_term_memories USING gin (to_tsvector('simple', content))",
 
-    # ── M4 啟動：Event Triggers（定期 / 事件觸發 workflow）──────────────
+    # ── M4 啟動：Event Triggers ──────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS event_triggers (
         id              UUID PRIMARY KEY,
@@ -290,6 +290,43 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_trigger_runs_trigger ON event_trigger_runs(trigger_id, fired_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_trigger_runs_ws      ON event_trigger_runs(workspace_id, fired_at DESC)",
+
+    # ── M4 啟動：MCP Hub（servers registry + tools cache）─────────────
+    """
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+        id              UUID PRIMARY KEY,
+        workspace_id    UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        description     TEXT,
+        transport       VARCHAR(16) NOT NULL DEFAULT 'http',
+        url             TEXT,
+        command         TEXT,
+        args            JSONB NOT NULL DEFAULT '[]',
+        env             JSONB NOT NULL DEFAULT '{}',
+        enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+        last_refreshed_at TIMESTAMPTZ,
+        last_error      TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by      UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_mcp_servers_ws ON mcp_servers(workspace_id)",
+
+    """
+    CREATE TABLE IF NOT EXISTS mcp_tools_cache (
+        id              UUID PRIMARY KEY,
+        server_id       UUID NOT NULL,
+        workspace_id    UUID NOT NULL,
+        name            VARCHAR(128) NOT NULL,
+        description     TEXT,
+        input_schema    JSONB NOT NULL DEFAULT '{}',
+        refreshed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (server_id, name)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_mcp_tools_server ON mcp_tools_cache(server_id)",
+    "CREATE INDEX IF NOT EXISTS idx_mcp_tools_ws     ON mcp_tools_cache(workspace_id)",
 ]
 
 
