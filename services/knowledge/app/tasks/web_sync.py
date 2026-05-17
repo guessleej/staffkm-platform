@@ -97,6 +97,8 @@ async def _async_sync(kb_id_s: str, url: str, workspace_id_s: str) -> dict:
                 source=url,
                 chunking="auto",
                 extra_meta={"web_source": url},
+                # 18-C：同 URL 重 sync 不重複建 doc
+                upsert_key=f"web:{url}",
             )
 
         await _set_status("ready")

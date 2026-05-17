@@ -36,6 +36,32 @@ class WebSyncReq(BaseModel):
         return v.strip()
 
 
+class WebSyncBatchReq(BaseModel):
+    """18-C：多 URL 批次（一次最多 20 個，避免被當作 crawler 濫用）。"""
+    urls: list[str] = Field(..., min_length=1, max_length=20)
+
+    @field_validator("urls")
+    @classmethod
+    def _check_urls(cls, v: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for u in v:
+            u = (u or "").strip()
+            if not u:
+                continue
+            if not _URL_RE.match(u):
+                raise ValueError(f"URL 必須以 http:// 或 https:// 開頭：{u[:60]}")
+            cleaned.append(u)
+        if not cleaned:
+            raise ValueError("至少需要 1 個有效 URL")
+        # 去重保序
+        seen: set[str] = set()
+        out: list[str] = []
+        for u in cleaned:
+            if u not in seen:
+                seen.add(u); out.append(u)
+        return out
+
+
 @router.post("/{kb_id}/web-sync", response_model=ApiResponse)
 async def trigger_web_sync(
     kb_id: uuid.UUID,
@@ -76,6 +102,52 @@ async def trigger_web_sync(
     return ApiResponse(
         message="已啟動同步，請稍候重新整理頁面",
         data={"kb_id": str(kb_id), "url": body.url, "task_id": task_id},
+    )
+
+
+@router.post("/{kb_id}/web-sync/batch", response_model=ApiResponse)
+async def trigger_web_sync_batch(
+    kb_id: uuid.UUID,
+    body: WebSyncBatchReq,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """18-C：一次排程多個 URL 抓取（最多 20）。每個 URL 變成獨立 celery 任務。
+
+    KB 標為 web 型；source_url 改存 JSON 陣列（首個 URL 為主顯示）。
+    """
+    q = WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    kb = (await session.execute(q)).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+
+    primary_url = body.urls[0]
+    await session.execute(
+        text(
+            "UPDATE knowledge_bases SET "
+            "  source_type = 'web', source_url = :u, "
+            "  sync_status = 'pending', sync_error = NULL, updated_at = now() "
+            "WHERE id = :id AND workspace_id = :ws"
+        ),
+        {"u": primary_url, "id": str(kb_id), "ws": str(ctx.workspace_id)},
+    )
+    await session.commit()
+
+    from app.tasks.web_sync import sync_web_kb
+    task_ids: list[str] = []
+    for i, u in enumerate(body.urls):
+        try:
+            task = sync_web_kb.apply_async(
+                args=[str(kb_id), u, str(ctx.workspace_id)],
+                countdown=1 + i,  # 錯開派發，避免同時打爆對方
+            )
+            task_ids.append(task.id)
+        except Exception:
+            pass
+
+    return ApiResponse(
+        message=f"已排程 {len(body.urls)} 個 URL 同步",
+        data={"kb_id": str(kb_id), "url_count": len(body.urls), "task_ids": task_ids},
     )
 
 

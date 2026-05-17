@@ -1,5 +1,6 @@
 """知識庫 CRUD API（RFC-001 Stage 2 — workspace-scoped）"""
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -48,6 +49,11 @@ class KBOut(BaseModel):
     chunk_strategy: str = "auto"
     chunk_size:     int = 512
     chunk_overlap:  int = 64
+    # Sprint 18-C：來源資訊（給卡片 badge 用）
+    source_type: str = "manual"
+    source_url:  str | None = None
+    sync_status: str | None = None
+    last_synced_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
