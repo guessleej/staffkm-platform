@@ -2,6 +2,35 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [2.3.0] — 2026-05-17
+
+> **Demo polish** milestone — onboarding wizard + citation chip UI。
+> 重點：first-run 體驗、chat 引用視覺升級。Demo-friendly。
+
+### Highlights
+- 👋 **Onboarding wizard** — first-run 3 步驟導覽（welcome / pick path / KB hint），skip 隨時可
+- 💬 **Citation chip + hover preview** — 從原本 list 升級為 inline brand chip + 深色 popover 顯示內容片段
+
+### Added — Onboarding (PR #169)
+- `components/onboarding/OnboardingWizard.vue` — 3 步驟、進度條、ESC/skip 友好
+- 兩條路徑：
+  - 「✨ 從模板」→ `/applications?tour=templates` → 自動開模板畫廊
+  - 「⚡ 空白」→ `/applications?tour=create` → 自動開建立 dialog
+- localStorage `staffkm.onboarding.done` 不重複跑
+- DashboardLayout mount + 只在 auth.user 存在時自動跑
+- `defineExpose({ open() })` 給 settings menu 「重看導覽」
+
+### Changed — Citation UI (PR #169)
+- ChatView 助理訊息引用區從 border-left `<ul>` 升為 inline `<div>` chip group
+- Chip 樣式：`bg-brand-50/60` + 編號圓圈 + doc_name truncate + 相符度
+- Hover popover：深色背景 (`bg-neutral-900`) + 內容 `line-clamp-6` + 三角箭頭
+- Click 行為不變 — 仍打開 ArtifactPane 看完整內容
+
+### PR refs
+#169
+
+---
+
 ## [2.2.0] — 2026-05-17
 
 > **Production-ready** milestone — 3 個 PR 把 dev compose 推向「能上 production」。
