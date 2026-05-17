@@ -80,6 +80,13 @@
                   <div class="text-[11px] text-fg-tertiary">外部資料連接器</div>
                 </div>
               </router-link>
+              <router-link to="/mcp/servers" class="flex items-center gap-2.5 px-3 py-2 text-sm text-fg-secondary hover:bg-neutral-50 hover:text-fg transition">
+                <SIcon name="share-2" :size="14" class="text-fg-tertiary" />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium">MCP Servers</div>
+                  <div class="text-[11px] text-fg-tertiary">Model Context Protocol 工具</div>
+                </div>
+              </router-link>
             </div>
           </transition>
         </div>
@@ -236,7 +243,7 @@ const advancedRef = ref<HTMLElement | null>(null)
 onClickOutside(advancedRef, () => { advancedOpen.value = false })
 const route = useRoute()
 const isAdvancedActive = computed(() =>
-  ['/skills', '/tools', '/data-sources'].some(p => route.path.startsWith(p))
+  ['/skills', '/tools', '/data-sources', '/mcp'].some(p => route.path.startsWith(p))
 )
 
 const initials = computed(() => {
