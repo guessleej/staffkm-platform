@@ -437,10 +437,9 @@
           <!-- 模板卡片網格 -->
           <div class="flex-1 overflow-y-auto p-6">
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              <button
+              <div
                 v-for="tpl in filteredTemplates" :key="tpl.id"
-                @click="applyTemplate(tpl)"
-                class="text-left bg-surface-raised border border-neutral-200 rounded-xl p-5 hover:shadow-md hover:border-brand-300 hover:-translate-y-0.5 transition-all group relative"
+                class="bg-surface-raised border border-neutral-200 rounded-xl p-5 hover:shadow-md hover:border-brand-300 hover:-translate-y-0.5 transition-all group relative"
               >
                 <span v-if="tpl.badge" class="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-warning-50 text-warning-700">
                   {{ tpl.badge }}
@@ -459,17 +458,35 @@
                 <p class="text-xs text-fg-secondary line-clamp-2 mb-3 min-h-[32px]">
                   {{ tpl.description }}
                 </p>
-                <div class="flex items-center gap-2 text-[11px] text-brand-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  使用此模板
-                  <SIcon name="arrow-right" :size="12" />
+                <div class="flex items-center gap-1.5 mt-3">
+                  <button
+                    @click="tryTemplate(tpl)"
+                    class="flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-neutral-200 text-fg-secondary hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50/50 transition flex items-center justify-center gap-1"
+                  >
+                    🎮 立即試用
+                  </button>
+                  <button
+                    @click="applyTemplate(tpl)"
+                    class="flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white hover:bg-brand-700 transition flex items-center justify-center gap-1"
+                  >
+                    使用此模板
+                    <SIcon name="arrow-right" :size="12" />
+                  </button>
                 </div>
-              </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </Transition>
   </Teleport>
+
+  <!-- Sprint 19-B：模板立即試用 modal -->
+  <TemplateTryModal
+    v-model="tryModalOpen"
+    :template="tryingTemplate"
+    @create-from-template="applyTemplateFromTry"
+  />
 
   <!-- 批量選擇浮動工具列 -->
   <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
@@ -497,6 +514,7 @@ import { useProjectStore } from '../../stores/project'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { APP_TEMPLATES, TEMPLATE_CATEGORIES, type AppTemplate } from '../../data/appTemplates'
 import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
+import TemplateTryModal from '../../components/application/TemplateTryModal.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -643,6 +661,17 @@ const filteredTemplates = computed(() =>
 function openTemplateGallery() {
   showTemplateGallery.value = true
 }
+// 19-B：立即試用
+const tryModalOpen = ref(false)
+const tryingTemplate = ref<AppTemplate | null>(null)
+function tryTemplate(t: AppTemplate) {
+  tryingTemplate.value = t
+  tryModalOpen.value = true
+}
+function applyTemplateFromTry() {
+  if (tryingTemplate.value) applyTemplate(tryingTemplate.value)
+}
+
 function applyTemplate(t: AppTemplate) {
   editingApp.value = null
   Object.assign(form, {

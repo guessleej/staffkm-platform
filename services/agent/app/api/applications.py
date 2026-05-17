@@ -437,3 +437,69 @@ async def chat_with_application(
             yield {"event": "error", "data": str(e)}
 
     return EventSourceResponse(event_generator())
+
+
+# ── Sprint 19-B：模板「立即試用」preview chat ──────────────────────────────
+class PreviewChatRequest(BaseModel):
+    session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    messages: list[dict] = Field(..., min_length=1)
+    system_prompt: str | None = None
+    welcome_message: str | None = None  # 純展示用，後端不 echo
+    llm_model_id: str | None = None
+    kb_ids: list[str] = Field(default_factory=list)
+
+
+@router.post(
+    "/preview/chat",
+    summary="模板 / 草稿應用 preview 對話（SSE，無持久化、不計 usage）",
+)
+async def chat_preview(
+    body: PreviewChatRequest,
+    request: Request,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """給 template gallery「🎮 立即試用」用：
+
+    收 system_prompt + messages → 串流回應；不寫 application、conversation、
+    paragraphs、usage_logs。簡化版（不檢配額，因為 preview 通常短）。
+    """
+    synthetic_app: dict[str, Any] = {
+        "id":                  str(uuid.uuid4()),     # 純佔位，不入 DB
+        "workspace_id":        str(ctx.workspace_id),
+        "name":                "preview",
+        "type":                "simple",
+        "system_prompt":       body.system_prompt or "",
+        "welcome_message":     body.welcome_message or "",
+        "suggested_questions": [],
+        "knowledge_base_ids":  body.kb_ids,
+        "config":              {},
+        "llm_model_id":        body.llm_model_id,
+        "is_public":           False,
+        "status":              "active",
+    }
+
+    agent = await ApplicationAgent.create(synthetic_app, session=session)
+
+    chat_ctx = AgentContext(
+        session_id=body.session_id,
+        user_id=str(ctx.user_id),
+        messages=body.messages,
+        kb_ids=body.kb_ids,
+        workspace_id=str(ctx.workspace_id),
+        roles=[ctx.role.value],
+    )
+
+    async def event_generator():
+        try:
+            async for token in agent.stream_response(chat_ctx):
+                if await request.is_disconnected():
+                    break
+                yield {"event": "token", "data": token}
+            yield {"event": "citations", "data": json.dumps(chat_ctx.citations, ensure_ascii=False)}
+            yield {"event": "done", "data": "[DONE]"}
+        except Exception as e:
+            yield {"event": "error", "data": str(e)}
+        # 故意不寫 usage_log
+
+    return EventSourceResponse(event_generator())
