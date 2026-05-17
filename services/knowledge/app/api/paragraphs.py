@@ -34,6 +34,10 @@ async def list_paragraphs(
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在或不屬於此工作區")
 
+    # v2.1 11-4：白名單 ACL
+    from app.core.kb_acl import enforce_kb_access
+    await enforce_kb_access(ctx, doc.knowledge_base_id, session, need="read")
+
     # 段落本身也帶 workspace_id（從 process_document 寫入時帶入）
     q = (
         WorkspaceScopedQuery(Paragraph).select()

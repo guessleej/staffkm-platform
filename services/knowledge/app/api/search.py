@@ -23,7 +23,7 @@ async def _filter_kbs_in_workspace(
     ctx: TenantContext,
     session: AsyncSession,
 ) -> list[uuid.UUID]:
-    """過濾出真正屬於當前 workspace 的 kb_id；其他靜默丟棄（避免訊息洩漏）。"""
+    """過濾出真正屬於當前 workspace 且通過 ACL 的 kb_id；其他靜默丟棄（避免訊息洩漏）。"""
     if not kb_ids:
         return []
     q = (
@@ -31,7 +31,16 @@ async def _filter_kbs_in_workspace(
         .where(KnowledgeBase.id.in_(kb_ids))
     )
     rows = (await session.execute(q)).scalars().all()
-    return [kb.id for kb in rows]
+    # v2.1 11-4：白名單 ACL — 對每個 KB 跑 enforce；403 視為過濾掉
+    from app.core.kb_acl import enforce_kb_access
+    allowed: list[uuid.UUID] = []
+    for kb in rows:
+        try:
+            await enforce_kb_access(ctx, kb.id, session, need="read")
+            allowed.append(kb.id)
+        except Exception:
+            continue
+    return allowed
 
 
 class SearchRequest(BaseModel):
