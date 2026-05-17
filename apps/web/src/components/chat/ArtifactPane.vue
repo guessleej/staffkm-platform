@@ -84,7 +84,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { marked } from 'marked'
-import hljs from 'highlight.js'
+// 19-perf：highlight.js/lib/common 只含 top ~30 個常用 language
+// （vs 預設 192 個 → md-vendor 從 1MB 縮到 ~250KB）
+import hljs from 'highlight.js/lib/common'
 import 'highlight.js/styles/github.css'
 
 import { SIcon } from '@staffkm/ui-kit'
