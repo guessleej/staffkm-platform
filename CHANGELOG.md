@@ -2,6 +2,78 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [2.2.0] — 2026-05-17
+
+> **Production-ready** milestone — 3 個 PR 把 dev compose 推向「能上 production」。
+> Foundation for B2B 客戶部署 + 雲端 multi-tenant SaaS deployment。
+
+### Highlights
+- ✅ **All 6 services 都 expose `/metrics`** — gateway 早有，補上 agent/knowledge/chat/auth/integration
+- 🔒 **Production overlay + Caddy auto-TLS** — `--prod` 一鍵切換 dev / prod；Let's Encrypt + HTTP/3 + 完整 security headers
+- 💾 **完整備份 / 還原 SOP** — PG + MinIO daily snapshot + DR drill 季度節奏
+
+### Added — Observability (v2.2-A, PR #165)
+- `prometheus-fastapi-instrumentator` 加到 5 個 service requirements
+- 各 main.py 加 `Instrumentator().instrument(app).expose(app, endpoint="/metrics")`
+- 6/6 service 都有 `/metrics`；prometheus profile 啟動後 5/7 targets up（postgres/redis 之後加 exporter）
+
+### Added — Production deploy (v2.2-B, PR #166)
+- `infra/docker-compose.production.yml` overlay：
+  - DB/Redis/MinIO 收斂不對外
+  - nginx → **Caddy 2.8**（auto-TLS + HTTP/3 QUIC）
+  - 全部 `restart: always` + memory limits
+  - monitoring profile 預設啟動
+- `infra/caddy/Caddyfile`：
+  - Let's Encrypt 自動證書（90 天續訂）
+  - SSE-friendly：`flush_interval=-1` + `read_timeout 600s`
+  - 全套 security headers (HSTS / XFO / CSP / Permissions-Policy)
+  - Grafana `/grafana/*` basic-auth 二層保護
+  - `www.{$DOMAIN}` → 主 domain redirect
+- `.env.production.example`：完整 secrets 模板
+- `tools/scripts/safe-redeploy.sh --prod` flag：一行切 dev / prod
+- `docs/deploy/production-deploy.md`：完整 runbook（前置 / init / 維運 / TLS / secret / DR / FAQ）
+
+### Added — Backup & Restore (v2.2-C, PR #167)
+- `tools/backup/backup-postgres.sh` — daily 02:00、`pg_dump --format=custom -Z 9`、保留 14 daily + 8 weekly、可推 S3
+- `tools/backup/backup-minio.sh` — daily 02:15、`mc mirror --remove`、保留 14 份
+- `tools/backup/restore-postgres.sh` — 互動式選 dump、DROP+CREATE、平行 jobs=4、verify table count
+- `tools/backup/restore-minio.sh` — 互動式 mirror（無 --remove 防誤刪）
+- `tools/backup/crontab.example` — daily cron + hourly stale-check（>26h 沒備就 ALERT）
+- `docs/deploy/backup-restore.md` — TL;DR 一次性設定 + 3 個還原場景（誤刪 / 整台重灌 / 選擇性 table）+ DR drill SOP（季度）+ checklist
+
+### Changed
+- `safe-redeploy.sh` 加 `--prod` 旗標，自動切到 `.env.production` + production overlay
+
+### 上 production 流程
+
+```bash
+# 一次性
+cp .env.production.example .env.production
+vi .env.production   # 填 PUBLIC_DOMAIN / ADMIN_EMAIL / secrets
+sudo crontab -e      # 貼 tools/backup/crontab.example
+sudo mkdir -p /var/lib/staffkm/backups/{postgres,minio}
+sudo chown -R 999:999 /var/lib/staffkm/backups/postgres
+
+# 啟動
+./tools/scripts/safe-redeploy.sh --prod --all
+# 等 1-3 分鐘 Caddy 拿 LE 證書，DNS 必須先指好
+
+# 驗證
+curl -I https://staffkm.example.com   # HTTP/2 200
+```
+
+### Migration
+
+無 breaking。若已上 v2.1，照以下步驟升 v2.2：
+1. `git pull` 最新 main
+2. （已有 prod 環境）`./tools/scripts/safe-redeploy.sh --prod --all`
+3. （首次上 prod）按上方流程
+
+### PR refs
+#165 (metrics) → #166 (prod compose) → #167 (backup)
+
+---
+
 ## [2.1.0] — 2026-05-17
 
 > 「GA 後第一個產品輪」— 20 個 PR、6 個 Sprint（14-20）、一天密集迭代。
