@@ -2,6 +2,118 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [2.1.0] — 2026-05-17
+
+> 「GA 後第一個產品輪」— 20 個 PR、6 個 Sprint（14-20）、一天密集迭代。
+> 重點：對標 MaxKB 5 缺口全關 + 5 個 orphan endpoint 模組曝光 + Design system v2 +
+> Auth 強化 + Perf 三連跳 + i18n 三語系。
+
+### Highlights
+- **MaxKB-parity 5 缺口全關**：模板中心 + Web KB + ArtifactPane + Project 抽象 + 簡易建立
+- **5 個 orphan endpoint 模組曝光**：MCP / Triggers / Workflow Versions / Usage Quota / Memory / Task Revoke（CRUD 真.通，含 backend routing 三層修補）
+- **Design system v2 全面落地**：dark mode 100% token-flip、SIcon 44 names、ui-kit 34 元件、Storybook gallery
+- **Auth 強化**：CAPTCHA 防暴力 + 401 interceptor 並發去重 + `?next=` 導回
+- **Perf 三連跳**：ChatLayout **1022→9 KB** (-99%) / md-vendor **1009→200 KB** (-80%) / WorkflowEditor **66→33 KB** (-50%)
+- **i18n 三語系**：繁中 / 簡中 / 英文
+
+### Added — MaxKB-parity
+
+- 📦 **Application 模板中心 + 6 種子模板**（#139）— 內部問答 / 客服 FAQ / 合約審閱 / SQL 助手 / 內訓教練 / 文件翻譯
+- 🎮 **「立即試用」preview chat**（#145）— `/applications/preview/chat` 端點，無持久化、不計 usage
+- 🌐 **Web KB 同步**（#137 早 + #141 follow-up + **#159 sitemap.xml**）— 單 URL / 多 URL 批次 / sitemap.xml recursive 一層
+- 🗂 **Project 抽象 UX 全鏈**（#144 + **#158 chat scope binding**）— picker 上 DashboardLayout / `/projects` 管理頁 / 卡片 attach button / active Project KB 自動進 RAG
+- 📝 **Workspace 自訂模板庫**（#157）— App 卡片「存模板」、gallery 合併 built-in + workspace
+- ✨ **ArtifactPane**（#140）— marked + highlight.js + 複製 + ESC + 訊息一鍵展開
+
+### Added — Orphan endpoints 5 模組
+
+- 🔗 **MCP Servers Store UI**（#148）— 7 endpoints（CRUD + refresh + tools 列表 + call tool）
+- 🔄 **Triggers UI**（#151）— 5 endpoints + 3 種 kind chip（interval/cron/webhook）+ runs drawer
+- 📂 **Workflow Versions panel**（#154）— 3 endpoints + 右側 drawer + 「節點版本」按鈕（與既有「應用版本」並列）
+- ✕ **Task Revoke**（#154）— admin 在卡住的 doc 上看到取消按鈕
+- 💰 **Usage Quota UI**（#153 修 routing）— 既有 view 補上 quota 設定（端點之前 404）
+- 🧠 **Memory UI**（#160）— scope filter（全部/我的/應用/團隊）+ 關鍵字搜尋 + importance slider
+
+### Added — Design system v2
+
+- 🎨 **SIcon 元件**（早 + 多 sprint follow-up）— 44 個 lucide-style icons + currentColor + spin
+- 📐 **Typography utility classes** — `.text-h1/h2/.../body/.../caption` 全域
+- 🖼 **SEmpty 4 種插圖** — box/search/doc/plus
+- 📚 **Storybook Gallery**（早）— 34 元件一頁掃完 + 44 icon 預覽
+
+### Added — Auth
+
+- 🛡️ **CAPTCHA 登入**（#161）— 連 3 次失敗強制要求數學 CAPTCHA（10 分鐘窗口，per-IP per-username）
+- 🔁 **401 interceptor 強化**（#156）— 並發 401 共用同一個 refresh、防遞迴、`?next=` 帶回原路徑
+
+### Added — i18n
+
+- 🇨🇳 **簡中 (zh-CN)** locale（#160）— pickInitialLocale 偵測 `zh-cn` / `zh-hans` / `zh-sg`
+
+### Changed — UX / Design system
+
+- **Nav 重構**（#143 + **#150**）— `/skills` `/tools` `/data-sources` `/mcp/servers` `/triggers` `/memories` 從「進階 ▼」下拉 → icon-only nav + hover tooltip（拿掉 60 行 dropdown 程式碼）
+- **WorkspaceSwitcher / ProjectPicker / Modal** 全套 SIcon 化
+- **ChatView 助理訊息**（#140）— hover 出「📤 展開」按鈕（≥600 字或含 ``` 才顯示）
+- **Page transition**（#159）— 安全版（watch + CSS key toggle，無 Transition mode='out-in'，不會 race）+ scroll-top
+
+### Fixed — Dark mode
+
+- 🌓 **Dark mode token 100% coverage**（#142 + #147 + **#149**）— `bg-white` / `text-gray-*` / `text-slate-*` 全 0 殘留；**反轉 neutral 階層**一次修 352 處 hardcode
+- WorkflowEditor 寫死 `#f0f2f5` 背景修為 `bg-surface-sunken`
+
+### Fixed — Backend routing & schema
+
+- **Gateway 沒 mount usage/triggers/mcp/memories**（#153）— 補 4 個 generic proxy
+- **Agent LegacyURLBridge 缺 prefix**（#153）— 補 usage/triggers/mcp/memories/model-providers/media-providers/app-templates
+- **Usage router mount prefix 缺 `/usage`**（#153）
+- **MCP create SQL syntax**（#155）— asyncpg dialect 對 `:param::jsonb` 處理 bug，改 `CAST(:param AS jsonb)`
+- **long_term_memories legacy schema**（#155）— 加 6 個 ALTER TABLE ADD COLUMN IF NOT EXISTS + user_id UUID 型別轉換
+
+### Performance
+
+- **ChatLayout 1022→9 KB** (-99%)（#146）— ArtifactPane defineAsyncComponent + `v-if="artifact.isOpen"`
+- **md-vendor 1009→200 KB** (-80%)（#146）— `highlight.js/lib/common` 替代預設 192 languages
+- **WorkflowEditor 66→33 KB** (-50%)（#162）— NodeConfigPanel defineAsyncComponent
+- 拆 vendor chunks：`md-vendor`、`lf-vendor`、`vue-vendor`
+
+### Docs
+
+- `docs/qa/dark-mode-checklist.md`（#147）
+- `docs/qa/visual-sweep-sprint19-20.md`（#163）
+- `docs/plans/observability-plan.md`（#163）— metrics dashboard + E2E test 落地藍圖
+- `docs/plans/next-direction.md`（#163）— 14 個下一步選項 + 4 推薦組合 + 4 anti-rec
+- ui-kit README + Storybook 修 build（早期 + #138）
+
+### Removed
+
+- 「進階 ▼」 dropdown component（#150）— 改為 4 個 icon-only nav
+- 多餘 `advancedOpen` state / `onClickOutside` / `isAdvancedActive` computed
+
+### Security
+
+- CAPTCHA 防暴力登入（#161）
+- 401 interceptor 防遞迴 / 並發去重（#156）
+- `?next=` redirect 限制必須 `/` 開頭（防 open redirect）
+
+### Lessons learned（教訓）
+
+- **「empty state ≠ 真.通」** — PR #148 / #151 前端 UI 落地後仍 404，因為 routing 沒接。教訓：endpoint UI 落地前 至少 curl 一次 POST/PUT。
+- **Design system alias > raw scale** — 352 處 `bg-neutral-200` hardcode 不會 flip；改 11 行 token 反轉 neutral 階層比改 352 行 .vue 安全。
+- **「做完忘了曝光」很容易發生** — 7 個 mcp endpoint + 3 個 trigger 隔離功能完全沒入口。Audit router 表 → orphan 5 模組曝光 5 PR。
+
+### Migration（v2.0 → v2.1）
+
+無 breaking change。所有 DDL 是 idempotent ALTER。可直接 `safe-redeploy.sh --all`。
+
+唯一注意：若 `long_term_memories` 表是 v2.0 之前建的（schema 不齊），bootstrap_ddl 會自動補欄位 + UPDATE 補預設 workspace_id。
+
+### PR refs（按 merge 時序）
+
+#139 #140 #141 #142 #143 #144 #145 #146 #147 #148 #149 #150 #151 #152 #153 #154 #155 #156 #157 #158 #159 #160 #161 #162 #163
+
+---
+
 ## [2.0.0] — 2026-05-17（GA）
 
 > staffKM v2 — Enterprise AI Knowledge Management Platform
