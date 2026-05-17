@@ -2,6 +2,90 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.0.0] — 2026-05-18
+
+> **Production Hardening** milestone — 第一個 major release。
+> 重點：把 v2.x 累積的技術債（in-process state、LegacyURLBridge、無 audit 軌跡、缺 E2E 自動化）一次清掉，
+> 為長期 multi-tenant production 部署打下基礎。
+
+### Highlights
+- 🔐 **Auth hardening** — CAPTCHA 計數搬到 Redis（多 instance safe）+ OIDC schema 正規化（`oidc_sub` / `oidc_issuer`）
+- 🌉 **LegacyURLBridge sunset path** — 新增 `LEGACY_URL_MODE` 環境變數（rewrite / 410 / off），預告 v3.x 拔除
+- 📜 **Audit log API + UI** — `/admin/audit-logs` 可查、可篩、workspace-scoped；前端 admin 介面
+- 📊 **5 個 Grafana dashboard** — traffic / endpoints / resource / LLM usage / celery
+- 🎭 **Playwright E2E** — 5 個 P0 critical-path spec（login / captcha / app / kb / widget）
+
+### Added — Auth hardening (v3.0-P1, PR #176)
+- `services/auth`：
+  - `_fail_count` / `_fail_record` / `_fail_clear` 改 async + Redis backed
+    （key: `staffkm:auth:fail:{ip}:{username.lower()}`，TTL 10 min，原子 INCR+EXPIRE pipeline）
+  - Redis 不可用時 fallback in-process dict（不阻塞登入）
+  - `User` model 加 `oidc_sub: String(256, index=True)` + `oidc_issuer: String(256)`
+  - `_AUTH_BOOTSTRAP_DDL` 加 3 條 `ALTER TABLE ADD COLUMN IF NOT EXISTS` + 1 條 backfill
+    （`UPDATE users SET oidc_sub = SUBSTRING(ldap_dn FROM 6) WHERE ldap_dn LIKE 'oidc:%'`）
+  - OIDC callback：優先 `oidc_sub` lookup、fallback email；email-only 老帳號首次 SSO 自動補 `oidc_sub`
+- `services/agent` middleware `LegacyURLBridge`：
+  - 新環境變數 `LEGACY_URL_MODE`
+    - `rewrite`（預設，v2.x 相容）— `/api/v1/{prefix}/...` → `/api/v1/workspace/{ws}/{prefix}/...`
+    - `410` — 回 `410 Gone` + `Link: <new_url>; rel="successor-version"`
+    - `off` — bypass
+  - 預告：v3.x 之後 default 改 `410`、v4.x 完全移除
+
+### Added — Audit log + Grafana (v3.0-P2, PR #177)
+- `services/agent/app/api/audit.py`（新）：
+  - `GET /api/v1/workspace/{ws}/admin/audit-logs?actor=&action=&resource=&since=&page=&page_size=`
+  - 沿用既有 partitioned `audit_logs` table，SELECT alias 補相容欄位名
+  - workspace-scoped where：`(workspace_id = :ws OR workspace_id IS NULL)`
+  - `_record()` helper 給其他 endpoint 寫入（INSERT 用 `CAST(NULLIF(:ip, '') AS inet)`）
+- DDL：`audit_logs` ALTER 加 `workspace_id` / `actor_username` / `entity_label` + 2 index
+- Gateway proxy：`/api/v1/admin/audit-logs` → agent service
+- Legacy bridge `_LEGACY_PREFIXES` 加 `/api/v1/admin/audit-logs`
+- 前端 `apps/web/src/views/admin/AuditLogsView.vue`：
+  - Action / Entity filter chips、分頁、JSON detail expandable
+  - action badge 顏色（create / delete / update / login）
+- Grafana dashboards（`infra/monitoring/grafana/dashboards/v3-*.json`）：
+  - `v3-traffic` — 5xx rate / RPS / latency p50/p95/p99
+  - `v3-endpoints` — top endpoints by request / error
+  - `v3-resource` — CPU / RSS / open FD（用 `process_*` 系列）
+  - `v3-llm-usage` — token 用量（PG datasource）
+  - `v3-celery` — 任務 queue lag（celery-exporter）
+
+### Added — Playwright E2E (v3.0-P3, PR #178)
+- `apps/e2e/`（新 package `@staffkm/e2e`，`@playwright/test ^1.49.0`）：
+  - `playwright.config.ts` — workers=1（CAPTCHA 隔離）、`trace: retain-on-failure`、baseURL from `STAFFKM_BASE_URL`
+  - `fixtures/admin.ts` — `loginAsAdmin(page)` helper
+  - 5 個 P0 spec：
+    - `01-login` — admin 登入 + 錯密碼出 error
+    - `02-captcha` — 4 次失敗觸發 `captcha_required`（用 `e2e_${timestamp}` 隔離）
+    - `03-app-crud` — `/applications` render + `?tour=templates` 自動開模板畫廊
+    - `04-knowledge` — KB 列表 + API 建 KB → 列表看到
+    - `05-widget` — `/widget.js` + `/widget-demo.html` 載入無 JS 錯誤
+- `README.md`：env 變數、CI 整合骨架、加新 spec 慣例、known gotchas
+
+### Changed
+- Auth service lifespan 加跑 `_run_auth_bootstrap_ddl()`（OIDC 欄位 idempotent migration）
+- `services/agent/app/main.py` `include_router(audit.router)` 掛 `/admin/audit-logs`
+- Gateway `_generic_proxy.py` 加 `audit_logs_router`
+
+### Breaking Changes（forward-looking）
+- ⚠️ **`LEGACY_URL_MODE` 環境變數**：本版仍預設 `rewrite`，**v3.x 之後將改 `410`、v4.0 移除 bridge**
+  - 影響：所有直接打 `/api/v1/{prefix}/...`（沒帶 workspace）的 client（含 gateway proxy / 前端）需在 v3.x 內逐步改打 workspace-scoped URL
+  - 建議：開發環境提早設 `LEGACY_URL_MODE=410` 找出殘留 caller
+- ⚠️ **OIDC user schema**：舊 `users.ldap_dn = 'oidc:{sub}'` 的記錄在啟動時會自動 backfill 到 `oidc_sub`；新 SSO 不再寫 `ldap_dn`
+  - 上線後 `ldap_dn` 對 OIDC 帳號不再更新；reporting 請改讀 `oidc_sub` / `oidc_issuer`
+
+### Migration（從 v2.5 升 v3.0）
+1. **DB**：什麼都不用做。Auth + Agent service 啟動時跑 idempotent DDL，自動補 `users.oidc_sub` / `audit_logs.workspace_id` 等欄位 + backfill。
+2. **Redis**：CAPTCHA 計數現在會用 DB 3；確保 `REDIS_PASSWORD` 設好（compose 已內建）。Redis 掛掉會 fallback in-process，不阻塞登入。
+3. **Frontend**：admin 角色登入後左側 nav 多 `/admin/audit-logs`，無需重設權限。
+4. **E2E**：`cd apps/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test`。
+5. **Grafana**：5 個 dashboard JSON 放在 `infra/monitoring/grafana/dashboards/v3-*.json`，provisioning 已 mount，restart Grafana 即看到。
+
+### PR refs
+#175（roadmap）/ #176（auth hardening）/ #177（audit + dashboards）/ #178（Playwright E2E）
+
+---
+
 ## [2.5.0] — 2026-05-17
 
 > **Developer partners** milestone — CLAUDE.md / API ref / template marketplace。
