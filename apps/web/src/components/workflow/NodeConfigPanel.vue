@@ -633,13 +633,68 @@
         </div>
       </template>
 
+      <!-- ── v2.1：寫入知識庫（RFC-013）─────────────────────────────── -->
+      <template v-if="node.node_type === 'kb_writer'">
+        <div>
+          <label class="form-label">目標知識庫</label>
+          <select v-model="node.config.kb_id" class="form-input font-mono text-xs">
+            <option value="" disabled>請選擇（必須為 workflow KB）</option>
+            <option v-for="kb in workflowKbs" :key="kb.id" :value="kb.id">
+              {{ kb.name }}
+            </option>
+          </select>
+          <p class="text-[10px] text-neutral-400 mt-1">
+            僅顯示已標記為「工作流知識庫」的 KB；可在 /knowledge 該 KB 卡片按閃電鍵轉換。
+          </p>
+        </div>
+        <div>
+          <label class="form-label">內容變數 / 模板</label>
+          <textarea v-model="node.config.content_variable" rows="2"
+                    class="form-input resize-none font-mono text-xs"
+                    placeholder="{{llm_response}} 或 {{summary}}" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label">段落標題（選填）</label>
+            <input v-model="node.config.title_variable" class="form-input font-mono text-xs"
+                   placeholder="{{title}}"/>
+          </div>
+          <div>
+            <label class="form-label">來源 URL（選填）</label>
+            <input v-model="node.config.source_variable" class="form-input font-mono text-xs"
+                   placeholder="{{source_url}}"/>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label">切片模式</label>
+            <select v-model="node.config.chunking" class="form-input text-xs">
+              <option value="single">single（整段一筆）</option>
+              <option value="paragraph">paragraph（空行切）</option>
+              <option value="auto">auto（按 KB chunk_size）</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Upsert Key（去重）</label>
+            <input v-model="node.config.upsert_key" class="form-input font-mono text-xs"
+                   placeholder="{{ticket_id}} 留空 = 不去重"/>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">輸出變數（kb_write_result）</label>
+          <input v-model="node.config.output_variable" class="form-input font-mono text-xs"
+                 placeholder="kb_write_result"/>
+        </div>
+      </template>
+
     </div><!-- /form body -->
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NODE_META } from './lf-nodes'
+import { knowledgeApi } from '../../api/knowledge'
 
 const props = defineProps<{
   node: {
@@ -657,6 +712,34 @@ defineEmits<{
 }>()
 
 const meta = computed(() => NODE_META[props.node.node_type])
+
+// ── v2.1：kb_writer node — 載入 workspace 內所有「workflow KB」供下拉 ──
+const workflowKbs = ref<{ id: string; name: string }[]>([])
+async function loadWorkflowKbs() {
+  try {
+    const resp: any = await knowledgeApi.listBases(1, 200)
+    const all = (resp?.data?.items ?? resp?.items ?? resp?.data ?? []) as any[]
+    // 逐筆查 source_type（API 暫無 filter；只挑出 workflow）
+    const out: { id: string; name: string }[] = []
+    for (const kb of all) {
+      try {
+        const info = await knowledgeApi.getKbSourceInfo(kb.id)
+        if (info?.source_type === 'workflow') {
+          out.push({ id: kb.id, name: kb.name })
+        }
+      } catch { /* skip */ }
+    }
+    workflowKbs.value = out
+  } catch (e) {
+    console.warn('load workflow KBs failed:', e)
+  }
+}
+onMounted(() => {
+  if (props.node.node_type === 'kb_writer') loadWorkflowKbs()
+})
+watch(() => props.node.node_type, (t) => {
+  if (t === 'kb_writer' && workflowKbs.value.length === 0) loadWorkflowKbs()
+})
 
 // 知識庫 ID 陣列 ↔ 逗號字串 輔助
 const kbIdsStr = ref((props.node.config.kb_ids ?? []).join(', '))
