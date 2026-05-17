@@ -14,10 +14,22 @@
         <h1 class="text-lg font-semibold text-fg">{{ $t('app.title') }}</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">建立並管理各部門的 AI 問答應用</p>
       </div>
-      <button v-if="auth.hasRole(['admin'])" @click="openCreateDialog" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
-        <SIcon name="plus" :size="16" />
-        {{ $t('app.createApp') }}
-      </button>
+      <div v-if="auth.hasRole(['admin'])" class="flex items-center gap-2">
+        <button
+          @click="openTemplateGallery"
+          class="flex items-center gap-2 px-4 py-2 bg-surface-raised border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50/30 transition"
+        >
+          <span>✨</span>
+          從模板建立
+        </button>
+        <button
+          @click="openCreateDialog"
+          class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
+        >
+          <SIcon name="plus" :size="16" />
+          {{ $t('app.createApp') }}
+        </button>
+      </div>
     </div>
 
     <!-- 應用卡片列表 -->
@@ -31,7 +43,17 @@
           <SIcon name="message-square" :size="32" :stroke-width="1.5" class="text-indigo-400" />
         </div>
         <p class="text-fg-secondary font-medium">尚無任何應用</p>
-        <p class="text-fg-tertiary text-sm mt-1">點擊右上角新增您的第一個 AI 應用</p>
+        <p class="text-fg-tertiary text-sm mt-1 mb-5">挑一個模板兩分鐘上手，或從空白開始</p>
+        <div v-if="auth.hasRole(['admin'])" class="flex items-center justify-center gap-2">
+          <button
+            @click="openTemplateGallery"
+            class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
+          >✨ 從模板建立</button>
+          <button
+            @click="openCreateDialog"
+            class="px-4 py-2 bg-surface-raised border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:bg-neutral-50 transition"
+          >空白應用</button>
+        </div>
       </div>
 
       <template v-else>
@@ -363,6 +385,88 @@
     </div>
   </div>
 
+  <!-- Sprint 18-A：模板畫廊 -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showTemplateGallery"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/50 backdrop-blur-sm"
+        @click.self="showTemplateGallery = false"
+      >
+        <div class="w-full max-w-4xl max-h-[85vh] bg-surface-raised rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div class="px-6 py-4 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
+            <div>
+              <h3 class="font-semibold text-base text-fg">挑一個模板開始</h3>
+              <p class="text-xs text-fg-tertiary mt-0.5">選好之後可以再調整 prompt、開場白與知識庫</p>
+            </div>
+            <button @click="showTemplateGallery = false" class="p-1.5 rounded-md text-fg-tertiary hover:text-fg hover:bg-neutral-100">
+              <SIcon name="x" :size="18" />
+            </button>
+          </div>
+
+          <!-- 分類 chip -->
+          <div class="px-6 py-3 border-b border-neutral-100 flex items-center gap-2 flex-wrap flex-shrink-0">
+            <button
+              @click="templateFilter = 'all'"
+              class="px-3 py-1 text-xs rounded-full border transition"
+              :class="templateFilter === 'all'
+                ? 'bg-brand-50 border-brand-300 text-brand-700 font-medium'
+                : 'border-neutral-200 text-fg-secondary hover:border-neutral-300'"
+            >全部</button>
+            <button
+              v-for="cat in TEMPLATE_CATEGORIES" :key="cat.value"
+              @click="templateFilter = cat.value"
+              class="px-3 py-1 text-xs rounded-full border transition flex items-center gap-1"
+              :class="templateFilter === cat.value
+                ? 'bg-brand-50 border-brand-300 text-brand-700 font-medium'
+                : 'border-neutral-200 text-fg-secondary hover:border-neutral-300'"
+            >
+              <span>{{ cat.emoji }}</span>{{ cat.label }}
+            </button>
+          </div>
+
+          <!-- 模板卡片網格 -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <button
+                v-for="tpl in filteredTemplates" :key="tpl.id"
+                @click="applyTemplate(tpl)"
+                class="text-left bg-surface-raised border border-neutral-200 rounded-xl p-5 hover:shadow-md hover:border-brand-300 hover:-translate-y-0.5 transition-all group relative"
+              >
+                <span v-if="tpl.badge" class="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-warning-50 text-warning-700">
+                  {{ tpl.badge }}
+                </span>
+                <div class="flex items-start gap-3 mb-3">
+                  <div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-xl flex-shrink-0">
+                    {{ tpl.emoji }}
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <h4 class="font-semibold text-sm text-fg">{{ tpl.name }}</h4>
+                    <p class="text-[11px] text-fg-tertiary mt-0.5">
+                      {{ tpl.requires_kb ? '需要知識庫' : '不需知識庫' }}
+                    </p>
+                  </div>
+                </div>
+                <p class="text-xs text-fg-secondary line-clamp-2 mb-3 min-h-[32px]">
+                  {{ tpl.description }}
+                </p>
+                <div class="flex items-center gap-2 text-[11px] text-brand-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  使用此模板
+                  <SIcon name="arrow-right" :size="12" />
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <!-- 批量選擇浮動工具列 -->
   <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
     <button
@@ -387,6 +491,7 @@ import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
 import { useProjectStore } from '../../stores/project'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
+import { APP_TEMPLATES, TEMPLATE_CATEGORIES, type AppTemplate } from '../../data/appTemplates'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -519,6 +624,33 @@ async function load() {
 function openCreateDialog() {
   editingApp.value = null
   Object.assign(form, { name: '', description: '', welcome_message: '', system_prompt: '', knowledge_base_ids: [], is_public: true, suggested_questions: [], config: { reranker_model_id: '' } })
+  showDialog.value = true
+}
+
+// Sprint 18-A：模板畫廊
+const showTemplateGallery = ref(false)
+const templateFilter = ref<AppTemplate['category'] | 'all'>('all')
+const filteredTemplates = computed(() =>
+  templateFilter.value === 'all'
+    ? APP_TEMPLATES
+    : APP_TEMPLATES.filter(t => t.category === templateFilter.value)
+)
+function openTemplateGallery() {
+  showTemplateGallery.value = true
+}
+function applyTemplate(t: AppTemplate) {
+  editingApp.value = null
+  Object.assign(form, {
+    name:                t.name,
+    description:         t.description,
+    welcome_message:     t.welcome_message,
+    system_prompt:       t.system_prompt,
+    knowledge_base_ids:  [],
+    is_public:           true,
+    suggested_questions: [...t.suggested_questions],
+    config:              { reranker_model_id: '' },
+  })
+  showTemplateGallery.value = false
   showDialog.value = true
 }
 
