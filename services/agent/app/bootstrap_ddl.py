@@ -246,6 +246,16 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
         created_by      UUID
     )
     """,
+    # 補欄位 — 既有 table（舊 deploy schema 跟新 schema 不一致）的 idempotent 升級
+    "ALTER TABLE long_term_memories ADD COLUMN IF NOT EXISTS workspace_id UUID",
+    "UPDATE long_term_memories SET workspace_id = '00000000-0000-0000-0000-000000000001' WHERE workspace_id IS NULL",
+    "ALTER TABLE long_term_memories ADD COLUMN IF NOT EXISTS scope VARCHAR(16) NOT NULL DEFAULT 'user'",
+    "ALTER TABLE long_term_memories ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb",
+    "ALTER TABLE long_term_memories ADD COLUMN IF NOT EXISTS access_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE long_term_memories ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMPTZ",
+    "ALTER TABLE long_term_memories ADD COLUMN IF NOT EXISTS created_by UUID",
+    # 舊欄位 user_id 是 VARCHAR(64) — 新 code 用 UUID 比對；用 USING 安全轉
+    "ALTER TABLE long_term_memories ALTER COLUMN user_id TYPE UUID USING NULLIF(user_id,'')::uuid",
     "CREATE INDEX IF NOT EXISTS idx_memories_workspace ON long_term_memories(workspace_id, scope)",
     "CREATE INDEX IF NOT EXISTS idx_memories_user      ON long_term_memories(user_id, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_memories_app       ON long_term_memories(application_id, created_at DESC)",
