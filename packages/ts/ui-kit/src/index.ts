@@ -40,4 +40,7 @@ export { default as SCodeBlock }  from './components/SCodeBlock.vue'
 export { default as SIconButton } from './components/SIconButton.vue'
 export { default as SSidebarSection } from './components/SSidebarSection.vue'
 
-// Total: 11 + 22 = 33 components
+// ── v2.1（14-5 icon 統一）─────────────────────────────────────────
+export { default as SIcon }       from './components/SIcon.vue'
+
+// Total: 11 + 22 + 1 = 34 components
