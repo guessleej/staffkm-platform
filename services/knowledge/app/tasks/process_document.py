@@ -3,7 +3,7 @@ import asyncio
 import io
 import uuid
 import structlog
-from sqlalchemy import delete, text as text_sql
+from sqlalchemy import delete, select, text as text_sql
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.config import settings
@@ -25,17 +25,21 @@ log = structlog.get_logger()
     acks_late=True,
     reject_on_worker_lost=True,
 )
-def process_document(self, doc_id: str, minio_key: str, filename: str) -> dict:
-    """Celery 同步入口，包裝 asyncio 管線。"""
+def process_document(self, doc_id: str, minio_key: str, filename: str, inline: bool = False) -> dict:
+    """Celery 同步入口，包裝 asyncio 管線。
+
+    inline=True：跳過 minio download / chunking，僅對既有 paragraphs 跑 embedding
+    （供 RFC-013 workflow KB inline-write 使用）。
+    """
     try:
-        return asyncio.run(_async_process(doc_id, minio_key, filename))
+        return asyncio.run(_async_process(doc_id, minio_key, filename, inline=inline))
     except Exception as exc:
         countdown = min(30 * (2 ** self.request.retries), 300)
         log.error("process_document_will_retry", doc_id=doc_id, error=str(exc), countdown=countdown)
         raise self.retry(exc=exc, countdown=countdown)
 
 
-async def _async_process(doc_id: str, minio_key: str, filename: str) -> dict:
+async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: bool = False) -> dict:
     """非同步處理管線：在 Celery worker 的獨立 event loop 中執行。"""
     engine = create_async_engine(settings.DB_URL, pool_size=1, max_overflow=0)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -53,6 +57,34 @@ async def _async_process(doc_id: str, minio_key: str, filename: str) -> dict:
 
             try:
                 doc.status = DocStatus.PROCESSING
+
+                # ── inline 模式（RFC-013）：跳過 download/chunking，僅對既有 paragraphs 跑 embedding ──
+                if inline:
+                    await set_progress(20, "inline：對既有段落執行向量化…")
+                    paras_q = await session.execute(
+                        select(Paragraph).where(Paragraph.document_id == doc.id).order_by(Paragraph.order_index)
+                    )
+                    paras: list[Paragraph] = list(paras_q.scalars().all())
+                    if not paras:
+                        doc.status = DocStatus.READY
+                        await set_progress(100, "inline：無段落可處理")
+                        return {"status": "success", "paragraphs": 0, "mode": "inline"}
+                    embedder = get_embedder(
+                        settings.EMBEDDING_MODEL,
+                        settings.OPENAI_API_KEY,
+                        settings.EMBEDDING_BASE_URL or None,
+                    )
+                    contents = [p.content for p in paras]
+                    embeddings = await embedder.embed_batch(contents)
+                    for p, emb in zip(paras, embeddings):
+                        await upsert_embedding(session, p.id, doc.knowledge_base_id, emb)
+                        await update_search_vector(session, p.id, p.content)
+                    doc.status = DocStatus.READY
+                    doc.char_count = sum(len(p.content) for p in paras)
+                    await set_progress(100, f"inline 處理完成（{len(paras)} 段）")
+                    log.info("document_processed_inline", doc_id=doc_id, paragraphs=len(paras))
+                    return {"status": "success", "paragraphs": len(paras), "mode": "inline"}
+
                 await set_progress(10, "正在讀取檔案…")
 
                 # 從 MinIO 下載（同步 I/O → 移至執行緒以免卡住 event loop）
