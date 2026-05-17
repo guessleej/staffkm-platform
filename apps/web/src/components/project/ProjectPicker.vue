@@ -8,9 +8,7 @@
       <span class="text-neutral-700 truncate max-w-[160px]">
         {{ store.active?.name || $t('common.noData') }}
       </span>
-      <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-      </svg>
+      <SIcon name="chevron-down" :size="14" class="text-fg-tertiary" />
     </button>
 
     <transition
@@ -54,18 +52,25 @@
         <div class="border-t border-neutral-100 p-1">
           <button
             @click="newDialog = true; open = false"
-            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100 rounded-lg transition"
+            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-fg-secondary hover:bg-neutral-100 rounded-lg transition"
           >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
+            <SIcon name="plus" :size="14" />
             建立 Project
           </button>
+          <router-link
+            to="/projects"
+            @click="open = false"
+            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-fg-secondary hover:bg-neutral-100 rounded-lg transition"
+          >
+            <SIcon name="settings" :size="14" />
+            管理 Projects
+          </router-link>
           <button
             v-if="store.active"
             @click="store.switchTo(null); open = false"
-            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 rounded-lg transition"
+            class="w-full flex items-center gap-2 px-3 py-2 text-sm text-fg-tertiary hover:bg-neutral-100 hover:text-fg rounded-lg transition"
           >
+            <SIcon name="log-out" :size="14" />
             離開目前 Project
           </button>
         </div>
@@ -131,6 +136,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { onClickOutside } from '@vueuse/core'
+import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
 
 const store = useProjectStore()

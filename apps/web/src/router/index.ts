@@ -98,6 +98,12 @@ const router = createRouter({
           meta: { title: '資料來源' },
         },
         {
+          path: 'projects',
+          name: 'projects',
+          component: () => import('../views/project/ProjectsView.vue'),
+          meta: { title: 'Projects' },
+        },
+        {
           path: 'admin/users',
           name: 'admin-users',
           component: () => import('../views/admin/UsersView.vue'),
