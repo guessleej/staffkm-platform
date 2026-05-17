@@ -15,53 +15,56 @@
     </div>
 
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
-      <!-- 月度總覽卡 -->
+      <!-- 月度總覽卡（v2 SStatCard + SProgress）-->
       <section v-if="summary" aria-labelledby="usage-overview-h" class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <h2 id="usage-overview-h" class="sr-only">當月用量總覽</h2>
 
-        <div class="bg-surface-raised rounded-xl border border-neutral-200 p-5">
-          <p class="text-xs text-neutral-500">本月（{{ summary.month }}）總 token</p>
-          <p class="mt-1 text-2xl font-semibold text-neutral-900 tabular-nums">{{ fmt(summary.usage.tokens) }}</p>
-          <div v-if="summary.quota.monthly_token_cap" class="mt-3">
-            <div class="flex justify-between text-[11px] text-neutral-500 mb-1">
-              <span>已用 / 上限</span>
-              <span>{{ Math.round(tokenPct) }}%</span>
+        <SStatCard
+          :label="`本月（${summary.month}）總 token`"
+          :value="summary.usage.tokens"
+          format="number"
+          icon="📊"
+          :tone="tokenPct >= 90 ? 'danger' : tokenPct >= 70 ? 'warning' : 'brand'"
+        >
+          <template #footer>
+            <div v-if="summary.quota.monthly_token_cap" class="mt-3">
+              <div class="flex justify-between text-[11px] text-neutral-500 mb-1">
+                <span>已用 / 上限</span><span>{{ Math.round(tokenPct) }}%</span>
+              </div>
+              <SProgress :value="tokenPct"
+                         :tone="tokenPct >= 90 ? 'danger' : tokenPct >= 70 ? 'warning' : 'brand'"/>
             </div>
-            <div class="h-2 bg-neutral-100 rounded-full overflow-hidden">
-              <div
-                class="h-full rounded-full transition-all"
-                :class="tokenPct >= 90 ? 'bg-danger-500' : tokenPct >= 70 ? 'bg-warning-500' : 'bg-brand-500'"
-                :style="{ width: Math.min(100, tokenPct) + '%' }"
-              />
-            </div>
-          </div>
-          <p v-else class="mt-3 text-[11px] text-neutral-400">未設定上限（無限制）</p>
-        </div>
+            <p v-else class="mt-3 text-[11px] text-neutral-400">未設定上限（無限制）</p>
+          </template>
+        </SStatCard>
 
-        <div class="bg-surface-raised rounded-xl border border-neutral-200 p-5">
-          <p class="text-xs text-neutral-500">本月成本（USD）</p>
-          <p class="mt-1 text-2xl font-semibold text-neutral-900 tabular-nums">${{ summary.usage.cost_usd.toFixed(2) }}</p>
-          <div v-if="summary.quota.monthly_cost_cap_usd" class="mt-3">
-            <div class="flex justify-between text-[11px] text-neutral-500 mb-1">
-              <span>已用 / 上限</span>
-              <span>{{ Math.round(costPct) }}%</span>
+        <SStatCard
+          label="本月成本"
+          :value="summary.usage.cost_usd"
+          format="currency"
+          icon="💵"
+          :tone="costPct >= 90 ? 'danger' : costPct >= 70 ? 'warning' : 'success'"
+        >
+          <template #footer>
+            <div v-if="summary.quota.monthly_cost_cap_usd" class="mt-3">
+              <div class="flex justify-between text-[11px] text-neutral-500 mb-1">
+                <span>已用 / 上限</span><span>{{ Math.round(costPct) }}%</span>
+              </div>
+              <SProgress :value="costPct"
+                         :tone="costPct >= 90 ? 'danger' : costPct >= 70 ? 'warning' : 'success'"/>
             </div>
-            <div class="h-2 bg-neutral-100 rounded-full overflow-hidden">
-              <div
-                class="h-full rounded-full transition-all"
-                :class="costPct >= 90 ? 'bg-danger-500' : costPct >= 70 ? 'bg-warning-500' : 'bg-brand-500'"
-                :style="{ width: Math.min(100, costPct) + '%' }"
-              />
-            </div>
-          </div>
-          <p v-else class="mt-3 text-[11px] text-neutral-400">未設定上限（無限制）</p>
-        </div>
+            <p v-else class="mt-3 text-[11px] text-neutral-400">未設定上限（無限制）</p>
+          </template>
+        </SStatCard>
 
-        <div class="bg-surface-raised rounded-xl border border-neutral-200 p-5">
-          <p class="text-xs text-neutral-500">請求數</p>
-          <p class="mt-1 text-2xl font-semibold text-neutral-900 tabular-nums">{{ fmt(summary.usage.requests) }}</p>
-          <p class="mt-3 text-[11px] text-neutral-400">本月（含 ok / error / client_disconnect）</p>
-        </div>
+        <SStatCard
+          label="請求數"
+          :value="summary.usage.requests"
+          format="number"
+          hint="本月（含 ok / error / client_disconnect）"
+          icon="🔁"
+          tone="neutral"
+        />
       </section>
 
       <!-- Quota 設定 -->
@@ -148,6 +151,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { usageApi, type UsageSummary, type UsageLog } from '../../api/usage'
 import { useToast } from '../../composables/useToast'
+import { SStatCard, SProgress } from '@staffkm/ui-kit'
 
 const toast = useToast()
 
