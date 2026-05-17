@@ -23,4 +23,16 @@ export const authApi = {
   async logout() {
     await http.post('/auth/logout')
   },
+  async oidcInfo(): Promise<{ enabled: boolean; display_name: string }> {
+    try {
+      const { data } = await http.get('/auth/oidc/info')
+      return data.data
+    } catch {
+      return { enabled: false, display_name: 'SSO' }
+    }
+  },
+  oidcLoginUrl(next: string = '/'): string {
+    const base = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
+    return `${base}/auth/oidc/login?next=${encodeURIComponent(next)}`
+  },
 }

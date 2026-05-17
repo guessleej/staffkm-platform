@@ -7,6 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import structlog
 
 from app.api.auth import router as auth_router
+from app.api.oidc import router as oidc_router
 from app.api.users import router as users_router
 from app.api.models import router as models_router
 from app.api.workspaces import router as workspaces_router
@@ -39,6 +40,7 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.add_middleware(GatewayHeadersMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["身分驗證"])
+app.include_router(oidc_router, prefix="/api/v1/auth/oidc", tags=["OIDC SSO (v2.4-B)"])
 app.include_router(users_router, prefix="/api/v1/admin/users", tags=["使用者管理"])
 app.include_router(models_router, prefix="/api/v1/admin/models", tags=["模型供應商管理"])
 app.include_router(workspaces_router, prefix="/api/v1/workspaces", tags=["工作區（多租戶）"])

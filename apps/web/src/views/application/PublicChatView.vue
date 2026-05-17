@@ -1,15 +1,26 @@
 <template>
-  <div class="flex flex-col h-screen bg-surface-sunken">
-    <!-- Header -->
-    <div class="bg-surface-raised border-b px-6 py-4 flex items-center gap-3 shadow-sm">
-      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl" :style="{ background: gradient }">
+  <div :class="['flex flex-col h-screen', isEmbed ? 'bg-surface-raised' : 'bg-surface-sunken']">
+    <!-- Header — embed 模式精簡 -->
+    <div
+      :class="[
+        'bg-surface-raised flex items-center gap-3 flex-shrink-0',
+        isEmbed ? 'border-b px-4 py-2.5' : 'border-b px-6 py-4 shadow-sm',
+      ]"
+    >
+      <div
+        :class="['rounded-xl flex items-center justify-center flex-shrink-0',
+                 isEmbed ? 'w-7 h-7 text-sm' : 'w-10 h-10 text-xl']"
+        :style="{ background: gradient }"
+      >
         {{ app?.icon || 'AI' }}
       </div>
-      <div>
-        <h1 class="font-semibold text-fg">{{ app?.name || '載入中…' }}</h1>
-        <p class="text-xs text-fg-tertiary">{{ app?.description }}</p>
+      <div class="min-w-0 flex-1">
+        <h1 :class="['font-semibold text-fg truncate', isEmbed ? 'text-sm' : '']">
+          {{ app?.name || '載入中…' }}
+        </h1>
+        <p v-if="!isEmbed" class="text-xs text-fg-tertiary truncate">{{ app?.description }}</p>
       </div>
-      <div class="ml-auto">
+      <div v-if="!isEmbed" class="ml-auto">
         <span class="text-xs text-fg-tertiary bg-surface-sunken px-3 py-1 rounded-full border">Powered by StaffKM</span>
       </div>
     </div>
@@ -91,6 +102,8 @@ import { SIcon } from '@staffkm/ui-kit'
 
 const route = useRoute()
 const appId = route.params.appId as string
+// v2.4-A：embed=1 走精簡 chrome（給 widget.js iframe 用）
+const isEmbed = route.query.embed === '1'
 
 interface Message {
   id: string

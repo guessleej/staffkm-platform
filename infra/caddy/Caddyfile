@@ -48,6 +48,29 @@
 		respond "ok" 200
 	}
 
+	# v2.4-A: widget.js + widget-demo.html 跨 origin 載入
+	handle /widget.js {
+		header {
+			Access-Control-Allow-Origin "*"
+			Cache-Control "public, max-age=3600"
+			-X-Frame-Options
+		}
+		reverse_proxy ui:80
+	}
+	handle /widget-demo.html {
+		header -X-Frame-Options
+		reverse_proxy ui:80
+	}
+
+	# v2.4-A: /share/{appId} 允許嵌入任何網站
+	handle /share/* {
+		header {
+			-X-Frame-Options
+			Content-Security-Policy "frame-ancestors *;"
+		}
+		reverse_proxy ui:80
+	}
+
 	# UI SPA fallback
 	handle {
 		reverse_proxy ui:80

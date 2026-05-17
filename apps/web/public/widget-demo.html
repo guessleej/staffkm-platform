@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>staffKM Widget — 嵌入示範</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", sans-serif;
+      max-width: 760px; margin: 0 auto; padding: 60px 24px;
+      color: #1a1a1a; background: #fafafa; line-height: 1.7;
+    }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    .sub { color: #666; margin-bottom: 32px; }
+    .box {
+      background: #fff; padding: 24px; border-radius: 12px;
+      border: 1px solid #e5e7eb; margin: 24px 0;
+    }
+    code, pre {
+      background: #1f2937; color: #e5e7eb; padding: 2px 6px;
+      border-radius: 4px; font-size: 13px;
+      font-family: "SF Mono", "Cascadia Code", Menlo, monospace;
+    }
+    pre { padding: 16px; overflow-x: auto; line-height: 1.5; }
+    label { display: block; font-size: 13px; color: #374151; margin: 12px 0 4px; }
+    input {
+      width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+      border-radius: 6px; font-size: 13px; font-family: monospace;
+    }
+    button {
+      padding: 10px 20px; background: #4f46e5; color: #fff;
+      border: 0; border-radius: 6px; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #4338ca; }
+    .swatch { display:inline-block; width:18px; height:18px; border-radius:4px; vertical-align:middle; margin-right:6px; border:1px solid #d1d5db; }
+  </style>
+</head>
+<body>
+
+<h1>staffKM Embeddable Widget</h1>
+<p class="sub">一行 <code>&lt;script&gt;</code> 把 chat 嵌任何網頁。下方右下角應有 <strong>「有問題嗎？」</strong> 浮動按鈕。</p>
+
+<div class="box">
+  <h2 style="font-size:18px; margin-top:0;">📋 嵌入 snippet</h2>
+  <pre id="snippet">&lt;script src="<span id="host"></span>/widget.js"
+        data-app-id="<span id="aid">YOUR_APP_UUID</span>"
+        data-position="bottom-right"
+        data-color="#4f46e5"
+        data-label="有問題嗎？"
+        defer&gt;&lt;/script&gt;</pre>
+  <p style="font-size:13px; color:#666;">
+    必填只有 <code>data-app-id</code>；application 必須 <code>is_public = true</code>。
+  </p>
+</div>
+
+<div class="box">
+  <h2 style="font-size:18px; margin-top:0;">🛠 互動測試</h2>
+  <label>data-app-id（你 workspace 的 public app UUID）</label>
+  <input id="appIdInput" placeholder="00000000-0000-0000-0000-000000000000" value="">
+  <label>data-color（按鈕底色）</label>
+  <input id="colorInput" type="text" value="#4f46e5">
+  <label>data-label（按鈕文字）</label>
+  <input id="labelInput" type="text" value="有問題嗎？">
+  <p style="margin-top:16px;">
+    <button onclick="mount()">套用 + 載入 widget</button>
+  </p>
+  <p style="font-size:13px; color:#666;">
+    或在 console 跑：<code>staffKM.open()</code> / <code>staffKM.close()</code>
+  </p>
+</div>
+
+<div class="box">
+  <h2 style="font-size:18px; margin-top:0;">📝 屬性</h2>
+  <table style="font-size:13px; width:100%; border-collapse:collapse;">
+    <tr style="background:#f3f4f6;"><th align="left" style="padding:6px;">屬性</th><th align="left" style="padding:6px;">說明</th><th align="left" style="padding:6px;">預設</th></tr>
+    <tr><td style="padding:6px;"><code>data-app-id</code></td><td style="padding:6px;">必填，your public app UUID</td><td style="padding:6px;">—</td></tr>
+    <tr><td style="padding:6px;"><code>data-host</code></td><td style="padding:6px;">staffKM domain</td><td style="padding:6px;">script src origin</td></tr>
+    <tr><td style="padding:6px;"><code>data-position</code></td><td style="padding:6px;"><code>bottom-right</code> / <code>bottom-left</code></td><td style="padding:6px;">bottom-right</td></tr>
+    <tr><td style="padding:6px;"><code>data-color</code></td><td style="padding:6px;">launcher 底色（任意 CSS color）</td><td style="padding:6px;">#4f46e5</td></tr>
+    <tr><td style="padding:6px;"><code>data-label</code></td><td style="padding:6px;">launcher 文字</td><td style="padding:6px;">有問題嗎？</td></tr>
+  </table>
+</div>
+
+<script>
+  document.getElementById('host').textContent = location.origin
+  function mount() {
+    var aid   = document.getElementById('appIdInput').value.trim()
+    var color = document.getElementById('colorInput').value.trim() || '#4f46e5'
+    var label = document.getElementById('labelInput').value.trim() || '有問題嗎？'
+    if (!aid) { alert('請填 app UUID'); return }
+    // 重 mount 前先清
+    ['__staffkm-w-launcher','__staffkm-w-frame','__staffkm-w-style'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.remove()
+    })
+    window.__staffkmWidgetMounted = false
+    document.getElementById('aid').textContent = aid
+    var s = document.createElement('script')
+    s.src = location.origin + '/widget.js'
+    s.setAttribute('data-app-id', aid)
+    s.setAttribute('data-host',   location.origin)
+    s.setAttribute('data-color',  color)
+    s.setAttribute('data-label',  label)
+    s.defer = true
+    document.body.appendChild(s)
+  }
+</script>
+
+</body>
+</html>
