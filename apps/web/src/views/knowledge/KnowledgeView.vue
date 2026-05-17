@@ -72,28 +72,26 @@
           <IconSpinner :size="16" /> 載入中
         </div>
 
-        <div v-else-if="!filteredKbs.length" class="flex flex-col items-center justify-center py-20">
-          <div class="w-16 h-16 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 mb-4">
-            <IconKnowledge :size="28" :stroke-width="1.5" />
-          </div>
-          <p class="text-sm font-medium text-neutral-700 mb-1">尚未建立知識庫</p>
-          <p class="text-xs text-neutral-500 mb-5 max-w-xs text-center">
-            建立一個知識庫，再上傳文件、設定檢索方式
-          </p>
-          <button
-            @click="showCreate = true"
-            class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
-          >
-            <IconPlus :size="14" :stroke-width="2.5" />
-            建立第一個
-          </button>
-        </div>
+        <SEmpty v-else-if="!filteredKbs.length"
+                variant="box"
+                title="尚未建立知識庫"
+                description="建立一個知識庫，再上傳文件、設定檢索方式"
+                size="lg">
+          <template #action>
+            <button
+              @click="showCreate = true"
+              class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm">
+              <IconPlus :size="14" :stroke-width="2.5" />
+              建立第一個
+            </button>
+          </template>
+        </SEmpty>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div
             v-for="kb in filteredKbs"
             :key="kb.id"
-            class="relative bg-surface-raised rounded-xl border hover:shadow-md transition-all overflow-hidden group"
+            class="relative bg-surface-raised rounded-2xl border hover:shadow-lg hover:-translate-y-0.5 hover:border-brand-200 transition-all duration-200 overflow-hidden group"
             :class="batch.isSelected(kb.id)
               ? 'border-brand-400 ring-1 ring-brand-200'
               : 'border-neutral-200 hover:border-brand-300'"
@@ -330,6 +328,7 @@ import { knowledgeApi, type KbFolder } from '../../api/knowledge'
 import { IconClose, IconDelete, IconKnowledge, IconPlus, IconSpinner } from '../../components/icons'
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
+import { SEmpty } from '@staffkm/ui-kit'
 import FolderTree, { type FolderNode } from '../../components/common/FolderTree.vue'
 import KbAccessDrawer from '../../components/knowledge/KbAccessDrawer.vue'
 import { useProjectStore } from '../../stores/project'

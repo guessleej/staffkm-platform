@@ -63,10 +63,10 @@
           <div
             v-for="app in displayedApps"
           :key="app.id"
-          class="relative bg-white rounded-xl border p-5 hover:shadow-md transition-all cursor-pointer group"
+          class="relative bg-surface-raised rounded-2xl border p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
           :class="batch.isSelected(app.id)
-            ? 'border-indigo-400 ring-1 ring-indigo-200'
-            : 'border-gray-200 hover:border-indigo-300'"
+            ? 'border-brand-400 ring-1 ring-brand-200'
+            : 'border-neutral-200 hover:border-brand-200'"
           @click="batch.hasSelection ? batch.toggle(app.id) : enterApp(app)"
         >
           <!-- 批量選取 checkbox（hover 或選中時顯示）-->
