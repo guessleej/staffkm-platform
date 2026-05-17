@@ -83,6 +83,10 @@ class AppChatRequest(BaseModel):
     )
 
 
+# Sprint 19-B preview chat：移到 applications.py 內，因為它才是
+# 前端真正打的 /api/v1/applications/* 對應 router。
+
+
 @router.post(
     "/applications/{app_id}/chat",
     summary="與 Application Builder 應用程式對話（SSE 串流）",

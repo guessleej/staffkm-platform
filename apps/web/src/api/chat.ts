@@ -72,3 +72,50 @@ export async function streamChat(
     }
   }
 }
+
+// Sprint 19-B：模板 preview 串流（無持久化、不計 usage）
+export async function streamPreviewChat(
+  body: {
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    system_prompt?: string
+    welcome_message?: string
+    llm_model_id?: string
+    kb_ids?: string[]
+  },
+  onToken: (t: string) => void,
+  onDone: () => void,
+  onError: (e: string) => void,
+): Promise<void> {
+  const token = localStorage.getItem('access_token') || ''
+  const resp = await fetch('/api/v1/applications/preview/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!resp.ok || !resp.body) { onError(`HTTP ${resp.status}`); return }
+  const reader = resp.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (line.startsWith('event:')) continue
+      if (line.startsWith('data:')) {
+        const data = line.slice(5).trim()
+        if (!data || data === '[DONE]') { onDone(); continue }
+        try {
+          const parsed = JSON.parse(data)
+          if (Array.isArray(parsed)) continue  // citations — preview 不顯示
+        } catch { /* token text */ }
+        onToken(data)
+      }
+    }
+  }
+}
