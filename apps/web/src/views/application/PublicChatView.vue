@@ -76,9 +76,7 @@
           :disabled="!input.trim() || streaming"
           class="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition"
         >
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
-          </svg>
+          <SIcon name="send" :size="16" :stroke-width="2.5" />
         </button>
       </div>
       <p class="text-center text-xs text-fg-tertiary mt-2">AI 可能產生錯誤，重要資訊請查閱官方文件</p>
@@ -89,6 +87,7 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { SIcon } from '@staffkm/ui-kit'
 
 const route = useRoute()
 const appId = route.params.appId as string

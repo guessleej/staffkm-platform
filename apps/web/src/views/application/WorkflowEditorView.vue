@@ -6,9 +6,7 @@
       <div class="flex items-center gap-3">
         <button @click="router.push('/applications')"
                 class="p-1.5 rounded-lg text-fg-tertiary hover:text-fg-secondary hover:bg-neutral-100 transition">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-          </svg>
+          <SIcon name="chevron-left" :size="16" />
         </button>
         <div>
           <span class="text-sm font-semibold text-fg">工作流程編輯器</span>
@@ -186,7 +184,7 @@
                   <p class="text-[11px] text-fg-tertiary mt-0.5">每次儲存後可手動建立快照</p>
                 </div>
                 <button @click="showHistory = false" class="text-fg-tertiary hover:text-fg-secondary">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <SIcon name="x" :size="16" />
                 </button>
               </div>
 
@@ -238,6 +236,7 @@ import { registerWorkflowNodes, NODE_META, PALETTE_GROUPS, getDefaultConfig } fr
 import NodeConfigPanel from '../../components/workflow/NodeConfigPanel.vue'
 import { workflowApi, type WorkflowNode, type WorkflowEdge } from '../../api/workflow'
 import { appVersionApi, type AppVersion } from '../../api/application'
+import { SIcon } from '@staffkm/ui-kit'
 
 // ─── 路由 ──────────────────────────────────────────────────────────────────────
 const route  = useRoute()

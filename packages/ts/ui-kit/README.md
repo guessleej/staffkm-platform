@@ -44,7 +44,8 @@ apps/web                →  consumes both
 
 Never hard-code `bg-white` / `text-gray-*` — use `bg-surface-raised` / `text-fg` aliases so dark-mode flip works without component changes.
 
-## Known issue
+## Build
 
-`pnpm build-storybook` currently fails on `SButton.vue` line 10 parse error
-under vite 6 + storybook 8. Dev (`pnpm storybook`) works fine.
+```bash
+pnpm build-storybook   # → storybook-static/  (~2.5s)
+```
