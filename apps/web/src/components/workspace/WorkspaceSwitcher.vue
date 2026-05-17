@@ -115,7 +115,7 @@ const roleDotClass = computed(() => {
     case 'admin':  return 'bg-rose-500'
     case 'editor': return 'bg-emerald-500'
     case 'viewer': return 'bg-blue-400'
-    default:       return 'bg-gray-300'
+    default:       return 'bg-neutral-300'
   }
 })
 
