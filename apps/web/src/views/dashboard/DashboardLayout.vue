@@ -42,6 +42,7 @@
         <NavIconLink to="/tools"         :label="$t('nav.tools')"       icon="settings" />
         <NavIconLink to="/data-sources"  :label="$t('nav.dataSources')" icon="database" />
         <NavIconLink to="/mcp/servers"   label="MCP Servers"            icon="share-2" />
+        <NavIconLink to="/triggers"      :label="$t('nav.triggers')"    icon="refresh" />
 
         <template v-if="auth.hasRole(['admin'])">
           <span class="mx-2 w-px h-5 bg-neutral-200"></span>
