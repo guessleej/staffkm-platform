@@ -573,6 +573,9 @@ services:
     image: nginx:1.27-alpine
     container_name: staffkm-nginx
     restart: unless-stopped
+    labels:
+      # 由 autoheal sidecar 監聽：unhealthy 達 3 次自動 restart
+      - "autoheal=true"
     ports:
       - "0.0.0.0:${HTTP_PORT:-80}:80"
       - "0.0.0.0:${HTTPS_PORT:-443}:443"
@@ -581,11 +584,15 @@ services:
       - ./infra/nginx/conf.d/staffkm.conf:/etc/nginx/conf.d/staffkm.conf:ro
       - ./infra/nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
+    # End-to-end healthcheck：真正穿過 nginx → upstream（UI）。
+    # 若 upstream IP 過時導致 502，healthcheck 會失敗 → autoheal 自動 restart nginx
+    # （restart 等同重新 DNS 解析 upstream IP，等於修好 502）。
     healthcheck:
-      test: ["CMD-SHELL", "nginx -t && wget -qO- http://127.0.0.1/health || exit 1"]
-      interval: 20s
+      test: ["CMD-SHELL", "wget -qO- --timeout=3 http://127.0.0.1/login | head -c 50 | grep -qi 'staffkm\\|<!doctype' || exit 1"]
+      interval: 15s
       timeout: 5s
       retries: 3
+      start_period: 10s
     depends_on:
       gateway:
         condition: service_healthy
@@ -652,6 +659,24 @@ services:
     logging: *default-logging
     networks:
       - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Autoheal — 監聽 label="autoheal=true" 的容器，unhealthy 自動 restart
+  #  解決「rebuild UI/agent 後 nginx upstream IP 過時 → 502」歷史共業
+  # ══════════════════════════════════════════════════════════════
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    container_name: staffkm-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: "autoheal"
+      AUTOHEAL_INTERVAL: "10"      # 每 10s 掃描一次
+      AUTOHEAL_START_PERIOD: "30"  # 啟動後 30s 內不動
+      CURL_TIMEOUT: "30"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - frontend
 
 # ──────────────────────────────────────────────────────────────
 #  持久化 Volume
