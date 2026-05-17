@@ -139,6 +139,24 @@
                 class="flex-1 text-center text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 py-1.5 rounded-md transition-colors"
               >檢索測試</router-link>
               <button
+                @click="openAclDrawer(kb)"
+                class="px-2 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                title="資源授權 / 關聯資源"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0-1.66-1.34-3-3-3S6 9.34 6 11s1.34 3 3 3 3-1.34 3-3zm-3-5a5 5 0 100 10 5 5 0 000-10zm0 11c-3.31 0-6 2.69-6 6h12c0-3.31-2.69-6-6-6z"/>
+                </svg>
+              </button>
+              <button
+                @click="onConvertToWorkflow(kb)"
+                class="px-2 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                title="轉換為工作流知識庫（不可撤回）"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+              </button>
+              <button
                 @click="deleteKB(kb.id)"
                 class="px-2 text-neutral-400 hover:text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
                 title="刪除"
@@ -295,6 +313,15 @@
       class="px-2.5 py-1.5 rounded-lg text-sm text-white/90 hover:bg-white/10 hover:text-white transition"
     >刪除</button>
   </BatchSelectToolbar>
+
+  <!-- v2.1 11-4：資源授權 / 關聯資源抽屜 -->
+  <KbAccessDrawer
+    v-if="aclKb"
+    :open="aclOpen"
+    :kb-id="aclKb.id"
+    :kb-name="aclKb.name"
+    @update:open="(v: boolean) => (aclOpen = v)"
+  />
 </template>
 
 <script setup lang="ts">
@@ -304,6 +331,7 @@ import { IconClose, IconDelete, IconKnowledge, IconPlus, IconSpinner } from '../
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import FolderTree, { type FolderNode } from '../../components/common/FolderTree.vue'
+import KbAccessDrawer from '../../components/knowledge/KbAccessDrawer.vue'
 import { useProjectStore } from '../../stores/project'
 
 const kbs = ref<any[]>([])
@@ -433,6 +461,32 @@ async function deleteKB(id: string) {
   if (!confirm('確定要刪除？其下的文件與向量資料會一併移除。')) return
   await knowledgeApi.deleteBase(id)
   await load()
+}
+
+// ── v2.1 11-4：資源授權抽屜 + 轉換為工作流 KB ──────────────────────
+const aclOpen = ref(false)
+const aclKb = ref<{ id: string; name: string } | null>(null)
+
+function openAclDrawer(kb: any) {
+  aclKb.value = { id: kb.id, name: kb.name }
+  aclOpen.value = true
+}
+
+async function onConvertToWorkflow(kb: any) {
+  const wf = prompt(
+    `要將「${kb.name}」轉換為工作流知識庫（不可撤回）。\n` +
+    `請輸入來源 workflow ID（即 application ID，由其 workflow 寫入此 KB）：`,
+    ''
+  )
+  if (!wf) return
+  if (!confirm(`確定？轉換後此 KB 將鎖定為 workflow KB，後續寫入只能透過該 workflow 的 kb_writer 節點。`)) return
+  try {
+    await knowledgeApi.convertToWorkflowKB(kb.id, wf.trim())
+    alert('已轉換為 workflow KB')
+    await load()
+  } catch (e: any) {
+    alert('轉換失敗：' + (e?.response?.data?.detail || e?.message))
+  }
 }
 
 async function batchDelete() {

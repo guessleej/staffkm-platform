@@ -20,12 +20,16 @@ router = APIRouter()
 
 async def _verify_kb_in_workspace(
     kb_id: uuid.UUID, ctx: TenantContext, session: AsyncSession,
+    *, need: str = "read",
 ) -> KnowledgeBase:
-    """確認 kb 屬於當前 workspace；否則 404。"""
+    """確認 kb 屬於當前 workspace + 通過 ACL；否則 404 / 403。"""
     q = WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
     kb = (await session.execute(q)).scalar_one_or_none()
     if not kb:
         raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+    # v2.1 11-4：白名單 enforce
+    from app.core.kb_acl import enforce_kb_access
+    await enforce_kb_access(ctx, kb_id, session, need=need)  # type: ignore[arg-type]
     return kb
 
 
@@ -162,11 +166,14 @@ class DocBatchOp(BaseModel):
     document_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=500)
 
 
-async def _load_doc(doc_id, session) -> Document:
+async def _load_doc(doc_id, session, ctx: TenantContext | None = None, *, need: str = "read") -> Document:
     q = WorkspaceScopedQuery(Document).select().where(Document.id == doc_id)
     doc = (await session.execute(q)).scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="文件不存在或不屬於此工作區")
+    if ctx is not None:
+        from app.core.kb_acl import enforce_kb_access
+        await enforce_kb_access(ctx, doc.knowledge_base_id, session, need=need)  # type: ignore[arg-type]
     return doc
 
 
@@ -178,7 +185,7 @@ async def update_doc_settings(
     session: AsyncSession = Depends(get_session),
 ):
     """更新文件設定：tags / hit_strategy / is_enabled / name。"""
-    doc = await _load_doc(doc_id, session)
+    doc = await _load_doc(doc_id, session, ctx, need="edit")
     data = body.dict(exclude_unset=True)
     for k, v in data.items():
         setattr(doc, k, v)
@@ -200,8 +207,9 @@ async def migrate_document(
 
     paragraphs / embeddings 一起跟著走（外鍵 ON DELETE CASCADE 不適用，這裡只改 knowledge_base_id）。
     """
-    doc = await _load_doc(doc_id, session)
-    target = await _verify_kb_in_workspace(body.target_kb_id, ctx, session)
+    doc = await _load_doc(doc_id, session, ctx, need="edit")
+    # 遷移到的目標 KB 至少要 edit 權限
+    target = await _verify_kb_in_workspace(body.target_kb_id, ctx, session, need="edit")
     if doc.knowledge_base_id == target.id:
         return ApiResponse(message="目標 KB 與目前相同；無變動")
     doc.knowledge_base_id = target.id
@@ -220,7 +228,7 @@ async def download_original(
 ):
     """下載原始檔。"""
     from app.core.storage import download_document
-    doc = await _load_doc(doc_id, session)
+    doc = await _load_doc(doc_id, session, ctx, need="read")
     if not doc.storage_path:
         raise HTTPException(status_code=404, detail="文件原檔不存在")
     try:
@@ -245,7 +253,7 @@ async def replace_original(
     session: AsyncSession = Depends(get_session),
 ):
     """以新檔取代原檔。預設會清掉舊 paragraphs 並重新處理；keep_chunks=true 則只換原檔不重切。"""
-    doc = await _load_doc(doc_id, session)
+    doc = await _load_doc(doc_id, session, ctx, need="edit")
     ext = "." + file.filename.split(".")[-1].lower() if "." in file.filename else ""
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支援的檔案格式：{ext}")
@@ -383,7 +391,7 @@ async def generate_document_questions(
     from app.models.knowledge_base import Paragraph
     from sqlalchemy import select as sql_select
 
-    doc = await _load_doc(doc_id, session)
+    doc = await _load_doc(doc_id, session, ctx, need="edit")
     rows = await session.execute(
         sql_select(Paragraph)
         .where(Paragraph.document_id == doc.id)
@@ -440,7 +448,7 @@ async def list_document_questions(
     ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
-    doc = await _load_doc(doc_id, session)
+    doc = await _load_doc(doc_id, session, ctx, need="read")
     return ApiResponse(data=doc.questions or [])
 
 
