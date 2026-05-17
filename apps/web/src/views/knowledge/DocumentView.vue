@@ -172,6 +172,16 @@
                     />
                   </div>
                   <p class="text-[11px] text-neutral-500 truncate">{{ doc.progress_message || '等待中' }}</p>
+                  <!-- Sprint 19：admin 可以取消卡住的 task -->
+                  <button
+                    v-if="auth.hasRole(['admin']) && taskIdOf(doc)"
+                    @click="onRevokeTask(doc)"
+                    :disabled="revokingIds.has(doc.id)"
+                    class="text-[10px] text-fg-tertiary hover:text-danger-600 underline disabled:opacity-50"
+                    title="取消這個 celery 任務（不會 kill 正在跑的，只防止重啟）"
+                  >
+                    {{ revokingIds.has(doc.id) ? '取消中…' : '✕ 取消任務' }}
+                  </button>
                 </div>
                 <p
                   v-else-if="doc.status === 'error'"
@@ -273,6 +283,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { knowledgeApi } from '../../api/knowledge'
+import { tasksApi } from '../../api/tasks'
+import { useAuthStore } from '../../stores/auth'
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import {
@@ -281,7 +293,33 @@ import {
 } from '../../components/icons'
 
 const route = useRoute()
+const auth = useAuthStore()
 const kbId = computed(() => route.params.kbId as string)
+
+// Sprint 19：admin 取消卡住的 celery task
+const revokingIds = ref(new Set<string>())
+function taskIdOf(doc: any): string | null {
+  const meta = doc?.meta
+  if (!meta) return null
+  if (typeof meta === 'string') {
+    try { return JSON.parse(meta)?.celery_task_id || null } catch { return null }
+  }
+  return meta?.celery_task_id || null
+}
+async function onRevokeTask(doc: any) {
+  const tid = taskIdOf(doc)
+  if (!tid) return
+  if (!confirm(`確定撤回「${doc.name}」的 celery 任務？\n（不會 kill 正在跑的，只防止重啟。document 還在，需另外刪除。）`)) return
+  revokingIds.value.add(doc.id)
+  try {
+    await tasksApi.revoke(tid)
+    await loadDocs()
+  } catch (e: any) {
+    alert(e?.response?.data?.detail || e?.message || '撤回失敗')
+  } finally {
+    revokingIds.value.delete(doc.id)
+  }
+}
 
 const docs = ref<any[]>([])
 const loading = ref(false)

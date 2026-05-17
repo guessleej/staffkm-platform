@@ -31,11 +31,18 @@
                 class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">
           自動排版
         </button>
-        <!-- 歷史版本 (D-7) -->
+        <!-- 應用版本 (D-7) -->
         <button @click="openHistory"
                 class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
                 :class="showHistory ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : ''">
-          歷史版本
+          應用版本
+        </button>
+        <!-- 節點版本 (Sprint 19 — workflow_versions endpoints) -->
+        <button @click="showWfVersions = true"
+                class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
+                :class="showWfVersions ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : ''"
+                title="只快照 workflow 的 nodes + edges">
+          節點版本
         </button>
         <!-- 測試 -->
         <button @click="showTest = !showTest"
@@ -223,6 +230,13 @@
       </transition>
     </Teleport>
 
+    <!-- Sprint 19：節點版本 drawer -->
+    <WorkflowVersionsDrawer
+      v-model="showWfVersions"
+      :app-id="appId"
+      @restored="reloadCanvas"
+    />
+
   </div>
 </template>
 
@@ -237,6 +251,7 @@ import NodeConfigPanel from '../../components/workflow/NodeConfigPanel.vue'
 import { workflowApi, type WorkflowNode, type WorkflowEdge } from '../../api/workflow'
 import { appVersionApi, type AppVersion } from '../../api/application'
 import { SIcon } from '@staffkm/ui-kit'
+import WorkflowVersionsDrawer from '../../components/workflow/WorkflowVersionsDrawer.vue'
 
 // ─── 路由 ──────────────────────────────────────────────────────────────────────
 const route  = useRoute()
@@ -269,6 +284,13 @@ function refreshHistoryState() {
 function onUndo() { lf?.undo?.(); refreshHistoryState(); countNodes() }
 function onRedo() { lf?.redo?.(); refreshHistoryState(); countNodes() }
 function snapToGrid(p: number) { return Math.round(p / GRID) * GRID }
+
+// Sprint 19：節點版本 drawer state
+const showWfVersions = ref(false)
+async function reloadCanvas() {
+  // 回滾後重 load workflow nodes + edges 到 canvas
+  await loadWorkflow()
+}
 
 // ─── 歷史版本抽屜 (D-7 後續) ────────────────────────────────────────────
 const showHistory   = ref(false)
