@@ -337,6 +337,25 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_mcp_tools_server ON mcp_tools_cache(server_id)",
     "CREATE INDEX IF NOT EXISTS idx_mcp_tools_ws     ON mcp_tools_cache(workspace_id)",
+
+    # ── Sprint 19.x：workspace 自訂 App 模板 ─────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS workspace_app_templates (
+        id                  UUID PRIMARY KEY,
+        workspace_id        UUID NOT NULL,
+        name                VARCHAR(128) NOT NULL,
+        emoji               VARCHAR(8) NOT NULL DEFAULT '✨',
+        description         TEXT NOT NULL DEFAULT '',
+        system_prompt       TEXT NOT NULL DEFAULT '',
+        welcome_message     TEXT NOT NULL DEFAULT '',
+        suggested_questions JSONB NOT NULL DEFAULT '[]',
+        requires_kb         BOOLEAN NOT NULL DEFAULT false,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_by          UUID
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_ws_app_templates_ws ON workspace_app_templates(workspace_id, created_at DESC)",
 ]
 
 
