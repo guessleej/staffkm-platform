@@ -35,6 +35,7 @@ _LEGACY_PREFIXES = (
     "/api/v1/memories",
     "/api/v1/model-providers",
     "/api/v1/media-providers",
+    "/api/v1/app-templates",
 )
 
 # 不重寫的例外 path（公開存取或 pre-auth endpoint）

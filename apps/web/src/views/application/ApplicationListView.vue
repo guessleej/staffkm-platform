@@ -132,6 +132,10 @@
             <button @click.stop="openApiKeyDialog(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-amber-600 py-1 rounded-lg hover:bg-amber-50 transition" title="API Keys">
               API Key
             </button>
+            <!-- Sprint 19.x：存為自訂模板 -->
+            <button @click.stop="openSaveTplDialog(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-warning-700 py-1 rounded-lg hover:bg-warning-50 transition" title="把此應用 prompt + 開場白 + 範例問題存成模板">
+              存模板
+            </button>
             <!-- Sprint 19-A：加入 Project -->
             <div class="flex items-center justify-center flex-1">
               <AttachToProjectButton kind="app" :resource-id="app.id" />
@@ -432,6 +436,17 @@
             >
               <span>{{ cat.emoji }}</span>{{ cat.label }}
             </button>
+            <!-- Sprint 19.x：workspace 自訂模板 chip -->
+            <button
+              v-if="workspaceTemplates.length"
+              @click="templateFilter = 'workspace'"
+              class="px-3 py-1 text-xs rounded-full border transition flex items-center gap-1"
+              :class="templateFilter === 'workspace'
+                ? 'bg-warning-50 border-warning-300 text-warning-700 font-medium'
+                : 'border-neutral-200 text-fg-secondary hover:border-neutral-300'"
+            >
+              ✨ 我的模板 ({{ workspaceTemplates.length }})
+            </button>
           </div>
 
           <!-- 模板卡片網格 -->
@@ -440,9 +455,13 @@
               <div
                 v-for="tpl in filteredTemplates" :key="tpl.id"
                 class="bg-surface-raised border border-neutral-200 rounded-xl p-5 hover:shadow-md hover:border-brand-300 hover:-translate-y-0.5 transition-all group relative"
+                :class="tpl.source === 'workspace' ? 'border-warning-200' : ''"
               >
-                <span v-if="tpl.badge" class="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-warning-50 text-warning-700">
-                  {{ tpl.badge }}
+                <span v-if="tpl.source === 'workspace'" class="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-warning-50 text-warning-700">
+                  自訂
+                </span>
+                <span v-else-if="(tpl as any).badge" class="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-warning-50 text-warning-700">
+                  {{ (tpl as any).badge }}
                 </span>
                 <div class="flex items-start gap-3 mb-3">
                   <div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-xl flex-shrink-0">
@@ -460,7 +479,7 @@
                 </p>
                 <div class="flex items-center gap-1.5 mt-3">
                   <button
-                    @click="tryTemplate(tpl)"
+                    @click="tryTemplate(tpl as any)"
                     class="flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-neutral-200 text-fg-secondary hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50/50 transition flex items-center justify-center gap-1"
                   >
                     🎮 立即試用
@@ -471,6 +490,14 @@
                   >
                     使用此模板
                     <SIcon name="arrow-right" :size="12" />
+                  </button>
+                  <button
+                    v-if="tpl.source === 'workspace'"
+                    @click.stop="deleteWorkspaceTemplate(tpl.id)"
+                    class="px-2 py-1.5 text-xs text-fg-tertiary hover:text-danger-600 hover:bg-danger-50 rounded-md transition"
+                    title="刪除自訂模板"
+                  >
+                    <SIcon name="trash" :size="12" />
                   </button>
                 </div>
               </div>
@@ -487,6 +514,51 @@
     :template="tryingTemplate"
     @create-from-template="applyTemplateFromTry"
   />
+
+  <!-- Sprint 19.x：「存為自訂模板」 modal -->
+  <Teleport to="body">
+    <div
+      v-if="showSaveTplDialog"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm p-4"
+      @click.self="showSaveTplDialog = false"
+    >
+      <div class="w-full max-w-sm bg-surface-raised rounded-2xl shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
+          <h3 class="font-semibold text-base text-fg">存為自訂模板</h3>
+          <button @click="showSaveTplDialog = false" class="p-1 rounded-md text-fg-tertiary hover:text-fg hover:bg-neutral-100">
+            <SIcon name="x" :size="16" />
+          </button>
+        </div>
+        <div class="px-5 py-4 space-y-4">
+          <p class="text-xs text-fg-secondary">
+            來源：<span class="font-medium text-fg">{{ tplDraft.sourceApp?.name }}</span><br>
+            會複製 system prompt / 開場白 / 範例問題 / 是否需要 KB。
+          </p>
+          <div class="grid grid-cols-4 gap-2">
+            <div>
+              <label class="block text-xs font-semibold text-fg-secondary mb-1.5">圖示</label>
+              <input v-model="tplDraft.emoji" maxlength="2"
+                     class="w-full h-10 px-2 text-center text-lg rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none" />
+            </div>
+            <div class="col-span-3">
+              <label class="block text-xs font-semibold text-fg-secondary mb-1.5">模板名稱</label>
+              <input v-model="tplDraft.name"
+                     class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none" />
+            </div>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t border-neutral-100 bg-neutral-50/40 flex justify-end gap-2">
+          <button @click="showSaveTplDialog = false"
+                  class="h-9 px-4 text-sm text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:bg-neutral-50">取消</button>
+          <button @click="saveAsTemplate"
+                  :disabled="!tplDraft.name.trim()"
+                  class="h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 rounded-lg">
+            儲存
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 
   <!-- 批量選擇浮動工具列 -->
   <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
@@ -513,6 +585,7 @@ import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue
 import { useProjectStore } from '../../stores/project'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { APP_TEMPLATES, TEMPLATE_CATEGORIES, type AppTemplate } from '../../data/appTemplates'
+import { appTemplateApi, type WorkspaceAppTemplate } from '../../api/appTemplate'
 import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
 import TemplateTryModal from '../../components/application/TemplateTryModal.vue'
 
@@ -652,14 +725,66 @@ function openCreateDialog() {
 
 // Sprint 18-A：模板畫廊
 const showTemplateGallery = ref(false)
-const templateFilter = ref<AppTemplate['category'] | 'all'>('all')
-const filteredTemplates = computed(() =>
-  templateFilter.value === 'all'
-    ? APP_TEMPLATES
-    : APP_TEMPLATES.filter(t => t.category === templateFilter.value)
+const templateFilter = ref<AppTemplate['category'] | 'all' | 'workspace'>('all')
+// Sprint 19.x：workspace 自訂模板
+const workspaceTemplates = ref<WorkspaceAppTemplate[]>([])
+// 統一型別 — 把 built-in 與 workspace 包成同一個 union 顯示
+type UnifiedTemplate = (AppTemplate & { source: 'builtin'; category: AppTemplate['category'] })
+                     | (WorkspaceAppTemplate & { source: 'workspace'; category: 'workspace' })
+const wsTplsAsUnified = computed<UnifiedTemplate[]>(() =>
+  workspaceTemplates.value.map((t): UnifiedTemplate => ({ ...t, source: 'workspace', category: 'workspace' }))
 )
+const builtinAsUnified = computed<UnifiedTemplate[]>(() =>
+  APP_TEMPLATES.map((t): UnifiedTemplate => ({ ...t, source: 'builtin' }))
+)
+const allTemplates = computed<UnifiedTemplate[]>(() => [
+  ...wsTplsAsUnified.value, ...builtinAsUnified.value
+])
+const filteredTemplates = computed<UnifiedTemplate[]>(() => {
+  if (templateFilter.value === 'all')       return allTemplates.value
+  if (templateFilter.value === 'workspace') return wsTplsAsUnified.value
+  return builtinAsUnified.value.filter(t => t.category === templateFilter.value)
+})
+async function loadWorkspaceTemplates() {
+  try { workspaceTemplates.value = await appTemplateApi.list() }
+  catch { /* 未權限 / 表還沒建 → 直接 fallback 空 */ }
+}
 function openTemplateGallery() {
   showTemplateGallery.value = true
+  loadWorkspaceTemplates()
+}
+// 從現有 App 儲存成 workspace 模板
+const showSaveTplDialog = ref(false)
+const tplDraft = reactive({ name: '', emoji: '✨', sourceApp: null as Application | null })
+function openSaveTplDialog(app: Application) {
+  tplDraft.sourceApp = app
+  tplDraft.name = app.name + ' 模板'
+  tplDraft.emoji = '✨'
+  showSaveTplDialog.value = true
+}
+async function saveAsTemplate() {
+  const a = tplDraft.sourceApp
+  if (!a || !tplDraft.name.trim()) return
+  try {
+    await appTemplateApi.create({
+      name: tplDraft.name.trim(),
+      emoji: (tplDraft.emoji || '✨').slice(0, 8),
+      description: a.description || '',
+      system_prompt: a.system_prompt || '',
+      welcome_message: a.welcome_message || '',
+      suggested_questions: [...(a.suggested_questions || [])],
+      requires_kb: (a.knowledge_base_ids || []).length > 0,
+    })
+    showSaveTplDialog.value = false
+    alert('已存入 workspace 模板庫，下次點「從模板建立」就會看到')
+  } catch (e: any) {
+    alert(e?.response?.data?.detail || e?.message || '存模板失敗')
+  }
+}
+async function deleteWorkspaceTemplate(id: string) {
+  if (!confirm('刪除這個自訂模板？已用此模板建立的應用不會被刪。')) return
+  await appTemplateApi.remove(id)
+  await loadWorkspaceTemplates()
 }
 // 19-B：立即試用
 const tryModalOpen = ref(false)
@@ -672,7 +797,7 @@ function applyTemplateFromTry() {
   if (tryingTemplate.value) applyTemplate(tryingTemplate.value)
 }
 
-function applyTemplate(t: AppTemplate) {
+function applyTemplate(t: AppTemplate | WorkspaceAppTemplate | UnifiedTemplate) {
   editingApp.value = null
   Object.assign(form, {
     name:                t.name,
