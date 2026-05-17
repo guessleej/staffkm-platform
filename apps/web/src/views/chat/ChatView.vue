@@ -39,11 +39,21 @@
           <article
             v-for="msg in convStore.messages"
             :key="msg.id"
-            class="text-[15px] leading-7"
+            class="text-[15px] leading-7 group"
           >
             <!-- 訊息 meta -->
-            <header class="mb-1 text-[11px] uppercase tracking-widest text-neutral-400">
-              {{ msg.role === 'user' ? '你' : 'staffKM' }}
+            <header class="mb-1 text-[11px] uppercase tracking-widest text-neutral-400 flex items-center justify-between">
+              <span>{{ msg.role === 'user' ? '你' : 'staffKM' }}</span>
+              <!-- 助理回應 + 長度足夠 → 顯示「在右側展開」-->
+              <button
+                v-if="msg.role === 'assistant' && shouldOfferArtifact(msg.content)"
+                @click="openMessageAsArtifact(msg)"
+                class="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 text-fg-tertiary hover:text-brand-600 normal-case tracking-normal"
+                title="在右側展開為可滾動 / 複製的 markdown 預覽"
+              >
+                <SIcon name="external-link" :size="12" />
+                <span class="text-[10px]">展開</span>
+              </button>
             </header>
             <!-- 訊息內容（無頭像 chip，純文字段落） -->
             <div
@@ -100,6 +110,7 @@ import { useConversationStore } from '../../stores/conversation'
 import { useArtifactStore } from '../../stores/artifact'
 import { http } from '../../api'
 import { streamChat } from '../../api/chat'
+import { SIcon } from '@staffkm/ui-kit'
 
 const route = useRoute()
 const convStore = useConversationStore()
@@ -110,6 +121,21 @@ function openCitation(c: { doc_name: string; content: string }) {
     kind: 'document',
     title: c.doc_name || '引用來源',
     content: c.content || '（無內容）',
+  })
+}
+
+// 18-B：長訊息 / 含 code block 的助理回應 → 提供「右側展開」
+function shouldOfferArtifact(content: string): boolean {
+  if (!content) return false
+  return content.length >= 600 || /```|^\s*#{1,6}\s|^\s*[-*]\s|\|.*\|/m.test(content)
+}
+function openMessageAsArtifact(msg: { content: string; created_at?: string }) {
+  const tsRaw = msg.created_at ? new Date(msg.created_at) : new Date()
+  const ts = isNaN(tsRaw.getTime()) ? new Date() : tsRaw
+  artifact.open({
+    kind: 'document',
+    title: `助理回應 · ${ts.toLocaleTimeString('zh-TW', { hour12: false })}`,
+    content: msg.content,
   })
 }
 
