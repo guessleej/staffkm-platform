@@ -1,10 +1,10 @@
 <template>
   <div class="flex-1 flex flex-col overflow-hidden">
     <!-- 頁首 -->
-    <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
       <div>
-        <h1 class="text-lg font-semibold text-gray-900">模型供應商管理</h1>
-        <p class="text-sm text-gray-500 mt-0.5">管理 LLM、Embedding、Reranker 等 AI 模型供應商</p>
+        <h1 class="text-lg font-semibold text-fg">模型供應商管理</h1>
+        <p class="text-sm text-fg-tertiary mt-0.5">管理 LLM、Embedding、Reranker 等 AI 模型供應商</p>
       </div>
       <button @click="openProviderDialog()" class="btn-primary flex items-center gap-2">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -25,12 +25,12 @@
       </div>
 
       <div v-else-if="providers.length === 0" class="text-center py-20">
-        <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-fg-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1 1 .03 2.798-1.442 2.798H4.24c-1.47 0-2.44-1.798-1.442-2.798L4.2 15.3"/>
           </svg>
         </div>
-        <p class="text-gray-500 text-sm">尚未新增任何模型供應商</p>
+        <p class="text-fg-tertiary text-sm">尚未新增任何模型供應商</p>
         <button @click="openProviderDialog()" class="mt-4 btn-primary">新增供應商</button>
       </div>
 
@@ -38,10 +38,10 @@
         <div
           v-for="provider in providers"
           :key="provider.id"
-          class="bg-white rounded-xl border border-gray-200 overflow-hidden"
+          class="bg-surface-raised rounded-xl border border-neutral-200 overflow-hidden"
         >
           <!-- 供應商標頭 -->
-          <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
             <div class="flex items-center gap-3">
               <div class="w-9 h-9 rounded-lg flex items-center justify-center text-lg"
                    :class="providerIconBg(provider.provider_type)">
@@ -49,12 +49,12 @@
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-semibold text-gray-900 text-sm">{{ provider.name }}</span>
+                  <span class="font-semibold text-fg text-sm">{{ provider.name }}</span>
                   <span class="badge" :class="provider.status === 'active' ? 'badge-green' : 'badge-gray'">
                     {{ provider.status === 'active' ? '啟用' : '停用' }}
                   </span>
                 </div>
-                <p class="text-xs text-gray-400 mt-0.5">{{ provider.base_url || '預設端點' }}</p>
+                <p class="text-xs text-fg-tertiary mt-0.5">{{ provider.base_url || '預設端點' }}</p>
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -76,7 +76,7 @@
 
           <!-- 模型列表 -->
           <div class="px-5 py-3">
-            <div v-if="!modelsByProvider[provider.id]?.length" class="text-xs text-gray-400 py-1">
+            <div v-if="!modelsByProvider[provider.id]?.length" class="text-xs text-fg-tertiary py-1">
               尚未定義任何模型 — 點擊「新增模型」開始
             </div>
             <div v-else class="flex flex-wrap gap-2">
@@ -84,12 +84,12 @@
                 v-for="model in modelsByProvider[provider.id]"
                 :key="model.id"
                 class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs"
-                :class="model.is_default ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-gray-50 text-gray-600'"
+                :class="model.is_default ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-neutral-200 bg-surface-sunken text-fg-secondary'"
               >
                 <span class="font-mono">{{ model.model_name }}</span>
                 <span class="badge text-[10px]" :class="modelTypeBadge(model.model_type)">{{ model.model_type }}</span>
                 <span v-if="model.is_default" class="text-indigo-400">★</span>
-                <button @click="deleteModel(model.id, provider.id)" class="ml-1 text-gray-300 hover:text-rose-400">×</button>
+                <button @click="deleteModel(model.id, provider.id)" class="ml-1 text-fg-tertiary hover:text-rose-400">×</button>
               </div>
             </div>
           </div>
@@ -132,14 +132,14 @@
               <option v-for="r in registry" :key="r.type" :value="r.type">{{ r.label }}</option>
               <option value="custom">自訂</option>
             </select>
-            <p v-if="selectedRegistry?.notes" class="mt-1 text-[11px] text-gray-500">
+            <p v-if="selectedRegistry?.notes" class="mt-1 text-[11px] text-fg-tertiary">
               {{ selectedRegistry.notes }}
             </p>
           </div>
           <div>
             <label class="form-label">
               Base URL（選填）
-              <span v-if="selectedRegistry?.default_base_url" class="ml-1 text-[11px] text-gray-400">
+              <span v-if="selectedRegistry?.default_base_url" class="ml-1 text-[11px] text-fg-tertiary">
                 預設：{{ selectedRegistry.default_base_url }}
               </span>
             </label>
@@ -178,9 +178,9 @@
 
     <!-- 模型 Dialog -->
     <div v-if="showModelDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div class="px-6 pt-6 pb-4 border-b border-gray-100">
-          <h3 class="text-base font-semibold text-gray-900">新增模型 — {{ currentProvider?.name }}</h3>
+      <div class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="px-6 pt-6 pb-4 border-b border-neutral-100">
+          <h3 class="text-base font-semibold text-fg">新增模型 — {{ currentProvider?.name }}</h3>
         </div>
         <div class="p-6 space-y-4">
           <div>
@@ -190,7 +190,7 @@
             <datalist id="recommended-models">
               <option v-for="m in recommendedModelsForCurrent" :key="m" :value="m" />
             </datalist>
-            <p v-if="recommendedModelsForCurrent.length" class="mt-1 text-[11px] text-gray-500">
+            <p v-if="recommendedModelsForCurrent.length" class="mt-1 text-[11px] text-fg-tertiary">
               建議：{{ recommendedModelsForCurrent.join(' · ') }}
             </p>
           </div>
@@ -210,7 +210,7 @@
           </div>
           <div class="flex items-center gap-2">
             <input id="is_default" v-model="modelForm.is_default" type="checkbox" class="w-4 h-4 accent-indigo-600"/>
-            <label for="is_default" class="text-sm text-gray-700">設為此類型的預設模型</label>
+            <label for="is_default" class="text-sm text-fg-secondary">設為此類型的預設模型</label>
           </div>
         </div>
         <div class="px-6 pb-6 flex justify-end gap-3">
@@ -353,8 +353,8 @@ function providerIcon(type: string) {
   return m[type] ?? 'LLM'
 }
 function providerIconBg(type: string) {
-  const m: Record<string, string> = { openai: 'bg-emerald-50', ollama: 'bg-orange-50', azure: 'bg-sky-50', anthropic: 'bg-violet-50', custom: 'bg-gray-100' }
-  return m[type] ?? 'bg-gray-100'
+  const m: Record<string, string> = { openai: 'bg-emerald-50', ollama: 'bg-orange-50', azure: 'bg-sky-50', anthropic: 'bg-violet-50', custom: 'bg-neutral-100' }
+  return m[type] ?? 'bg-neutral-100'
 }
 function modelTypeBadge(type: string) {
   const m: Record<string, string> = { llm: 'badge-indigo', embedding: 'badge-sky', reranker: 'badge-orange', tts: 'badge-purple', stt: 'badge-green' }
@@ -366,14 +366,14 @@ onMounted(async () => { await Promise.all([loadProviders(), loadRegistry()]) })
 
 <style scoped>
 .btn-primary { @apply px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition disabled:opacity-50; }
-.btn-outline { @apply px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50; }
-.btn-ghost { @apply px-3 py-1.5 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-100 transition; }
+.btn-outline { @apply px-3 py-1.5 border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:bg-surface-sunken transition disabled:opacity-50; }
+.btn-ghost { @apply px-3 py-1.5 text-fg-secondary text-sm font-medium rounded-lg hover:bg-neutral-100 transition; }
 .btn-sm { @apply px-2.5 py-1 text-xs font-medium rounded-lg transition; }
-.form-label { @apply block text-xs font-semibold text-gray-600 mb-1; }
-.form-input { @apply w-full h-9 px-3 text-sm rounded-lg border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition bg-white; }
+.form-label { @apply block text-xs font-semibold text-fg-secondary mb-1; }
+.form-input { @apply w-full h-9 px-3 text-sm rounded-lg border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition bg-surface-raised; }
 .badge { @apply px-1.5 py-0.5 rounded text-[10px] font-semibold; }
 .badge-green { @apply bg-emerald-100 text-emerald-700; }
-.badge-gray { @apply bg-gray-100 text-gray-500; }
+.badge-gray { @apply bg-neutral-100 text-fg-tertiary; }
 .badge-indigo { @apply bg-indigo-100 text-indigo-700; }
 .badge-sky { @apply bg-sky-100 text-sky-700; }
 .badge-orange { @apply bg-orange-100 text-orange-700; }

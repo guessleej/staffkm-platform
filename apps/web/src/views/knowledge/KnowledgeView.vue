@@ -100,7 +100,7 @@
               class="absolute top-3 right-3 z-10 w-5 h-5 flex items-center justify-center rounded border transition opacity-0 group-hover:opacity-100"
               :class="batch.isSelected(kb.id)
                 ? 'bg-brand-600 border-brand-600 text-white opacity-100'
-                : 'bg-white border-neutral-300 hover:border-brand-400 text-transparent'"
+                : 'bg-surface-raised border-neutral-300 hover:border-brand-400 text-transparent'"
               @click.stop="batch.toggle(kb.id)"
             >
               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">

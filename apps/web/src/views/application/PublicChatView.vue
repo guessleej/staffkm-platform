@@ -1,16 +1,16 @@
 <template>
-  <div class="flex flex-col h-screen bg-gray-50">
+  <div class="flex flex-col h-screen bg-surface-sunken">
     <!-- Header -->
-    <div class="bg-white border-b px-6 py-4 flex items-center gap-3 shadow-sm">
+    <div class="bg-surface-raised border-b px-6 py-4 flex items-center gap-3 shadow-sm">
       <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl" :style="{ background: gradient }">
         {{ app?.icon || 'AI' }}
       </div>
       <div>
-        <h1 class="font-semibold text-gray-900">{{ app?.name || '載入中…' }}</h1>
-        <p class="text-xs text-gray-400">{{ app?.description }}</p>
+        <h1 class="font-semibold text-fg">{{ app?.name || '載入中…' }}</h1>
+        <p class="text-xs text-fg-tertiary">{{ app?.description }}</p>
       </div>
       <div class="ml-auto">
-        <span class="text-xs text-gray-300 bg-gray-50 px-3 py-1 rounded-full border">Powered by StaffKM</span>
+        <span class="text-xs text-fg-tertiary bg-surface-sunken px-3 py-1 rounded-full border">Powered by StaffKM</span>
       </div>
     </div>
 
@@ -19,14 +19,14 @@
       <div class="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl mb-6" :style="{ background: gradient }">
         {{ app?.icon || 'AI' }}
       </div>
-      <h2 class="text-xl font-semibold text-gray-900 mb-2">{{ app?.welcome_message || '你好！有什麼我可以幫助你的？' }}</h2>
-      <p class="text-sm text-gray-400 mb-8">{{ app?.description }}</p>
+      <h2 class="text-xl font-semibold text-fg mb-2">{{ app?.welcome_message || '你好！有什麼我可以幫助你的？' }}</h2>
+      <p class="text-sm text-fg-tertiary mb-8">{{ app?.description }}</p>
       <div class="flex flex-col gap-2 w-full max-w-md">
         <button
           v-for="q in app?.suggested_questions"
           :key="q"
           @click="sendMessage(q)"
-          class="text-left px-4 py-3 bg-white rounded-xl border text-sm text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
+          class="text-left px-4 py-3 bg-surface-raised rounded-xl border text-sm text-fg-secondary hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
         >
           {{ q }}
         </button>
@@ -45,8 +45,8 @@
           <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" :style="{ background: gradient }">
             {{ app?.icon || 'AI' }}
           </div>
-          <div class="bg-white border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-            <p class="text-sm text-gray-800 whitespace-pre-wrap">{{ msg.content }}</p>
+          <div class="bg-surface-raised border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+            <p class="text-sm text-fg whitespace-pre-wrap">{{ msg.content }}</p>
             <div v-if="msg.streaming" class="flex gap-1 mt-2">
               <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0ms"/>
               <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:150ms"/>
@@ -61,7 +61,7 @@
     </div>
 
     <!-- 輸入框 -->
-    <div class="bg-white border-t px-4 py-3">
+    <div class="bg-surface-raised border-t px-4 py-3">
       <div class="flex gap-3 items-end max-w-3xl mx-auto">
         <textarea
           v-model="input"
@@ -81,7 +81,7 @@
           </svg>
         </button>
       </div>
-      <p class="text-center text-xs text-gray-300 mt-2">AI 可能產生錯誤，重要資訊請查閱官方文件</p>
+      <p class="text-center text-xs text-fg-tertiary mt-2">AI 可能產生錯誤，重要資訊請查閱官方文件</p>
     </div>
   </div>
 </template>

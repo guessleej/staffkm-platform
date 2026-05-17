@@ -1,25 +1,25 @@
 <template>
   <div class="flex flex-col h-full">
-    <div class="h-14 border-b border-gray-200 px-6 flex items-center bg-white">
-      <h2 class="font-semibold text-gray-800">AI 代理人</h2>
+    <div class="h-14 border-b border-neutral-200 px-6 flex items-center bg-surface-raised">
+      <h2 class="font-semibold text-fg">AI 代理人</h2>
     </div>
     <div class="flex-1 overflow-auto p-6">
-      <p class="text-sm text-gray-500 mb-6">
+      <p class="text-sm text-fg-tertiary mb-6">
         以下是系統內建的行政場景 AI 代理人，點選「立即諮詢」可直接開始對話。
       </p>
-      <div v-if="loading" class="text-center py-12 text-gray-400">載入中…</div>
+      <div v-if="loading" class="text-center py-12 text-fg-tertiary">載入中…</div>
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <div v-for="agent in agents" :key="agent.scenario_id"
-          class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition">
+          class="bg-surface-raised rounded-xl border border-neutral-200 p-5 hover:shadow-md transition">
           <div class="flex items-center gap-3 mb-3">
             <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-xl">
               {{ scenarioIcon(agent.scenario_id) }}
             </div>
-            <h3 class="font-semibold text-gray-800">{{ agent.name }}</h3>
+            <h3 class="font-semibold text-fg">{{ agent.name }}</h3>
           </div>
-          <p class="text-sm text-gray-500 mb-4">{{ agent.description }}</p>
+          <p class="text-sm text-fg-tertiary mb-4">{{ agent.description }}</p>
           <div class="mb-4">
-            <p class="text-xs font-medium text-gray-400 mb-2">建議問題：</p>
+            <p class="text-xs font-medium text-fg-tertiary mb-2">建議問題：</p>
             <ul class="space-y-1">
               <li v-for="q in agent.suggested_questions.slice(0, 3)" :key="q"
                 class="text-xs text-indigo-700 bg-indigo-50 rounded-lg px-3 py-1.5 line-clamp-1">
