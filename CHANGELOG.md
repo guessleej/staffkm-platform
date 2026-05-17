@@ -2,6 +2,76 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [2.4.0] — 2026-05-17
+
+> **B2B enablement** milestone — embed widget + SSO + user docs。
+> 重點：把 staffKM 變成可以「放心嵌入 / 接客戶 SSO / 給最終使用者看手冊」的元件。
+
+### Highlights
+- 🪟 **Embeddable widget** — 一行 `<script>` 嵌任何網站，6 KB vanilla JS
+- 🔐 **OIDC SSO** — Google / Microsoft AD / Okta / Azure AD；最小 lift（無 DB schema 改）
+- 📖 **8 篇 user-guide** — first-login / chat / KB / app / project / web-sync / embed / admin + FAQ
+
+### Added — Embeddable Widget (v2.4-A)
+- `apps/web/public/widget.js` — 6 KB vanilla JS、無依賴
+  - data-app-id / data-host / data-position / data-color / data-label
+  - 公開 API：`staffKM.open() / close() / toggle()`
+  - Lazy mount iframe + ESC / 點空白關 + RWD
+- `apps/web/public/widget-demo.html` — 互動測試頁
+- `PublicChatView`：`?embed=1` → 精簡 chrome（小 header / 隱藏 Powered by chip）
+- nginx + Caddy：`/widget.js` / `/widget-demo.html` / `/share/*` 允許 cross-origin iframe
+  - `X-Frame-Options` 拿掉，改 `CSP frame-ancestors: *`
+
+### Added — OIDC SSO (v2.4-B)
+- `services/auth/app/api/oidc.py`：
+  - `GET /info` — 前端探 SSO 啟用 + 顯示名
+  - `GET /login` — redirect IdP authorize（state cookie + JWT-signed nonce 防 CSRF）
+  - `GET /callback` — code → token → userinfo → upsert User → 簽 staffKM JWT → redirect 帶 `#access_token`
+- 6 個新 `OIDC_*` config vars（.env.production.example 完整範例）
+- 標準 OIDC discovery（抓 `/.well-known/openid-configuration`）
+- Match by email；新 user auto-create role=`user`（`OIDC_DEFAULT_ROLE`）
+- 借用 `user.ldap_dn` 欄存 `oidc:{sub}`（避免 DB schema migration）
+- Gateway PUBLIC_PATHS 加 3 個 oidc 端點
+- Frontend：
+  - `api/auth.ts`: oidcInfo() / oidcLoginUrl()
+  - LoginView mount 時讀 `#access_token` hash（callback redirect）→ 直接登入
+  - 「使用 SSO 登入」按鈕（OIDC_ENABLED=true 才出現）
+
+### Added — User docs (v2.4-C)
+8 篇繁中 markdown（5000+ 字）：
+
+| 檔 | 對象 | 內容 |
+|---|---|---|
+| README | index | 章節對照 + 一句話介紹 |
+| 01-first-login | 新人 | 登入 / 導覽 / locale / theme |
+| 02-chat | 使用者 | 對話 / citation chip / artifact 展開 / Project scope |
+| 03-knowledge-base | 使用者 | 建 KB / 上傳 / 切片 / 命中測試 |
+| 04-create-app | 建立者 | 模板 / 空白 / Workflow / 存模板 / 分享 / API |
+| 05-projects | 進階 | Project 概念 / 加資源 / 切換 / 管理 |
+| 06-web-sync | 進階 | 3 種模式（單 URL / 多 URL / sitemap）+ upsert |
+| 07-embed-widget | 整合 | snippet + 全部選項 + API + 安全 + demo |
+| 08-admin | admin | users / models / usage quota / 進階模組 / 監控 |
+| 99-faq | 全 | 13 個常見問題 |
+
+### Configuration
+
+```env
+# .env.production 加（OIDC 啟用範例）
+OIDC_ENABLED=true
+OIDC_DISPLAY_NAME=Google
+OIDC_ISSUER=https://accounts.google.com
+OIDC_CLIENT_ID=...apps.googleusercontent.com
+OIDC_CLIENT_SECRET=GOCSPX-...
+OIDC_REDIRECT_URI=https://staffkm.example.com/api/v1/auth/oidc/callback
+OIDC_SCOPES=openid email profile
+OIDC_DEFAULT_ROLE=user
+```
+
+### PR refs
+#171 (all 3 in one PR)
+
+---
+
 ## [2.3.0] — 2026-05-17
 
 > **Demo polish** milestone — onboarding wizard + citation chip UI。
