@@ -99,6 +99,11 @@
         <table class="w-full text-sm">
           <thead class="bg-neutral-50 border-b border-neutral-100">
             <tr class="text-left text-[11px] text-neutral-500 uppercase tracking-wider">
+              <th class="px-3 py-3 font-semibold w-10">
+                <input type="checkbox" class="w-3.5 h-3.5 accent-brand-600 cursor-pointer"
+                       :checked="allSelected" :indeterminate.prop="someSelected"
+                       @change="toggleAll" :aria-label="'全選 / 取消全選'" />
+              </th>
               <th class="px-5 py-3 font-semibold">文件</th>
               <th class="px-5 py-3 font-semibold w-32">狀態</th>
               <th class="px-5 py-3 font-semibold w-48">處理進度</th>
@@ -111,8 +116,15 @@
             <tr
               v-for="doc in docs"
               :key="doc.id"
-              class="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/50 transition-colors"
+              :class="['border-b border-neutral-50 last:border-0 transition-colors',
+                       batch.isSelected(doc.id) ? 'bg-brand-50/40' : 'hover:bg-neutral-50/50']"
             >
+              <td class="px-3 py-3">
+                <input type="checkbox" class="w-3.5 h-3.5 accent-brand-600 cursor-pointer"
+                       :checked="batch.isSelected(doc.id)"
+                       @change="batch.toggle(doc.id)"
+                       :aria-label="`選擇 ${doc.name}`" />
+              </td>
               <td class="px-5 py-3">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -218,6 +230,25 @@
         </div>
       </transition>
     </div>
+
+    <!-- v2.1 11-2：批量操作 toolbar -->
+    <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
+      <button @click="onBatchToggle(true)"
+              class="px-3 h-8 text-xs text-white/90 hover:text-white hover:bg-white/10 rounded-md transition"
+              :disabled="busyBatch">啟用</button>
+      <button @click="onBatchToggle(false)"
+              class="px-3 h-8 text-xs text-white/90 hover:text-white hover:bg-white/10 rounded-md transition"
+              :disabled="busyBatch">停用</button>
+      <button @click="onBatchExportExcel"
+              class="px-3 h-8 text-xs text-white/90 hover:text-white hover:bg-white/10 rounded-md transition"
+              :disabled="busyBatch">匯出 Excel</button>
+      <button @click="onBatchExportZip"
+              class="px-3 h-8 text-xs text-white/90 hover:text-white hover:bg-white/10 rounded-md transition"
+              :disabled="busyBatch">匯出 ZIP</button>
+      <button @click="onBatchDelete"
+              class="px-3 h-8 text-xs text-danger-300 hover:text-danger-200 hover:bg-danger-500/20 rounded-md transition"
+              :disabled="busyBatch">刪除</button>
+    </BatchSelectToolbar>
   </div>
 </template>
 
@@ -225,6 +256,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { knowledgeApi } from '../../api/knowledge'
+import { useBatchSelect } from '../../composables/useBatchSelect'
+import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import {
   IconArrowLeft, IconCheck, IconDelete, IconDocument, IconFolder,
   IconImage, IconRefresh, IconSpinner, IconSpreadsheet, IconUpload, IconWarning,
@@ -341,6 +374,76 @@ function _saveBlob(blob: Blob, filename: string) {
   a.href = url; a.download = filename
   document.body.appendChild(a); a.click()
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 100)
+}
+
+// ── v2.1 11-2：批量選擇 ───────────────────────────────────────────
+const batch = useBatchSelect()
+const busyBatch = ref(false)
+
+const allDocIds = computed(() => docs.value.map((d: any) => d.id))
+const allSelected = computed(() =>
+  docs.value.length > 0 && docs.value.every((d: any) => batch.isSelected(d.id))
+)
+const someSelected = computed(() => batch.count.value > 0 && !allSelected.value)
+
+function toggleAll() {
+  if (allSelected.value) batch.clear()
+  else batch.selectAll(allDocIds.value)
+}
+
+async function onBatchToggle(enabled: boolean) {
+  if (!batch.hasSelection.value) return
+  busyBatch.value = true
+  try {
+    await knowledgeApi.batchToggleDocs(kbId.value, Array.from(batch.selected.value), enabled)
+    await loadDocs()
+    batch.clear()
+  } catch (e: any) {
+    alert((enabled ? '啟用' : '停用') + '失敗：' + (e?.response?.data?.detail || e?.message))
+  } finally {
+    busyBatch.value = false
+  }
+}
+
+async function onBatchDelete() {
+  if (!batch.hasSelection.value) return
+  if (!confirm(`確定刪除 ${batch.count.value} 個文件？此動作無法復原。`)) return
+  busyBatch.value = true
+  try {
+    await knowledgeApi.batchDeleteDocs(kbId.value, Array.from(batch.selected.value))
+    await loadDocs()
+    batch.clear()
+  } catch (e: any) {
+    alert('刪除失敗：' + (e?.response?.data?.detail || e?.message))
+  } finally {
+    busyBatch.value = false
+  }
+}
+
+async function onBatchExportExcel() {
+  busyBatch.value = true
+  try {
+    const ids = batch.hasSelection.value ? Array.from(batch.selected.value) : []
+    const blob = await knowledgeApi.exportExcel(kbId.value, ids)
+    _saveBlob(blob, `kb-${kbId.value}-selected.xlsx`)
+  } catch (e: any) {
+    alert('匯出失敗：' + (e?.response?.data?.detail || e?.message))
+  } finally {
+    busyBatch.value = false
+  }
+}
+
+async function onBatchExportZip() {
+  busyBatch.value = true
+  try {
+    const ids = batch.hasSelection.value ? Array.from(batch.selected.value) : []
+    const blob = await knowledgeApi.exportZip(kbId.value, ids)
+    _saveBlob(blob, `kb-${kbId.value}-selected.zip`)
+  } catch (e: any) {
+    alert('匯出失敗：' + (e?.response?.data?.detail || e?.message))
+  } finally {
+    busyBatch.value = false
+  }
 }
 
 // ─── UI helpers ────────────────────────────────────────────────
