@@ -1,0 +1,16 @@
+# ════════════════════════════════════════════════════════════════
+#  staffKM backup crontab
+#
+#  安裝（系統 crontab，建議用 root）：
+#    sudo crontab -e
+#  把以下內容貼進去：
+# ════════════════════════════════════════════════════════════════
+
+# PG dump（每日 02:00）
+0 2 * * * cd /opt/staffkm && ./tools/backup/backup-postgres.sh >> /var/log/staffkm-backup.log 2>&1
+
+# MinIO mirror（每日 02:15，跟 PG 錯開）
+15 2 * * * cd /opt/staffkm && ./tools/backup/backup-minio.sh >> /var/log/staffkm-backup.log 2>&1
+
+# 健康檢查（每小時看上次成功記號的時間 < 26h，否則報警；視自己 alert channel 替換）
+0 * * * * find /var/lib/staffkm/backups -name .last-backup-success -mmin +1560 -exec echo "ALERT: staffKM backup stale {}" \; >> /var/log/staffkm-backup.log 2>&1
