@@ -101,6 +101,23 @@
 .page-enter-from   { opacity: 0; transform: translateY(4px); }
 .page-leave-to     { opacity: 0; }
 
+/* Sprint 19.x：page-fade-wrap — DashboardLayout router-view 包裝層 fade-in
+   用 key toggle (a/b) 觸發 CSS animation，不需 Vue Transition 元件 → 無 race */
+.page-fade-wrap         { animation: page-fade-in 200ms var(--ease-out); }
+.page-fade-wrap.a       { animation-name: page-fade-in-a; }
+.page-fade-wrap.b       { animation-name: page-fade-in-b; }
+@keyframes page-fade-in-a {
+  from { opacity: 0.65; transform: translateY(2px); }
+  to   { opacity: 1;    transform: translateY(0); }
+}
+@keyframes page-fade-in-b {
+  from { opacity: 0.65; transform: translateY(2px); }
+  to   { opacity: 1;    transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-wrap, .page-fade-wrap.a, .page-fade-wrap.b { animation: none; }
+}
+
 /* modal scale-in（覆寫 Vue Transition 預設）*/
 .modal-enter-active { transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
 .modal-leave-active { transition: opacity 120ms var(--ease-in),  transform 120ms var(--ease-in); }

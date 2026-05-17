@@ -151,6 +151,119 @@ async def trigger_web_sync_batch(
     )
 
 
+class SitemapSyncReq(BaseModel):
+    """19.x：從 sitemap.xml 取得 URL 清單 → 排程多任務。"""
+    sitemap_url: str = Field(..., min_length=8, max_length=2048)
+    max_urls:    int = Field(default=20, ge=1, le=100)
+    url_filter:  str | None = None  # 子字串 filter，例：'/docs/'
+
+    @field_validator("sitemap_url")
+    @classmethod
+    def _check(cls, v: str) -> str:
+        if not _URL_RE.match(v):
+            raise ValueError("URL 必須以 http:// 或 https:// 開頭")
+        return v.strip()
+
+
+@router.post("/{kb_id}/web-sync/sitemap", response_model=ApiResponse)
+async def trigger_sitemap_sync(
+    kb_id: uuid.UUID,
+    body: SitemapSyncReq,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """19.x：抓 sitemap.xml → 解析 URL → 排程 N 個 sync task。
+
+    支援 sitemap index (recursive 一層)。最多 max_urls（防爆）。
+    可選 url_filter 子字串過濾。
+    """
+    import httpx
+    import re as _re
+
+    q = WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    kb = (await session.execute(q)).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+
+    # 1. 抓 sitemap
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            follow_redirects=True,
+            headers={"User-Agent": "staffKM-WebSync/1.0"},
+        ) as client:
+            resp = await client.get(body.sitemap_url)
+            resp.raise_for_status()
+            xml_text = resp.text
+
+            # 解析 <loc>URL</loc> — 簡易 regex 夠用
+            urls: list[str] = _re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml_text)
+
+            # 如果是 sitemap-index，第一層 loc 是 sub-sitemap → recursive 抓一次
+            if urls and urls[0].endswith(".xml"):
+                expanded: list[str] = []
+                for sub in urls[:5]:  # 最多 5 個 sub-sitemap，防爆
+                    try:
+                        r2 = await client.get(sub)
+                        r2.raise_for_status()
+                        expanded.extend(_re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", r2.text))
+                    except Exception:
+                        continue
+                urls = expanded
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"抓 sitemap 失敗：{e}") from e
+
+    # 2. filter + 去重 + 截斷
+    seen: set[str] = set()
+    filtered: list[str] = []
+    for u in urls:
+        u = u.strip()
+        if not u or not _URL_RE.match(u): continue
+        if body.url_filter and body.url_filter not in u: continue
+        if u in seen: continue
+        seen.add(u); filtered.append(u)
+        if len(filtered) >= body.max_urls: break
+
+    if not filtered:
+        raise HTTPException(status_code=400, detail="sitemap 解析後無可用 URL（檢查 filter）")
+
+    # 3. 標 KB 為 web 型
+    await session.execute(
+        text(
+            "UPDATE knowledge_bases SET "
+            "  source_type = 'web', source_url = :u, "
+            "  sync_status = 'pending', sync_error = NULL, updated_at = now() "
+            "WHERE id = :id AND workspace_id = :ws"
+        ),
+        {"u": body.sitemap_url, "id": str(kb_id), "ws": str(ctx.workspace_id)},
+    )
+    await session.commit()
+
+    # 4. 排程
+    from app.tasks.web_sync import sync_web_kb
+    task_ids: list[str] = []
+    for i, u in enumerate(filtered):
+        try:
+            task = sync_web_kb.apply_async(
+                args=[str(kb_id), u, str(ctx.workspace_id)],
+                countdown=1 + i,
+            )
+            task_ids.append(task.id)
+        except Exception:
+            pass
+
+    return ApiResponse(
+        message=f"sitemap 找到 {len(filtered)} 個 URL，已排程同步",
+        data={
+            "kb_id":     str(kb_id),
+            "sitemap":   body.sitemap_url,
+            "url_count": len(filtered),
+            "task_ids":  task_ids,
+            "sample":    filtered[:5],
+        },
+    )
+
+
 @router.get("/{kb_id}/sync-info", response_model=ApiResponse)
 async def get_sync_info(
     kb_id: uuid.UUID,

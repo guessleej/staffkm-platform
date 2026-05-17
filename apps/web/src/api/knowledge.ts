@@ -203,6 +203,12 @@ export const knowledgeApi = {
     const { data } = await http.post(`/knowledge/bases/${kbId}/web-sync/batch`, { urls })
     return data.data || { url_count: 0, task_ids: [] }
   },
+  // — Sprint 19.x：從 sitemap.xml 抓 URL 清單 + 批次同步
+  async syncFromSitemap(kbId: string, body: { sitemap_url: string; max_urls?: number; url_filter?: string }):
+    Promise<{ url_count: number; task_ids: string[]; sample: string[] }> {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/web-sync/sitemap`, body)
+    return data.data || { url_count: 0, task_ids: [], sample: [] }
+  },
   async getKbSyncInfo(kbId: string): Promise<{
     source_type: 'manual' | 'workflow' | 'web';
     source_url: string | null;

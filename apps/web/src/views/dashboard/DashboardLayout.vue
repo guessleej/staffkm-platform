@@ -150,20 +150,24 @@
     <!-- ════════════════════════════════════════
          主內容
     ════════════════════════════════════════ -->
-    <main class="flex-1 overflow-y-auto bg-surface-base">
+    <main ref="mainEl" class="flex-1 overflow-y-auto bg-surface-base">
       <!--
         刻意不用 transition mode="out-in"：連點不同 nav 會卡 leave/enter 競態。
         也不加 :key="$route.fullPath"：不同路由本來就用不同元件，
         強制 remount 反而讓連點時每次都重跑 load() + 暫時 unmount → 視覺空白。
+        Sprint 19.x：改用 watch $route.path 觸發 scroll-top + 一次性 fade-in，
+        無 transition mode 不會 race，純視覺反饋。
       -->
-      <router-view />
+      <div :class="['page-fade-wrap', pageFadeKey]">
+        <router-view />
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
 import HNavItem from '../../components/common/HNavItem.vue'
@@ -192,6 +196,17 @@ const menuRef = ref<HTMLElement | null>(null)
 onClickOutside(menuRef, () => { open.value = false })
 
 // nav active 偵測由各 NavIconLink 自己處理，這裡不再需要 advancedOpen state
+
+// Sprint 19.x：route 切換 scroll-top + 視覺 fade，無 mode='out-in' 不會 race
+const _route = useRoute()
+const mainEl = ref<HTMLElement | null>(null)
+const pageFadeKey = ref('a')
+watch(() => _route.path, () => {
+  // scroll-top
+  if (mainEl.value) mainEl.value.scrollTop = 0
+  // toggle key 重觸發 CSS animation
+  pageFadeKey.value = pageFadeKey.value === 'a' ? 'b' : 'a'
+})
 
 const initials = computed(() => {
   const name = auth.user?.display_name || auth.user?.username || '?'
