@@ -14,6 +14,7 @@ from app.routers import health, knowledge, agent, auth, chat, integration, admin
 from app.routers._generic_proxy import (
     tools_router, skills_router, data_sources_router, folders_router,
     model_providers_router, media_providers_router,
+    usage_router, triggers_router, mcp_router, memories_router,
 )
 
 log = structlog.get_logger()
@@ -76,3 +77,8 @@ app.include_router(data_sources_router, prefix="/api/v1/data-sources", tags=["Da
 app.include_router(folders_router, prefix="/api/v1/folders", tags=["Entity Folders（D-5）"])
 app.include_router(model_providers_router, prefix="/api/v1/model-providers", tags=["Model Provider Registry（M3）"])
 app.include_router(media_providers_router, prefix="/api/v1/media-providers", tags=["Media Provider Registry（M4）"])
+# Sprint 19 orphan cleanup — 補上之前漏 mount 的四個模組
+app.include_router(usage_router,    prefix="/api/v1/usage",    tags=["Token 用量 + Quota"])
+app.include_router(triggers_router, prefix="/api/v1/triggers", tags=["Event Triggers"])
+app.include_router(mcp_router,      prefix="/api/v1/mcp",      tags=["MCP Servers"])
+app.include_router(memories_router, prefix="/api/v1/memories", tags=["長期記憶"])

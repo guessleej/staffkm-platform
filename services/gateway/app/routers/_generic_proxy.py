@@ -33,3 +33,8 @@ data_sources_router = make_proxy_router("data-sources")
 folders_router      = make_proxy_router("folders")
 model_providers_router = make_proxy_router("model-providers")
 media_providers_router = make_proxy_router("media-providers")
+# Sprint 19 orphan endpoint cleanup
+usage_router        = make_proxy_router("usage")
+triggers_router     = make_proxy_router("triggers")
+mcp_router          = make_proxy_router("mcp")
+memories_router     = make_proxy_router("memories")

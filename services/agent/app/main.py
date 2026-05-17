@@ -100,7 +100,7 @@ app.include_router(datasource_test.router, prefix=f"{_PREFIX}/data-sources", tag
 app.include_router(entity_folders.router,  prefix=f"{_PREFIX}/folders",      tags=["Entity Folders（D-5）"])
 app.include_router(app_versions.router,      prefix=f"{_PREFIX}/applications", tags=["Application 版本控制（D-7）"])
 app.include_router(workflow_versions.router, prefix=f"{_PREFIX}/applications", tags=["Workflow 版本控制（M2）"])
-app.include_router(usage.router,             prefix=f"{_PREFIX}",              tags=["Token 用量 + Quota（M3）"])
+app.include_router(usage.router,             prefix=f"{_PREFIX}/usage",        tags=["Token 用量 + Quota（M3）"])
 app.include_router(memories.router,          prefix=f"{_PREFIX}/memories",     tags=["Long-term Memory（M4）"])
 app.include_router(triggers.router,          prefix=f"{_PREFIX}/triggers",     tags=["Event Triggers（M4）"])
 app.include_router(mcp_servers.router,       prefix=f"{_PREFIX}/mcp",          tags=["MCP Hub（M4）"])
