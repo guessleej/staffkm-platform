@@ -1,8 +1,8 @@
 <template>
   <div class="flex h-full overflow-hidden">
     <!-- 左側：對話列表 -->
-    <div class="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-      <div class="p-3 border-b border-gray-100">
+    <div class="w-64 bg-surface-raised border-r border-neutral-200 flex flex-col flex-shrink-0">
+      <div class="p-3 border-b border-neutral-100">
         <button @click="newConversation" class="w-full flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -17,34 +17,34 @@
           :key="conv.id"
           @click="selectConv(conv)"
           class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition group"
-          :class="convStore.currentConversation?.id === conv.id ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'"
+          :class="convStore.currentConversation?.id === conv.id ? 'bg-indigo-50 text-indigo-700' : 'text-fg-secondary hover:bg-neutral-100'"
         >
           <div class="flex items-center justify-between">
             <span class="truncate flex-1">{{ conv.title || '未命名對話' }}</span>
             <span class="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-1">
               <button
                 @click.stop="exportConversation(conv.id, 'markdown')"
-                class="text-gray-300 hover:text-indigo-500 transition text-[10px] font-mono leading-none px-0.5"
+                class="text-fg-tertiary hover:text-indigo-500 transition text-[10px] font-mono leading-none px-0.5"
                 title="匯出 Markdown"
               >.md</button>
               <button
                 @click.stop="exportConversation(conv.id, 'json')"
-                class="text-gray-300 hover:text-indigo-500 transition text-[10px] font-mono leading-none px-0.5"
+                class="text-fg-tertiary hover:text-indigo-500 transition text-[10px] font-mono leading-none px-0.5"
                 title="匯出 JSON"
               >.json</button>
               <button
                 @click.stop="deleteConv(conv.id)"
-                class="text-gray-300 hover:text-rose-400 transition text-lg leading-none ml-0.5"
+                class="text-fg-tertiary hover:text-rose-400 transition text-lg leading-none ml-0.5"
               >×</button>
             </span>
           </div>
-          <p class="text-[11px] text-gray-400 mt-0.5">{{ conv.message_count }} 則訊息</p>
+          <p class="text-[11px] text-fg-tertiary mt-0.5">{{ conv.message_count }} 則訊息</p>
         </button>
       </div>
 
       <!-- 返回應用列表 -->
-      <div class="p-3 border-t border-gray-100">
-        <router-link to="/applications" class="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition">
+      <div class="p-3 border-t border-neutral-100">
+        <router-link to="/applications" class="flex items-center gap-2 text-xs text-fg-tertiary hover:text-fg-secondary transition">
           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
           </svg>
@@ -54,16 +54,16 @@
     </div>
 
     <!-- 右側：對話主區 -->
-    <div class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+    <div class="flex-1 flex flex-col overflow-hidden bg-surface-sunken">
       <!-- 頁首 -->
-      <div class="bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-3 flex-shrink-0">
+      <div class="bg-surface-raised border-b border-neutral-200 px-5 py-3 flex items-center gap-3 flex-shrink-0">
         <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
              :style="{ background: appGradient(appId) }">
           {{ application?.icon || appEmoji(application?.name || '') }}
         </div>
         <div>
-          <h2 class="text-sm font-semibold text-gray-900">{{ application?.name || '載入中…' }}</h2>
-          <p class="text-xs text-gray-400">{{ application?.description }}</p>
+          <h2 class="text-sm font-semibold text-fg">{{ application?.name || '載入中…' }}</h2>
+          <p class="text-xs text-fg-tertiary">{{ application?.description }}</p>
         </div>
       </div>
 
@@ -73,17 +73,17 @@
              :style="{ background: appGradient(appId) }">
           {{ application?.icon || appEmoji(application?.name || '') }}
         </div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ application?.welcome_message || '開始對話' }}</h3>
-        <p class="text-sm text-gray-500 mb-6 max-w-md">{{ application?.description }}</p>
+        <h3 class="text-lg font-semibold text-fg mb-2">{{ application?.welcome_message || '開始對話' }}</h3>
+        <p class="text-sm text-fg-tertiary mb-6 max-w-md">{{ application?.description }}</p>
 
         <!-- 建議問題 -->
         <div v-if="application?.suggested_questions?.length" class="flex flex-col gap-2 w-full max-w-md">
-          <p class="text-xs text-gray-400 mb-1">試試以下問題：</p>
+          <p class="text-xs text-fg-tertiary mb-1">試試以下問題：</p>
           <button
             v-for="q in application.suggested_questions"
             :key="q"
             @click="sendSuggestedQuestion(q)"
-            class="text-left px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
+            class="text-left px-4 py-3 bg-surface-raised rounded-xl border border-neutral-200 text-sm text-fg-secondary hover:border-indigo-300 hover:bg-indigo-50/50 transition-all"
           >
             {{ q }}
           </button>
@@ -109,8 +109,8 @@
               {{ application?.icon || 'AI' }}
             </div>
             <div>
-              <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                <p class="text-sm text-gray-800 whitespace-pre-wrap">{{ msg.content }}</p>
+              <div class="bg-surface-raised border border-neutral-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                <p class="text-sm text-fg whitespace-pre-wrap">{{ msg.content }}</p>
                 <div v-if="msg.streaming" class="flex gap-1 mt-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0ms"/>
                   <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:150ms"/>
@@ -141,14 +141,14 @@
       </div>
 
       <!-- 輸入框 -->
-      <div v-if="convStore.currentConversation" class="bg-white border-t border-gray-200 px-4 py-3 flex-shrink-0">
+      <div v-if="convStore.currentConversation" class="bg-surface-raised border-t border-neutral-200 px-4 py-3 flex-shrink-0">
         <div class="flex gap-3 items-end max-w-4xl mx-auto">
           <textarea
             v-model="input"
             @keydown.enter.exact.prevent="sendMessage"
             @keydown.enter.shift.exact="input += '\n'"
             rows="1"
-            class="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
+            class="flex-1 resize-none rounded-xl border border-neutral-200 px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
             :style="{ maxHeight: '120px', overflowY: 'auto' }"
             placeholder="輸入問題（Enter 送出，Shift+Enter 換行）"
             :disabled="convStore.streaming"
@@ -163,7 +163,7 @@
             </svg>
           </button>
         </div>
-        <p class="text-center text-[11px] text-gray-300 mt-2">AI 可能產生錯誤，重要資訊請查閱官方文件</p>
+        <p class="text-center text-[11px] text-fg-tertiary mt-2">AI 可能產生錯誤，重要資訊請查閱官方文件</p>
       </div>
     </div>
   </div>

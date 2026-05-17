@@ -9,10 +9,10 @@
     />
     <div class="flex-1 flex flex-col overflow-hidden">
     <!-- 頁首 -->
-    <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
       <div>
-        <h1 class="text-lg font-semibold text-gray-900">{{ $t('app.title') }}</h1>
-        <p class="text-sm text-gray-500 mt-0.5">建立並管理各部門的 AI 問答應用</p>
+        <h1 class="text-lg font-semibold text-fg">{{ $t('app.title') }}</h1>
+        <p class="text-sm text-fg-tertiary mt-0.5">建立並管理各部門的 AI 問答應用</p>
       </div>
       <button v-if="auth.hasRole(['admin'])" @click="openCreateDialog" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -37,8 +37,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
           </svg>
         </div>
-        <p class="text-gray-600 font-medium">尚無任何應用</p>
-        <p class="text-gray-400 text-sm mt-1">點擊右上角新增您的第一個 AI 應用</p>
+        <p class="text-fg-secondary font-medium">尚無任何應用</p>
+        <p class="text-fg-tertiary text-sm mt-1">點擊右上角新增您的第一個 AI 應用</p>
       </div>
 
       <template v-else>
@@ -74,7 +74,7 @@
             class="absolute top-3 right-3 w-5 h-5 flex items-center justify-center rounded border transition opacity-0 group-hover:opacity-100"
             :class="batch.isSelected(app.id)
               ? 'bg-indigo-600 border-indigo-600 text-white opacity-100'
-              : 'bg-white border-gray-300 hover:border-indigo-400 text-transparent'"
+              : 'bg-surface-raised border-neutral-300 hover:border-indigo-400 text-transparent'"
             @click.stop="batch.toggle(app.id)"
             :title="batch.isSelected(app.id) ? '取消選取' : '選取此項'"
           >
@@ -90,8 +90,8 @@
           </div>
 
           <!-- 名稱與描述 -->
-          <h3 class="font-semibold text-gray-900 text-sm group-hover:text-indigo-600 transition-colors">{{ app.name }}</h3>
-          <p class="text-xs text-gray-400 mt-1 line-clamp-2 min-h-[2rem]">{{ app.description || '暫無描述' }}</p>
+          <h3 class="font-semibold text-fg text-sm group-hover:text-indigo-600 transition-colors">{{ app.name }}</h3>
+          <p class="text-xs text-fg-tertiary mt-1 line-clamp-2 min-h-[2rem]">{{ app.description || '暫無描述' }}</p>
 
           <!-- 標籤 -->
           <div class="flex items-center gap-2 mt-4">
@@ -105,21 +105,21 @@
           </div>
 
           <!-- 管理員操作 -->
-          <div v-if="auth.hasRole(['admin'])" class="flex gap-2 mt-4 pt-4 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
+          <div v-if="auth.hasRole(['admin'])" class="flex gap-2 mt-4 pt-4 border-t border-neutral-100 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
             <button v-if="app.type === 'workflow'" @click.stop="router.push(`/applications/${app.id}/workflow`)"
                     class="flex-1 text-center text-xs text-purple-500 hover:text-purple-700 py-1 rounded-lg hover:bg-purple-50 transition font-medium">
               編輯流程
             </button>
-            <button @click.stop="openEditDialog(app)" class="flex-1 text-center text-xs text-gray-500 hover:text-indigo-600 py-1 rounded-lg hover:bg-indigo-50 transition">
+            <button @click.stop="openEditDialog(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-indigo-600 py-1 rounded-lg hover:bg-indigo-50 transition">
               編輯
             </button>
-            <button @click.stop="openShareDialog(app)" class="flex-1 text-center text-xs text-gray-500 hover:text-teal-600 py-1 rounded-lg hover:bg-teal-50 transition" title="分享連結">
+            <button @click.stop="openShareDialog(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-teal-600 py-1 rounded-lg hover:bg-teal-50 transition" title="分享連結">
               分享
             </button>
-            <button @click.stop="openApiKeyDialog(app)" class="flex-1 text-center text-xs text-gray-500 hover:text-amber-600 py-1 rounded-lg hover:bg-amber-50 transition" title="API Keys">
+            <button @click.stop="openApiKeyDialog(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-amber-600 py-1 rounded-lg hover:bg-amber-50 transition" title="API Keys">
               API Key
             </button>
-            <button @click.stop="deleteApp(app.id)" class="flex-1 text-center text-xs text-gray-500 hover:text-rose-600 py-1 rounded-lg hover:bg-rose-50 transition">
+            <button @click.stop="deleteApp(app.id)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-rose-600 py-1 rounded-lg hover:bg-rose-50 transition">
               刪除
             </button>
           </div>
@@ -130,10 +130,10 @@
 
     <!-- 分享連結 Dialog -->
     <div v-if="showShareDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 class="text-base font-semibold text-gray-900">分享連結</h3>
-          <button @click="showShareDialog = false" class="text-gray-400 hover:text-gray-600 transition">
+      <div class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="px-6 pt-6 pb-4 border-b border-neutral-100 flex items-center justify-between">
+          <h3 class="text-base font-semibold text-fg">分享連結</h3>
+          <button @click="showShareDialog = false" class="text-fg-tertiary hover:text-fg-secondary transition">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -147,12 +147,12 @@
           </div>
           <!-- 公開連結 -->
           <div v-else>
-            <p class="text-sm text-gray-600 mb-3">任何人皆可透過此連結使用此應用程式，無需登入。</p>
+            <p class="text-sm text-fg-secondary mb-3">任何人皆可透過此連結使用此應用程式，無需登入。</p>
             <div class="flex items-center gap-2">
               <input
                 :value="shareUrl"
                 readonly
-                class="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-700 select-all focus:outline-none"
+                class="flex-1 px-3 py-2 text-sm rounded-lg border border-neutral-200 bg-surface-sunken text-fg-secondary select-all focus:outline-none"
                 @click="($event.target as HTMLInputElement).select()"
               />
               <button
@@ -175,18 +175,18 @@
           </div>
         </div>
         <div class="px-6 pb-6 pt-2 flex justify-end">
-          <button @click="showShareDialog = false" class="px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">關閉</button>
+          <button @click="showShareDialog = false" class="px-4 py-2 border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:bg-surface-sunken transition">關閉</button>
         </div>
       </div>
     </div>
 
     <!-- API Key 管理 Dialog -->
     <div v-if="showApiKeyDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <!-- 標題 -->
-        <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
-          <h3 class="text-base font-semibold text-gray-900">{{ apiKeyTargetApp?.name }} — API Keys</h3>
-          <button @click="closeApiKeyDialog" class="text-gray-400 hover:text-gray-600 transition">
+        <div class="px-6 pt-6 pb-4 border-b border-neutral-100 flex-shrink-0 flex items-center justify-between">
+          <h3 class="text-base font-semibold text-fg">{{ apiKeyTargetApp?.name }} — API Keys</h3>
+          <button @click="closeApiKeyDialog" class="text-fg-tertiary hover:text-fg-secondary transition">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -205,7 +205,7 @@
               </div>
             </div>
             <div class="flex items-center gap-2 mt-2">
-              <code class="flex-1 bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 break-all select-all">{{ newlyCreatedKey }}</code>
+              <code class="flex-1 bg-surface-raised border border-amber-200 rounded-lg px-3 py-2 text-sm font-mono text-fg break-all select-all">{{ newlyCreatedKey }}</code>
               <button @click="copyKey(newlyCreatedKey)" class="flex-shrink-0 px-3 py-2 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition">
                 {{ copied ? '已複製！' : '複製' }}
               </button>
@@ -214,49 +214,49 @@
 
           <!-- 現有 Keys 列表 -->
           <div>
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">現有 API Keys</h4>
+            <h4 class="text-sm font-semibold text-fg-secondary mb-3">現有 API Keys</h4>
             <div v-if="apiKeysLoading" class="flex justify-center py-6">
               <svg class="animate-spin w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
               </svg>
             </div>
-            <div v-else-if="apiKeys.length === 0" class="text-center py-6 text-gray-400 text-sm">
+            <div v-else-if="apiKeys.length === 0" class="text-center py-6 text-fg-tertiary text-sm">
               尚無 API Keys，請點擊下方「建立新 Key」
             </div>
-            <div v-else class="overflow-x-auto rounded-xl border border-gray-200">
+            <div v-else class="overflow-x-auto rounded-xl border border-neutral-200">
               <table class="min-w-full divide-y divide-gray-100">
-                <thead class="bg-gray-50">
+                <thead class="bg-surface-sunken">
                   <tr>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">名稱</th>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">前綴</th>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">狀態</th>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">建立時間</th>
-                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500">到期時間</th>
-                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-500">操作</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-fg-tertiary">名稱</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-fg-tertiary">前綴</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-fg-tertiary">狀態</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-fg-tertiary">建立時間</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold text-fg-tertiary">到期時間</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold text-fg-tertiary">操作</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 bg-white">
+                <tbody class="divide-y divide-gray-100 bg-surface-raised">
                   <tr v-for="key in apiKeys" :key="key.id">
-                    <td class="px-4 py-2.5 text-sm text-gray-800">{{ key.name }}</td>
+                    <td class="px-4 py-2.5 text-sm text-fg">{{ key.name }}</td>
                     <td class="px-4 py-2.5">
-                      <code class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-600">{{ key.key_prefix }}…</code>
+                      <code class="text-xs font-mono bg-neutral-100 px-2 py-0.5 rounded text-fg-secondary">{{ key.key_prefix }}…</code>
                     </td>
                     <td class="px-4 py-2.5">
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                            :class="key.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'">
+                            :class="key.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-100 text-fg-tertiary'">
                         {{ key.is_active ? '啟用' : '停用' }}
                       </span>
                     </td>
-                    <td class="px-4 py-2.5 text-xs text-gray-500">{{ formatDate(key.created_at) }}</td>
-                    <td class="px-4 py-2.5 text-xs text-gray-500">{{ key.expires_at ? formatDate(key.expires_at) : '永不到期' }}</td>
+                    <td class="px-4 py-2.5 text-xs text-fg-tertiary">{{ formatDate(key.created_at) }}</td>
+                    <td class="px-4 py-2.5 text-xs text-fg-tertiary">{{ key.expires_at ? formatDate(key.expires_at) : '永不到期' }}</td>
                     <td class="px-4 py-2.5 text-right">
                       <div class="flex justify-end gap-1">
                         <button @click="toggleKey(key)" class="text-xs px-2 py-1 rounded-lg transition"
-                                :class="key.is_active ? 'text-gray-500 hover:text-amber-600 hover:bg-amber-50' : 'text-gray-500 hover:text-emerald-600 hover:bg-emerald-50'">
+                                :class="key.is_active ? 'text-fg-tertiary hover:text-amber-600 hover:bg-amber-50' : 'text-fg-tertiary hover:text-emerald-600 hover:bg-emerald-50'">
                           {{ key.is_active ? '停用' : '啟用' }}
                         </button>
-                        <button @click="removeKey(key.id)" class="text-xs px-2 py-1 rounded-lg text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition">
+                        <button @click="removeKey(key.id)" class="text-xs px-2 py-1 rounded-lg text-fg-tertiary hover:text-rose-600 hover:bg-rose-50 transition">
                           刪除
                         </button>
                       </div>
@@ -268,8 +268,8 @@
           </div>
 
           <!-- 建立新 Key 表單 -->
-          <div class="border border-gray-200 rounded-xl p-4 space-y-3">
-            <h4 class="text-sm font-semibold text-gray-700">+ 建立新 Key</h4>
+          <div class="border border-neutral-200 rounded-xl p-4 space-y-3">
+            <h4 class="text-sm font-semibold text-fg-secondary">+ 建立新 Key</h4>
             <div class="grid grid-cols-2 gap-3">
               <div class="col-span-2 sm:col-span-1">
                 <label class="form-label">Key 名稱 <span class="text-rose-500">*</span></label>
@@ -289,17 +289,17 @@
           </div>
         </div>
 
-        <div class="px-6 pb-6 pt-4 border-t border-gray-100 flex justify-end flex-shrink-0">
-          <button @click="closeApiKeyDialog" class="px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">關閉</button>
+        <div class="px-6 pb-6 pt-4 border-t border-neutral-100 flex justify-end flex-shrink-0">
+          <button @click="closeApiKeyDialog" class="px-4 py-2 border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:bg-surface-sunken transition">關閉</button>
         </div>
       </div>
     </div>
 
     <!-- 建立/編輯應用 Dialog -->
     <div v-if="showDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0">
-          <h3 class="text-base font-semibold text-gray-900">{{ editingApp ? '編輯應用' : '新增 AI 應用' }}</h3>
+      <div class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="px-6 pt-6 pb-4 border-b border-neutral-100 flex-shrink-0">
+          <h3 class="text-base font-semibold text-fg">{{ editingApp ? '編輯應用' : '新增 AI 應用' }}</h3>
         </div>
 
         <div class="flex-1 overflow-y-auto p-6 space-y-5">
@@ -334,7 +334,7 @@
 
           <div>
             <label class="form-label">關聯知識庫</label>
-            <div v-if="knowledgeBases.length === 0" class="text-xs text-gray-400">
+            <div v-if="knowledgeBases.length === 0" class="text-xs text-fg-tertiary">
               尚無知識庫，請先在「知識庫管理」頁面建立
             </div>
             <div v-else class="flex flex-wrap gap-2 mt-1">
@@ -344,7 +344,7 @@
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm transition-all"
                 :class="form.knowledge_base_ids.includes(kb.id)
                   ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'"
+                  : 'border-neutral-200 hover:border-neutral-300 text-fg-secondary'"
               >
                 <input type="checkbox" :value="kb.id" v-model="form.knowledge_base_ids" class="hidden"/>
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -358,7 +358,7 @@
           <!-- Reranker 設定 -->
           <div>
             <label class="form-label">Reranker 模型（選填）</label>
-            <div v-if="rerankerModels.length === 0" class="text-xs text-gray-400 py-1">
+            <div v-if="rerankerModels.length === 0" class="text-xs text-fg-tertiary py-1">
               尚無 Reranker 模型，請至<span class="text-indigo-500 mx-1">模型供應商</span>設定
             </div>
             <select v-else v-model="form.config.reranker_model_id" class="form-input">
@@ -371,12 +371,12 @@
 
           <div class="flex items-center gap-2">
             <input id="is_public" v-model="form.is_public" type="checkbox" class="w-4 h-4 accent-indigo-600"/>
-            <label for="is_public" class="text-sm text-gray-700">公開應用（所有使用者可看到）</label>
+            <label for="is_public" class="text-sm text-fg-secondary">公開應用（所有使用者可看到）</label>
           </div>
         </div>
 
-        <div class="px-6 pb-6 pt-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
-          <button @click="showDialog = false" class="px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">取消</button>
+        <div class="px-6 pb-6 pt-4 border-t border-neutral-100 flex justify-end gap-3 flex-shrink-0">
+          <button @click="showDialog = false" class="px-4 py-2 border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:bg-surface-sunken transition">取消</button>
           <button @click="saveApp" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition disabled:opacity-50" :disabled="saving || !form.name">
             {{ saving ? '儲存中…' : (editingApp ? '儲存變更' : '建立應用') }}
           </button>
@@ -679,6 +679,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-.form-label { @apply block text-xs font-semibold text-gray-600 mb-1; }
-.form-input { @apply w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition; }
+.form-label { @apply block text-xs font-semibold text-fg-secondary mb-1; }
+.form-input { @apply w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition; }
 </style>

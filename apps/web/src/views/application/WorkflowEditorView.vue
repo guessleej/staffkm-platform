@@ -2,46 +2,46 @@
   <div class="flex flex-col h-full overflow-hidden" style="background:#f0f2f5;">
 
     <!-- ── 頂部工具列 ──────────────────────────────────────────────────────── -->
-    <div class="h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between flex-shrink-0 shadow-sm">
+    <div class="h-12 bg-surface-raised border-b border-neutral-200 px-4 flex items-center justify-between flex-shrink-0 shadow-sm">
       <div class="flex items-center gap-3">
         <button @click="router.push('/applications')"
-                class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+                class="p-1.5 rounded-lg text-fg-tertiary hover:text-fg-secondary hover:bg-neutral-100 transition">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
           </svg>
         </button>
         <div>
-          <span class="text-sm font-semibold text-gray-900">工作流程編輯器</span>
-          <span class="ml-2 text-xs text-gray-400 font-mono">{{ appId }}</span>
+          <span class="text-sm font-semibold text-fg">工作流程編輯器</span>
+          <span class="ml-2 text-xs text-fg-tertiary font-mono">{{ appId }}</span>
         </div>
       </div>
 
       <div class="flex items-center gap-2">
         <!-- Undo / Redo (M2 收尾) -->
         <button @click="onUndo" :disabled="!canUndo"
-                class="px-2.5 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-40"
+                class="px-2.5 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-40"
                 title="復原（Cmd/Ctrl+Z）"
                 aria-label="復原（Cmd/Ctrl+Z）">↶</button>
         <button @click="onRedo" :disabled="!canRedo"
-                class="px-2.5 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-40"
+                class="px-2.5 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition disabled:opacity-40"
                 title="重做（Cmd/Ctrl+Shift+Z）"
                 aria-label="重做（Cmd/Ctrl+Shift+Z）">↷</button>
-        <span class="text-[11px] text-gray-400 px-1 tabular-nums" :title="`縮放 ${zoomPct}%`">{{ zoomPct }}%</span>
+        <span class="text-[11px] text-fg-tertiary px-1 tabular-nums" :title="`縮放 ${zoomPct}%`">{{ zoomPct }}%</span>
         <span class="w-px h-5 bg-gray-200 mx-1"></span>
         <!-- 自動排版 -->
         <button @click="autoLayout"
-                class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">
+                class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">
           自動排版
         </button>
         <!-- 歷史版本 (D-7) -->
         <button @click="openHistory"
-                class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
+                class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
                 :class="showHistory ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : ''">
           歷史版本
         </button>
         <!-- 測試 -->
         <button @click="showTest = !showTest"
-                class="px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
+                class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
                 :class="showTest ? 'border-indigo-400 text-indigo-600 bg-indigo-50' : ''">
           ▶ 測試
         </button>
@@ -57,25 +57,25 @@
     <div class="flex-1 flex overflow-hidden">
 
       <!-- 左欄：節點 Palette ─────────────────────────────────────────────── -->
-      <div class="w-48 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden shadow-sm">
-        <div class="px-3 py-2.5 border-b border-gray-100">
-          <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">節點類型</span>
+      <div class="w-48 flex-shrink-0 bg-surface-raised border-r border-neutral-200 flex flex-col overflow-hidden shadow-sm">
+        <div class="px-3 py-2.5 border-b border-neutral-100">
+          <span class="text-[11px] font-bold text-fg-tertiary uppercase tracking-wider">節點類型</span>
         </div>
         <div class="flex-1 overflow-y-auto py-2">
           <template v-for="group in PALETTE_GROUPS" :key="group.label">
             <div class="px-3 pt-3 pb-1">
-              <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{{ group.label }}</span>
+              <span class="text-[10px] font-semibold text-fg-tertiary uppercase tracking-wider">{{ group.label }}</span>
             </div>
             <div v-for="nodeType in group.items" :key="nodeType"
                  class="mx-2 mb-0.5 flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-grab select-none transition
-                        text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95"
+                        text-fg-secondary hover:bg-indigo-50 hover:text-indigo-700 active:scale-95"
                  @mousedown="paletteDragStart($event, nodeType)">
               <span class="text-sm flex-shrink-0">{{ NODE_META[nodeType].icon }}</span>
               <span class="font-medium truncate">{{ NODE_META[nodeType].label }}</span>
             </div>
           </template>
         </div>
-        <div class="px-3 py-2.5 border-t border-gray-100 text-[10px] text-gray-400 text-center">
+        <div class="px-3 py-2.5 border-t border-neutral-100 text-[10px] text-fg-tertiary text-center">
           拖曳節點到畫布
         </div>
       </div>
@@ -88,7 +88,7 @@
         <div v-if="nodeCount === 0"
              class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <div class="text-xs uppercase tracking-widest text-neutral-400 mb-2 opacity-60">空白畫布</div>
-          <p class="text-sm text-gray-400 opacity-60">從左側拖曳節點到畫布開始建立工作流程</p>
+          <p class="text-sm text-fg-tertiary opacity-60">從左側拖曳節點到畫布開始建立工作流程</p>
         </div>
 
         <!-- 縮放提示（右下） -->
@@ -109,7 +109,7 @@
         leave-to-class="opacity-0 translate-x-4"
       >
         <div v-if="selectedNode"
-             class="w-80 flex-shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden shadow-sm">
+             class="w-80 flex-shrink-0 bg-surface-raised border-l border-neutral-200 flex flex-col overflow-hidden shadow-sm">
           <NodeConfigPanel
             :node="selectedNode"
             @close="deselectNode"
@@ -130,16 +130,16 @@
       leave-to-class="opacity-0 translate-y-4"
     >
       <div v-if="showTest"
-           class="h-72 flex-shrink-0 bg-white border-t border-gray-200 flex flex-col shadow-lg">
-        <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-          <span class="text-sm font-semibold text-gray-700">工作流程測試</span>
-          <button @click="showTest = false" class="text-gray-400 hover:text-gray-700">×</button>
+           class="h-72 flex-shrink-0 bg-surface-raised border-t border-neutral-200 flex flex-col shadow-lg">
+        <div class="px-5 py-3 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
+          <span class="text-sm font-semibold text-fg-secondary">工作流程測試</span>
+          <button @click="showTest = false" class="text-fg-tertiary hover:text-fg-secondary">×</button>
         </div>
         <div class="flex-1 flex overflow-hidden">
           <!-- 輸入 -->
-          <div class="w-72 flex-shrink-0 border-r border-gray-100 p-4 flex flex-col gap-3">
+          <div class="w-72 flex-shrink-0 border-r border-neutral-100 p-4 flex flex-col gap-3">
             <textarea v-model="testInput" rows="4"
-                      class="flex-1 resize-none text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      class="flex-1 resize-none text-sm border border-neutral-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                       placeholder="輸入測試問題…"/>
             <button @click="runTest" :disabled="testRunning"
                     class="py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition disabled:opacity-50">
@@ -148,11 +148,11 @@
           </div>
           <!-- 輸出 -->
           <div class="flex-1 overflow-y-auto p-4">
-            <div v-if="testEvents.length === 0" class="text-sm text-gray-400">等待執行…</div>
+            <div v-if="testEvents.length === 0" class="text-sm text-fg-tertiary">等待執行…</div>
             <div v-for="(ev, i) in testEvents" :key="i" class="mb-2">
               <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold mr-2"
                     :class="evChipClass(ev.event)">{{ ev.event }}</span>
-              <span class="text-sm text-gray-800 whitespace-pre-wrap">{{ ev.data }}</span>
+              <span class="text-sm text-fg whitespace-pre-wrap">{{ ev.data }}</span>
             </div>
           </div>
         </div>
@@ -179,13 +179,13 @@
             leave-to-class="translate-x-full"
             appear
           >
-            <aside class="absolute right-0 top-0 bottom-0 w-96 bg-white shadow-2xl flex flex-col">
+            <aside class="absolute right-0 top-0 bottom-0 w-96 bg-surface-raised shadow-2xl flex flex-col">
               <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 class="text-sm font-semibold text-gray-900">歷史版本</h3>
-                  <p class="text-[11px] text-gray-500 mt-0.5">每次儲存後可手動建立快照</p>
+                  <h3 class="text-sm font-semibold text-fg">歷史版本</h3>
+                  <p class="text-[11px] text-fg-tertiary mt-0.5">每次儲存後可手動建立快照</p>
                 </div>
-                <button @click="showHistory = false" class="text-gray-400 hover:text-gray-700">
+                <button @click="showHistory = false" class="text-fg-tertiary hover:text-fg-secondary">
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
               </div>
@@ -208,14 +208,14 @@
                   <li v-for="v in versions" :key="v.id"
                       class="p-3 rounded-lg border border-neutral-100 hover:border-indigo-200 hover:bg-indigo-50/40 transition">
                     <div class="flex items-center justify-between">
-                      <span class="text-xs font-semibold text-gray-800">v{{ v.version_number }}</span>
+                      <span class="text-xs font-semibold text-fg">v{{ v.version_number }}</span>
                       <button @click="onRestore(v.version_number)" :disabled="restoreBusy === v.version_number"
                               class="text-[11px] text-indigo-600 hover:text-indigo-800 disabled:opacity-40">
                         {{ restoreBusy === v.version_number ? '回滾中…' : '回滾此版本' }}
                       </button>
                     </div>
-                    <p v-if="v.note" class="text-[11px] text-gray-600 mt-1 line-clamp-2">{{ v.note }}</p>
-                    <p class="text-[10px] text-gray-400 mt-1 font-mono">{{ formatTime(v.created_at) }}</p>
+                    <p v-if="v.note" class="text-[11px] text-fg-secondary mt-1 line-clamp-2">{{ v.note }}</p>
+                    <p class="text-[10px] text-fg-tertiary mt-1 font-mono">{{ formatTime(v.created_at) }}</p>
                   </li>
                 </ul>
               </div>
@@ -684,19 +684,19 @@ function evChipClass(event: string) {
   const map: Record<string, string> = {
     node_start: 'bg-blue-100 text-blue-700',
     node_end:   'bg-green-100 text-green-700',
-    token:      'bg-gray-100 text-gray-600',
+    token:      'bg-neutral-100 text-fg-secondary',
     citations:  'bg-amber-100 text-amber-700',
     error:      'bg-red-100 text-red-700',
     form_request:'bg-indigo-100 text-indigo-700',
   }
-  return map[event] ?? 'bg-gray-100 text-gray-500'
+  return map[event] ?? 'bg-neutral-100 text-fg-tertiary'
 }
 </script>
 
 <style scoped>
 .lf-ctrl-btn {
-  @apply w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg
-         text-gray-600 text-sm font-mono hover:border-indigo-400 hover:text-indigo-600
+  @apply w-8 h-8 flex items-center justify-center bg-surface-raised border border-neutral-200 rounded-lg
+         text-fg-secondary text-sm font-mono hover:border-indigo-400 hover:text-indigo-600
          shadow-sm transition cursor-pointer;
 }
 </style>

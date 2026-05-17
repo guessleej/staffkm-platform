@@ -115,7 +115,7 @@
     <!-- ══════════════════════════════════════════════
          右側：登入表單區
     ══════════════════════════════════════════════ -->
-    <div class="flex-1 relative flex flex-col bg-white">
+    <div class="flex-1 relative flex flex-col bg-surface-raised">
 
       <!-- 頂部 Logo 錨點 -->
       <div class="flex items-center gap-3 px-10 pt-8 pb-0">
@@ -163,7 +163,7 @@
                   'placeholder:text-slate-300 text-slate-800 bg-slate-50/80',
                   fieldError
                     ? 'border-rose-300 bg-rose-50/50 focus:ring-2 focus:ring-rose-200 focus:border-rose-400'
-                    : 'border-slate-200 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
+                    : 'border-slate-200 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
                 ]"
               />
             </div>
@@ -189,7 +189,7 @@
                   'placeholder:text-slate-300 text-slate-800 bg-slate-50/80',
                   fieldError
                     ? 'border-rose-300 bg-rose-50/50 focus:ring-2 focus:ring-rose-200 focus:border-rose-400'
-                    : 'border-slate-200 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
+                    : 'border-slate-200 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
                 ]"
               />
               <button
