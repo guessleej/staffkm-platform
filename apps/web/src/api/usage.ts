@@ -31,12 +31,12 @@ export const usageApi = {
     const r = await http.get('/usage/logs', { params: { page, page_size } })
     return r.data?.data
   },
-  async getQuota() {
-    const r = await http.get('/quota')
+  async getQuota(): Promise<{ monthly_token_cap: number | null; monthly_cost_cap_usd: number | null }> {
+    const r = await http.get('/usage/quota')
     return r.data?.data
   },
   async setQuota(body: { monthly_token_cap?: number | null; monthly_cost_cap_usd?: number | null }) {
-    const r = await http.put('/quota', body)
+    const r = await http.put('/usage/quota', body)
     return r.data?.data
   },
 }

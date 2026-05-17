@@ -28,6 +28,13 @@ _LEGACY_PREFIXES = (
     "/api/v1/skills",
     "/api/v1/data-sources",
     "/api/v1/folders",
+    # Sprint 19 orphan cleanup — 補上原本漏的 4 個模組
+    "/api/v1/usage",
+    "/api/v1/triggers",
+    "/api/v1/mcp",
+    "/api/v1/memories",
+    "/api/v1/model-providers",
+    "/api/v1/media-providers",
 )
 
 # 不重寫的例外 path（公開存取或 pre-auth endpoint）
