@@ -97,7 +97,7 @@ async def create_server(
             INSERT INTO mcp_servers (
                 id, workspace_id, name, description, transport, url, command, args, env, enabled, created_by
             ) VALUES (
-                :id, :ws, :name, :desc, :tr, :url, :cmd, :args::jsonb, :env::jsonb, :en, :by
+                :id, :ws, :name, :desc, :tr, :url, :cmd, CAST(:args AS jsonb), CAST(:env AS jsonb), :en, :by
             )
             """
         ),
@@ -207,7 +207,7 @@ async def refresh_tools(
                 INSERT INTO mcp_tools_cache (
                     id, server_id, workspace_id, name, description, input_schema
                 ) VALUES (
-                    :id, :sid, :ws, :n, :d, :schema::jsonb
+                    :id, :sid, :ws, :n, :d, CAST(:schema AS jsonb)
                 )
                 """
             ),
