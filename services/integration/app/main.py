@@ -1,6 +1,7 @@
 """Integration Service — LINE / Teams / ERP 整合服務"""
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
@@ -18,6 +19,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="StaffKM Integration Service", version="1.0.0", lifespan=lifespan)
+# Prometheus /metrics — v2.2
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(line_router, prefix="/api/v1/integrations", tags=["LINE Bot"])
 app.include_router(teams_router, prefix="/api/v1/integrations", tags=["Teams Bot"])
