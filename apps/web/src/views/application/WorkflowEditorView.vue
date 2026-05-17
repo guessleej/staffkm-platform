@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full overflow-hidden" style="background:#f0f2f5;">
+  <div class="flex flex-col h-full overflow-hidden bg-surface-sunken">
 
     <!-- ── 頂部工具列 ──────────────────────────────────────────────────────── -->
     <div class="h-12 bg-surface-raised border-b border-neutral-200 px-4 flex items-center justify-between flex-shrink-0 shadow-sm">
