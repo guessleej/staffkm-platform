@@ -16,6 +16,15 @@ export interface WorkflowEdge {
   condition?: any
 }
 
+export interface WorkflowVersion {
+  id:             string
+  application_id: string
+  version_number: number
+  note:           string | null
+  created_at:     string
+  created_by:     string | null
+}
+
 export const workflowApi = {
   get: (appId: string) =>
     http.get<{ data: { data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } } }>(
@@ -24,4 +33,17 @@ export const workflowApi = {
   save: (appId: string, data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) =>
     http.post(`/applications/${appId}/workflow`, data),
   chatUrl: (appId: string) => `/api/v1/applications/${appId}/workflow/chat`,
+  // Sprint 19 — Workflow Versions
+  async listVersions(appId: string): Promise<WorkflowVersion[]> {
+    const { data } = await http.get(`/applications/${appId}/workflow/versions`)
+    return data.data || []
+  },
+  async createVersion(appId: string, note?: string): Promise<WorkflowVersion> {
+    const { data } = await http.post(`/applications/${appId}/workflow/versions`, { note })
+    return data.data
+  },
+  async restoreVersion(appId: string, versionNumber: number): Promise<WorkflowVersion> {
+    const { data } = await http.post(`/applications/${appId}/workflow/versions/${versionNumber}/restore`)
+    return data.data
+  },
 }
