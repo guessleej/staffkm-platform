@@ -36,6 +36,54 @@
           <template #icon><IconAgent :size="16" /></template>
         </HNavItem>
 
+        <!-- 進階模組下拉（RFC-006 backlog：Skills / Tools / Data Sources）-->
+        <div ref="advancedRef" class="relative">
+          <button
+            @click="advancedOpen = !advancedOpen"
+            class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-colors"
+            :class="isAdvancedActive
+              ? 'bg-brand-50 text-brand-700'
+              : 'text-fg-secondary hover:bg-neutral-100 hover:text-fg'"
+          >
+            <span>{{ $t('nav.advanced') }}</span>
+            <SIcon name="chevron-down" :size="14" :class="advancedOpen ? 'rotate-180' : ''" class="transition-transform" />
+          </button>
+          <transition
+            enter-active-class="transition duration-150 ease-out"
+            enter-from-class="opacity-0 translate-y-1"
+            leave-active-class="transition duration-100 ease-in"
+            leave-to-class="opacity-0 translate-y-1"
+          >
+            <div
+              v-if="advancedOpen"
+              class="absolute top-full left-0 mt-1 w-56 bg-surface-raised border border-neutral-200 rounded-xl shadow-lg py-1.5 z-40"
+              @click="advancedOpen = false"
+            >
+              <router-link to="/skills" class="flex items-center gap-2.5 px-3 py-2 text-sm text-fg-secondary hover:bg-neutral-50 hover:text-fg transition">
+                <SIcon name="key" :size="14" class="text-fg-tertiary" />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium">{{ $t('nav.skills') }}</div>
+                  <div class="text-[11px] text-fg-tertiary">可重用 prompt 技能</div>
+                </div>
+              </router-link>
+              <router-link to="/tools" class="flex items-center gap-2.5 px-3 py-2 text-sm text-fg-secondary hover:bg-neutral-50 hover:text-fg transition">
+                <SIcon name="settings" :size="14" class="text-fg-tertiary" />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium">{{ $t('nav.tools') }}</div>
+                  <div class="text-[11px] text-fg-tertiary">工作流可用工具</div>
+                </div>
+              </router-link>
+              <router-link to="/data-sources" class="flex items-center gap-2.5 px-3 py-2 text-sm text-fg-secondary hover:bg-neutral-50 hover:text-fg transition">
+                <SIcon name="database" :size="14" class="text-fg-tertiary" />
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium">{{ $t('nav.dataSources') }}</div>
+                  <div class="text-[11px] text-fg-tertiary">外部資料連接器</div>
+                </div>
+              </router-link>
+            </div>
+          </transition>
+        </div>
+
         <template v-if="auth.hasRole(['admin'])">
           <span class="mx-2 w-px h-5 bg-neutral-200"></span>
           <HNavItem to="/admin/users" :label="$t('nav.users')">
@@ -150,7 +198,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
 import HNavItem from '../../components/common/HNavItem.vue'
@@ -175,6 +223,15 @@ const router = useRouter()
 const open = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 onClickOutside(menuRef, () => { open.value = false })
+
+// 進階模組下拉
+const advancedOpen = ref(false)
+const advancedRef = ref<HTMLElement | null>(null)
+onClickOutside(advancedRef, () => { advancedOpen.value = false })
+const route = useRoute()
+const isAdvancedActive = computed(() =>
+  ['/skills', '/tools', '/data-sources'].some(p => route.path.startsWith(p))
+)
 
 const initials = computed(() => {
   const name = auth.user?.display_name || auth.user?.username || '?'
