@@ -198,6 +198,11 @@ export const knowledgeApi = {
     const { data } = await http.post(`/knowledge/bases/${kbId}/web-sync`, { url })
     return data.data || {}
   },
+  // — Sprint 18-C：批次多 URL 同步（最多 20）
+  async syncFromWebBatch(kbId: string, urls: string[]): Promise<{ url_count: number; task_ids: string[] }> {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/web-sync/batch`, { urls })
+    return data.data || { url_count: 0, task_ids: [] }
+  },
   async getKbSyncInfo(kbId: string): Promise<{
     source_type: 'manual' | 'workflow' | 'web';
     source_url: string | null;

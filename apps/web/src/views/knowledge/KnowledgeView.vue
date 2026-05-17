@@ -126,6 +126,25 @@
               <p class="text-xs text-neutral-500 line-clamp-2 min-h-[32px]">
                 {{ kb.description || '尚未填寫說明' }}
               </p>
+              <!-- 18-C：來源 badge -->
+              <div v-if="kb.source_type === 'web' && kb.source_url" class="mt-2 flex items-center gap-1.5 text-[11px] text-fg-tertiary">
+                <span>🌐</span>
+                <a
+                  :href="kb.source_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="truncate hover:text-brand-600"
+                  @click.stop
+                >{{ kb.source_url }}</a>
+                <span v-if="kb.sync_status === 'running' || kb.sync_status === 'pending'"
+                      class="ml-auto text-warning-600 flex-shrink-0">同步中</span>
+                <span v-else-if="kb.sync_status === 'failed'"
+                      class="ml-auto text-danger-600 flex-shrink-0">失敗</span>
+              </div>
+              <div v-else-if="kb.source_type === 'workflow'" class="mt-2 flex items-center gap-1.5 text-[11px] text-fg-tertiary">
+                <span>⚡</span>
+                <span>Workflow 寫入</span>
+              </div>
             </div>
             <div class="px-3 pb-3 pt-0 flex gap-1.5">
               <router-link
@@ -230,20 +249,24 @@
               />
             </div>
 
-            <!-- Sprint 16：Web 模式 URL 欄位 -->
+            <!-- Sprint 16 / 18-C：Web 模式 URL 欄位（支援多 URL，每行一個） -->
             <div v-if="createMode === 'web'">
               <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
                 來源 URL <span class="text-danger-500">*</span>
+                <span class="text-fg-tertiary font-normal ml-1">（每行一個，最多 20）</span>
               </label>
-              <input
+              <textarea
                 v-model="form.web_url"
-                type="url"
-                placeholder="https://docs.example.com/handbook"
-                class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus"
+                rows="3"
+                placeholder="https://docs.example.com/handbook&#10;https://docs.example.com/faq&#10;https://docs.example.com/api"
+                class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none font-mono"
               />
               <p class="text-[11px] text-neutral-500 mt-1.5">
-                建立後將自動抓取頁面內容、抽文字、切片入庫。<br>
-                MVP 只抓單頁；如需多頁/全站爬取請逐個建立。
+                建立後自動抓取每個 URL、抽文字、切片入庫；同 URL 重抓會自動覆蓋。<br>
+                預設使用 trafilatura 抽文（JS-only 頁面可能抽不到內容）。
+              </p>
+              <p v-if="urlCount > 0" class="text-[11px] text-brand-700 mt-1">
+                準備同步 <strong>{{ urlCount }}</strong> 個 URL
               </p>
             </div>
 
@@ -295,9 +318,15 @@
             >取消</button>
             <button
               @click="createKB"
-              :disabled="!form.name || submitting || (createMode === 'web' && !form.web_url)"
+              :disabled="!form.name || submitting || (createMode === 'web' && urlCount === 0)"
               class="h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
-            >{{ submitting ? '建立中…' : (createMode === 'web' ? '建立並開始抓取' : '建立') }}</button>
+            >{{
+              submitting
+                ? '建立中…'
+                : (createMode === 'web'
+                    ? (urlCount > 1 ? `建立並抓取 ${urlCount} 個 URL` : '建立並開始抓取')
+                    : '建立')
+            }}</button>
           </div>
         </div>
       </div>
@@ -385,6 +414,16 @@ const form = ref({
 })
 const createMode = ref<'manual' | 'web'>('manual')
 const submitting = ref(false)
+// 18-C：解析 textarea 內的 URL 清單
+const parsedUrls = computed<string[]>(() => {
+  if (createMode.value !== 'web' || !form.value.web_url) return []
+  return form.value.web_url
+    .split(/[\n\r]+/)
+    .map(s => s.trim())
+    .filter(s => /^https?:\/\//i.test(s))
+    .slice(0, 20)
+})
+const urlCount = computed(() => parsedUrls.value.length)
 
 // 切片策略選項（RFC-006）
 const CHUNK_STRATEGIES = [
@@ -495,11 +534,15 @@ async function createKB() {
       chunk_overlap: form.value.chunk_overlap,
     })
     // Web 模式：再 trigger 同步任務
-    if (createMode.value === 'web' && form.value.web_url) {
+    if (createMode.value === 'web' && parsedUrls.value.length > 0) {
       const kbId = res?.id || res?.data?.id
       if (kbId) {
         try {
-          await knowledgeApi.syncFromWeb(kbId, form.value.web_url.trim())
+          if (parsedUrls.value.length === 1) {
+            await knowledgeApi.syncFromWeb(kbId, parsedUrls.value[0])
+          } else {
+            await knowledgeApi.syncFromWebBatch(kbId, parsedUrls.value)
+          }
         } catch (e: any) {
           alert(`KB 已建立，但啟動 URL 同步失敗：${e?.response?.data?.detail || e?.message || ''}`)
         }

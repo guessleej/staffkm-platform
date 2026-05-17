@@ -1,5 +1,6 @@
 """知識庫資料模型"""
 import uuid
+from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import String, Text, Integer, Boolean, ForeignKey, Index
@@ -43,6 +44,15 @@ class KnowledgeBase(Base, UUIDPrimaryKeyMixin, AuditMixin):
     chunk_strategy: Mapped[str] = mapped_column(String(16), default="auto")
     chunk_size:     Mapped[int] = mapped_column(default=512)
     chunk_overlap:  Mapped[int] = mapped_column(default=64)
+
+    # ── KB 來源（Round 10-5 / RFC-013 / Sprint 16 Web KB）──
+    # 欄位由 main.py bootstrap DDL 補；此處宣告供 ORM / Pydantic from_attributes 使用
+    source_type: Mapped[str] = mapped_column(String(16), default="manual")
+    source_workflow_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    source_url:  Mapped[str | None] = mapped_column(Text, nullable=True)
+    sync_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    sync_error:  Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     documents: Mapped[list["Document"]] = relationship(back_populates="knowledge_base", cascade="all, delete-orphan")
 

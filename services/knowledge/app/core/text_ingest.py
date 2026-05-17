@@ -9,6 +9,7 @@ import hashlib
 import uuid
 from datetime import datetime
 
+from sqlalchemy import text as text_sql
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_base import Document, DocStatus, KnowledgeBase, Paragraph
@@ -41,11 +42,33 @@ async def ingest_text_into_kb(
     source: str | None = None,
     chunking: str = "auto",
     extra_meta: dict | None = None,
+    upsert_key: str | None = None,
 ) -> dict:
     """寫入單份 inline 文件 + 切段，再 schedule embedding。
 
-    回傳 {document_id, paragraphs, task_id}。caller 自負 commit 之前/之後的事。
+    `upsert_key`：同 KB 內若已有 meta->>'upsert_key' = 該值的 Document，
+    先刪掉再寫新的（用於 web sync 對同一 URL 重抓不要建多份）。
+
+    回傳 {document_id, paragraphs, task_id}。
     """
+    # 0. upsert：刪舊
+    if upsert_key:
+        old_rows = await session.execute(
+            text_sql(
+                "SELECT id FROM documents "
+                "WHERE knowledge_base_id = :kb AND workspace_id = :ws "
+                "AND meta->>'upsert_key' = :uk"
+            ),
+            {"kb": str(kb.id), "ws": str(workspace_id), "uk": upsert_key},
+        )
+        old_ids = [r._mapping["id"] for r in old_rows.fetchall()]
+        if old_ids:
+            await session.execute(
+                text_sql("DELETE FROM documents WHERE id = ANY(:ids)"),
+                {"ids": old_ids},
+            )
+            await session.flush()
+
     # 1. Document 落地
     name = (title or f"web-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{_content_hash(content)}")[:256]
     doc = Document(
@@ -58,9 +81,10 @@ async def ingest_text_into_kb(
         paragraph_count=0,
         char_count=len(content),
         meta={
-            "source":   source or "",
-            "chunking": chunking,
-            "inline":   True,
+            "source":     source or "",
+            "chunking":   chunking,
+            "inline":     True,
+            "upsert_key": upsert_key or "",
             **(extra_meta or {}),
         },
     )
