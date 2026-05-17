@@ -98,14 +98,29 @@
     </div>
 
     <!-- 供應商 Dialog -->
-    <div v-if="showProviderDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div class="px-6 pt-6 pb-4 border-b border-gray-100">
-          <h3 class="text-base font-semibold text-gray-900">
-            {{ editingProvider ? '編輯供應商' : '新增模型供應商' }}
-          </h3>
-        </div>
-        <div class="p-6 space-y-4">
+    <transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0"
+      leave-active-class="transition duration-100 ease-in"
+      leave-to-class="opacity-0"
+    >
+      <div v-if="showProviderDialog"
+           class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+           @click.self="showProviderDialog = false">
+        <transition
+          enter-active-class="transition duration-150 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-2"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          appear
+        >
+          <div v-if="showProviderDialog" class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-md border border-neutral-200">
+            <header class="px-6 pt-5 pb-4 border-b border-neutral-100">
+              <h3 class="text-h3 text-fg">
+                {{ editingProvider ? '編輯供應商' : '新增模型供應商' }}
+              </h3>
+              <p class="mt-1 text-caption">設定一個 LLM / Embedding / Reranker 來源</p>
+            </header>
+            <div class="p-6 space-y-5">
           <div>
             <label class="form-label">供應商名稱</label>
             <input v-model="providerForm.name" class="form-input" placeholder="如：OpenAI 正式環境"
@@ -139,18 +154,27 @@
                    :placeholder="editingProvider ? '留空保持不變' : 'sk-...'"
                    autocomplete="new-password" data-1p-ignore data-lpignore="true" />
           </div>
-          <div v-else class="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-2">
-            此供應商為地端服務，無需 API Key
+          <div v-else class="flex items-start gap-2 text-[11px] text-fg-secondary bg-success-50/50 border border-success-100 rounded-lg px-3 py-2">
+            <svg class="w-3.5 h-3.5 text-success-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>此供應商為地端服務，無需 API Key</span>
           </div>
         </div>
-        <div class="px-6 pb-6 flex justify-end gap-3">
-          <button @click="showProviderDialog = false" class="btn-outline">取消</button>
-          <button @click="saveProvider" class="btn-primary" :disabled="saving">
+        <footer class="px-6 py-4 border-t border-neutral-100 bg-neutral-50/40 flex justify-end gap-2 rounded-b-2xl">
+          <button @click="showProviderDialog = false" class="btn btn-outline">取消</button>
+          <button @click="saveProvider" class="btn btn-primary" :disabled="saving">
+            <svg v-if="saving" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
             {{ saving ? '儲存中…' : '儲存' }}
           </button>
-        </div>
+        </footer>
+          </div>
+        </transition>
       </div>
-    </div>
+    </transition>
 
     <!-- 模型 Dialog -->
     <div v-if="showModelDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

@@ -129,8 +129,8 @@
             <tr
               v-for="doc in docs"
               :key="doc.id"
-              :class="['border-b border-neutral-50 last:border-0 transition-colors',
-                       batch.isSelected(doc.id) ? 'bg-brand-50/40' : 'hover:bg-neutral-50/50']"
+              :class="['border-b border-neutral-100 last:border-0 transition-all duration-150 group',
+                       batch.isSelected(doc.id) ? 'bg-brand-50/60' : 'hover:bg-neutral-50/80']"
             >
               <td class="px-3 py-3">
                 <input type="checkbox" class="w-3.5 h-3.5 accent-brand-600 cursor-pointer"
