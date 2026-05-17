@@ -25,7 +25,7 @@
                 title="重做（Cmd/Ctrl+Shift+Z）"
                 aria-label="重做（Cmd/Ctrl+Shift+Z）">↷</button>
         <span class="text-[11px] text-fg-tertiary px-1 tabular-nums" :title="`縮放 ${zoomPct}%`">{{ zoomPct }}%</span>
-        <span class="w-px h-5 bg-gray-200 mx-1"></span>
+        <span class="w-px h-5 bg-neutral-200 mx-1"></span>
         <!-- 自動排版 -->
         <button @click="autoLayout"
                 class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">

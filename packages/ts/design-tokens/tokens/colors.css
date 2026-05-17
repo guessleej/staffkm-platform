@@ -109,17 +109,37 @@
 /* ── Dark mode（近黑而非純黑，OLED 友好）───────────────────────── */
 :root.dark,
 [data-theme="dark"] {
-  --color-surface-base:    var(--color-neutral-950);
-  --color-surface-raised:  var(--color-neutral-900);
-  --color-surface-overlay: var(--color-neutral-800);
-  --color-surface-sunken:  0 0% 4%;
+  /* ★ 反轉 neutral 階層 — 讓 bg-neutral-200 / border-neutral-200 等
+       直接 hardcode 也能在深色模式自動切深。
+       原本 design system 假設大家會用 alias (bg-surface-raised /
+       border-bd / text-fg)，但實際 codebase 有 352+ 處 hardcode
+       neutral-*，與其改 352 行不如反轉 11 行 token。
+       對應關係：light_value → dark_value 視覺意義一致
+       （都是「比 base 亮幾階 / 暗幾階」）。 */
+  --color-neutral-50:   0 0% 10%;   /* was 99% — 最深的「亮」階 */
+  --color-neutral-100:  0 0% 15%;   /* was 96% */
+  --color-neutral-200:  0 0% 20%;   /* was 92% — 預設 border / divider */
+  --color-neutral-300:  0 0% 28%;   /* was 84% */
+  --color-neutral-400:  0 0% 48%;   /* was 64% */
+  --color-neutral-500:  0 0% 60%;   /* was 48% */
+  --color-neutral-600:  0 0% 70%;   /* was 36% */
+  --color-neutral-700:  0 0% 80%;   /* was 24% */
+  --color-neutral-800:  0 0% 88%;   /* was 15% */
+  --color-neutral-900:  0 0% 96%;   /* was 10% */
+  --color-neutral-950:  0 0% 99%;   /* was 6%  — 最亮的「暗」階 */
 
-  --color-text-primary:    var(--color-neutral-50);
-  --color-text-secondary:  var(--color-neutral-300);
-  --color-text-tertiary:   var(--color-neutral-400);
-  --color-text-disabled:   var(--color-neutral-700);
+  /* alias 重新對應到反轉後階層中 「視覺等價」 的階度 */
+  --color-surface-base:    0 0% 6%;                    /* OLED-friendly 近黑 */
+  --color-surface-raised:  var(--color-neutral-50);    /* 10% — 比 base 亮一階 */
+  --color-surface-overlay: var(--color-neutral-100);   /* 15% — modal / popover */
+  --color-surface-sunken:  0 0% 4%;                    /* 比 base 更暗 */
 
-  --color-border-subtle:   var(--color-neutral-800);
-  --color-border-default:  var(--color-neutral-700);
-  --color-border-strong:   var(--color-neutral-600);
+  --color-text-primary:    var(--color-neutral-900);   /* 96% — 接近白 */
+  --color-text-secondary:  var(--color-neutral-600);   /* 70% */
+  --color-text-tertiary:   var(--color-neutral-500);   /* 60% */
+  --color-text-disabled:   var(--color-neutral-300);   /* 28% */
+
+  --color-border-subtle:   var(--color-neutral-100);   /* 15% */
+  --color-border-default:  var(--color-neutral-200);   /* 20% */
+  --color-border-strong:   var(--color-neutral-300);   /* 28% */
 }
