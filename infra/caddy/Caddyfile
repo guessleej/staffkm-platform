@@ -1,0 +1,79 @@
+# ════════════════════════════════════════════════════════════════
+#  staffKM Caddy Reverse Proxy (production)
+#  - 自動 Let's Encrypt TLS（{$DOMAIN} 換 PUBLIC_DOMAIN）
+#  - HTTP/3 (QUIC)
+#  - brotli + gzip 壓縮
+#  - SSE-friendly：/api/v1/chat/* 與 /api/v1/agents/*/chat 走 flush_interval=-1
+#  - Grafana 對外用 basic-auth 額外保護
+# ════════════════════════════════════════════════════════════════
+
+{
+	email {$ADMIN_EMAIL}
+	# 開發 / staging 切 acme staging：
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+# 主站
+{$DOMAIN} {
+	encode zstd br gzip
+
+	# 靜態 UI
+	handle /api/* {
+		# API 全走 gateway；SSE endpoints (chat / stream) 自動 flush
+		reverse_proxy gateway:8000 {
+			flush_interval -1
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				read_timeout 600s
+				write_timeout 600s
+			}
+		}
+	}
+
+	# Grafana （basic-auth 二層保護）
+	handle /grafana/* {
+		basicauth * {
+			# 用 `caddy hash-password` 產生 GRAFANA_BASIC_AUTH_HASH
+			admin {$GRAFANA_BASIC_AUTH_HASH}
+		}
+		reverse_proxy grafana:3000
+	}
+
+	# 健康檢查（不要計 Caddy access log）
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	# UI SPA fallback
+	handle {
+		reverse_proxy ui:80
+	}
+
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+
+	# 安全 headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "SAMEORIGIN"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		Permissions-Policy        "geolocation=(), microphone=(), camera=()"
+		# CSP 較鬆，給 chat 嵌入 codes / 圖片
+		Content-Security-Policy   "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'"
+		# 不洩漏 server 版本
+		-Server
+	}
+}
+
+# www → 主 domain redirect
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri}
+}

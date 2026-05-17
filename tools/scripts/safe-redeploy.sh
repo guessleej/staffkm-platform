@@ -2,9 +2,10 @@
 # 安全重新部署 — 解決 "rebuild 後 502" 的歷史共業。
 #
 # 用法：
-#   ./tools/scripts/safe-redeploy.sh ui agent              # 只 rebuild + recreate 指定服務
-#   ./tools/scripts/safe-redeploy.sh --all                 # 全部 rebuild
-#   ./tools/scripts/safe-redeploy.sh ui --no-build         # 只 recreate，不重 build
+#   ./tools/scripts/safe-redeploy.sh ui agent              # dev：只 rebuild + recreate 指定服務
+#   ./tools/scripts/safe-redeploy.sh --all                 # dev：全部 rebuild
+#   ./tools/scripts/safe-redeploy.sh ui --no-build         # dev：只 recreate，不重 build
+#   ./tools/scripts/safe-redeploy.sh --prod --all          # v2.2：production overlay + .env.production
 #
 # 邏輯：
 #   1. 解析參數（要動的服務 + 是否 build）
@@ -25,20 +26,35 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-COMPOSE=(docker compose --env-file .env -f infra/docker-compose.yml --project-directory .)
-
 NO_BUILD=0
 ALL=0
+PROD=0
 SERVICES=()
 
 for a in "$@"; do
   case "$a" in
     --no-build)  NO_BUILD=1 ;;
     --all)       ALL=1 ;;
+    --prod)      PROD=1 ;;
     -*)          echo "未知旗標：$a"; exit 1 ;;
     *)           SERVICES+=("$a") ;;
   esac
 done
+
+# v2.2：--prod 切到 production overlay + .env.production
+if [ $PROD -eq 1 ]; then
+  if [ ! -f .env.production ]; then
+    echo "✗ .env.production 不存在；請 cp .env.production.example 並填值"
+    exit 1
+  fi
+  echo "▶ 使用 production overlay (.env.production + docker-compose.production.yml)"
+  COMPOSE=(docker compose --env-file .env.production \
+    -f infra/docker-compose.yml \
+    -f infra/docker-compose.production.yml \
+    --project-directory .)
+else
+  COMPOSE=(docker compose --env-file .env -f infra/docker-compose.yml --project-directory .)
+fi
 
 # 預設可重 build 的服務集（staffkm/*）
 ALL_BUILDABLE=(gateway auth knowledge knowledge-worker agent chat integration ui)

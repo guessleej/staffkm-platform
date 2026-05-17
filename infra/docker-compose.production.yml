@@ -1,0 +1,98 @@
+# ════════════════════════════════════════════════════════════════
+#  Production overlay — 用法：
+#    docker compose --env-file .env.production \
+#      -f infra/docker-compose.yml \
+#      -f infra/docker-compose.production.yml \
+#      --project-directory . \
+#      up -d
+#
+#  與 dev override 的差異：
+#  - 不開放 db / redis / minio 對外 port（攻擊面收斂）
+#  - nginx → caddy（auto TLS via Let's Encrypt）
+#  - restart=always 全部
+#  - resource limits 收斂
+#  - monitoring profile 預設啟動（admin 對外用 caddy basic-auth）
+# ════════════════════════════════════════════════════════════════
+
+services:
+
+  # ─── Caddy 取代 nginx —— 自動 Let's Encrypt + HTTP/2 + brotli ───
+  nginx:
+    # 保留 nginx service 名稱避免 depends_on 連動斷裂；
+    # 改用 caddy image，掛 Caddyfile
+    image: caddy:2.8-alpine
+    container_name: staffkm-caddy
+    restart: always
+    environment:
+      DOMAIN:        ${PUBLIC_DOMAIN:-staffkm.example.com}
+      ADMIN_EMAIL:   ${ADMIN_EMAIL:-admin@example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      autoheal: "true"
+
+  # ─── PostgreSQL — 收斂：不對外 + 加強備份友好 cfg ───
+  postgres:
+    restart: always
+    # 不繼承 dev override 的 5432 開放
+    ports: !reset []
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backups:/backups   # 給備份腳本掛
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+        reservations:
+          memory: 512m
+
+  redis:
+    restart: always
+    ports: !reset []
+
+  minio:
+    restart: always
+    ports: !reset []
+
+  # ─── 應用層 — restart=always + resource limits ───
+  gateway:    { restart: always, deploy: { resources: { limits: { memory: 512m } } } }
+  auth:       { restart: always, deploy: { resources: { limits: { memory: 256m } } } }
+  knowledge:  { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
+  agent:      { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
+  chat:       { restart: always, deploy: { resources: { limits: { memory: 512m } } } }
+  integration:{ restart: always, deploy: { resources: { limits: { memory: 256m } } } }
+  ui:         { restart: always, deploy: { resources: { limits: { memory: 128m } } } }
+  knowledge-worker: { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
+  embedder:   { restart: always }    # Ollama 自己有 mem 管理
+
+  # ─── monitoring 預設啟動 ───
+  prometheus:
+    profiles: []          # remove dev's "monitoring" gating
+    restart: always
+
+  grafana:
+    profiles: []
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-staffkm_grafana}
+      GF_SERVER_ROOT_URL:         https://${PUBLIC_DOMAIN:-staffkm.example.com}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+
+volumes:
+  caddy_data:        { driver: local }
+  caddy_config:      { driver: local }
+  postgres_backups:  { driver: local }
