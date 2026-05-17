@@ -15,9 +15,7 @@
         <p class="text-sm text-fg-tertiary mt-0.5">建立並管理各部門的 AI 問答應用</p>
       </div>
       <button v-if="auth.hasRole(['admin'])" @click="openCreateDialog" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
+        <SIcon name="plus" :size="16" />
         {{ $t('app.createApp') }}
       </button>
     </div>
@@ -25,17 +23,12 @@
     <!-- 應用卡片列表 -->
     <div class="flex-1 overflow-y-auto p-6">
       <div v-if="loading" class="flex justify-center py-20">
-        <svg class="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-        </svg>
+        <SSpinner :size="32" />
       </div>
 
       <div v-else-if="applications.length === 0" class="text-center py-20">
         <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <svg class="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-          </svg>
+          <SIcon name="message-square" :size="32" :stroke-width="1.5" class="text-indigo-400" />
         </div>
         <p class="text-fg-secondary font-medium">尚無任何應用</p>
         <p class="text-fg-tertiary text-sm mt-1">點擊右上角新增您的第一個 AI 應用</p>
@@ -78,9 +71,7 @@
             @click.stop="batch.toggle(app.id)"
             :title="batch.isSelected(app.id) ? '取消選取' : '選取此項'"
           >
-            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-            </svg>
+            <SIcon name="check" :size="12" :stroke-width="3" />
           </button>
 
           <!-- 應用圖示 -->
@@ -134,9 +125,7 @@
         <div class="px-6 pt-6 pb-4 border-b border-neutral-100 flex items-center justify-between">
           <h3 class="text-base font-semibold text-fg">分享連結</h3>
           <button @click="showShareDialog = false" class="text-fg-tertiary hover:text-fg-secondary transition">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+            <SIcon name="x" :size="20" />
           </button>
         </div>
         <div class="p-6 space-y-4">
@@ -167,9 +156,7 @@
               target="_blank"
               class="mt-3 flex items-center gap-1.5 text-xs text-indigo-500 hover:text-indigo-700 transition"
             >
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-              </svg>
+              <SIcon name="external-link" :size="14" />
               在新分頁開啟
             </a>
           </div>
@@ -187,9 +174,7 @@
         <div class="px-6 pt-6 pb-4 border-b border-neutral-100 flex-shrink-0 flex items-center justify-between">
           <h3 class="text-base font-semibold text-fg">{{ apiKeyTargetApp?.name }} — API Keys</h3>
           <button @click="closeApiKeyDialog" class="text-fg-tertiary hover:text-fg-secondary transition">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+            <SIcon name="x" :size="20" />
           </button>
         </div>
 
@@ -197,9 +182,7 @@
           <!-- 新建立的 Key 顯示區（一次性警示） -->
           <div v-if="newlyCreatedKey" class="bg-amber-50 border border-amber-300 rounded-xl p-4">
             <div class="flex items-start gap-2 mb-2">
-              <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              </svg>
+              <SIcon name="alert-triangle" :size="20" class="text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p class="text-sm font-semibold text-amber-800">請立即複製此 API Key — 之後將無法再次查看完整金鑰</p>
               </div>
@@ -216,10 +199,7 @@
           <div>
             <h4 class="text-sm font-semibold text-fg-secondary mb-3">現有 API Keys</h4>
             <div v-if="apiKeysLoading" class="flex justify-center py-6">
-              <svg class="animate-spin w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
+              <SSpinner :size="24" />
             </div>
             <div v-else-if="apiKeys.length === 0" class="text-center py-6 text-fg-tertiary text-sm">
               尚無 API Keys，請點擊下方「建立新 Key」
@@ -347,9 +327,7 @@
                   : 'border-neutral-200 hover:border-neutral-300 text-fg-secondary'"
               >
                 <input type="checkbox" :value="kb.id" v-model="form.knowledge_base_ids" class="hidden"/>
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                </svg>
+                <SIcon name="book-open" :size="14" />
                 {{ kb.name }}
               </label>
             </div>
@@ -408,6 +386,7 @@ import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
 import { useProjectStore } from '../../stores/project'
+import { SIcon, SSpinner } from '@staffkm/ui-kit'
 
 const router = useRouter()
 const auth = useAuthStore()

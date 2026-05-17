@@ -7,9 +7,7 @@
         <p class="text-sm text-fg-tertiary mt-0.5">管理 LLM、Embedding、Reranker 等 AI 模型供應商</p>
       </div>
       <button @click="openProviderDialog()" class="btn-primary flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
+        <SIcon name="plus" :size="16" />
         新增供應商
       </button>
     </div>
@@ -18,17 +16,12 @@
     <div class="flex-1 overflow-y-auto p-6">
       <!-- 供應商列表 -->
       <div v-if="loading" class="flex justify-center py-20">
-        <svg class="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-        </svg>
+        <SSpinner :size="32" />
       </div>
 
       <div v-else-if="providers.length === 0" class="text-center py-20">
         <div class="w-16 h-16 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <svg class="w-8 h-8 text-fg-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1 1 .03 2.798-1.442 2.798H4.24c-1.47 0-2.44-1.798-1.442-2.798L4.2 15.3"/>
-          </svg>
+          <SIcon name="database" :size="32" :stroke-width="1.5" class="text-fg-tertiary" />
         </div>
         <p class="text-fg-tertiary text-sm">尚未新增任何模型供應商</p>
         <button @click="openProviderDialog()" class="mt-4 btn-primary">新增供應商</button>
@@ -64,9 +57,7 @@
               </button>
               <button @click="openModelDialog(provider)"
                       class="btn-sm btn-outline inline-flex items-center gap-1 whitespace-nowrap">
-                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                </svg>
+                <SIcon name="plus" :size="14" class="flex-shrink-0" />
                 <span>新增模型</span>
               </button>
               <button @click="openProviderDialog(provider)" class="btn-sm btn-ghost">編輯</button>
@@ -155,19 +146,14 @@
                    autocomplete="new-password" data-1p-ignore data-lpignore="true" />
           </div>
           <div v-else class="flex items-start gap-2 text-[11px] text-fg-secondary bg-success-50/50 border border-success-100 rounded-lg px-3 py-2">
-            <svg class="w-3.5 h-3.5 text-success-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
+            <SIcon name="check-circle" :size="14" class="text-success-600 flex-shrink-0 mt-0.5" />
             <span>此供應商為地端服務，無需 API Key</span>
           </div>
         </div>
         <footer class="px-6 py-4 border-t border-neutral-100 bg-neutral-50/40 flex justify-end gap-2 rounded-b-2xl">
           <button @click="showProviderDialog = false" class="btn btn-outline">取消</button>
           <button @click="saveProvider" class="btn btn-primary" :disabled="saving">
-            <svg v-if="saving" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
+            <SSpinner v-if="saving" :size="14" />
             {{ saving ? '儲存中…' : '儲存' }}
           </button>
         </footer>
@@ -227,6 +213,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { modelProviderApi, providerRegistryApi, type ModelProvider, type AiModel, type ProviderRegistryEntry } from '../../api/modelProvider'
+import { SIcon, SSpinner } from '@staffkm/ui-kit'
 
 const loading = ref(false)
 const saving = ref(false)

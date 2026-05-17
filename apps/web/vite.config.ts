@@ -19,5 +19,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // 15-3: 把 LogicFlow (~500KB) 拆成獨立 chunk，避免 WorkflowEditorView
+    // 卡 668KB 大包；Vue/router/pinia 也另成 vendor chunk
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'lf-vendor':   ['@logicflow/core'],
+          'vue-vendor':  ['vue', 'vue-router', 'pinia'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
 })
