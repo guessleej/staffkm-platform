@@ -23,6 +23,9 @@ class User(Base, UUIDPrimaryKeyMixin, AuditMixin):
     display_name: Mapped[str | None] = mapped_column(String(128))
     password_hash: Mapped[str | None] = mapped_column(String(256))
     ldap_dn: Mapped[str | None] = mapped_column(String(512))
+    # v3.0：OIDC SSO 正規欄位（之前借用 ldap_dn 存 oidc:{sub}，v3 起獨立）
+    oidc_sub: Mapped[str | None] = mapped_column(String(256), index=True)
+    oidc_issuer: Mapped[str | None] = mapped_column(String(256))
     status: Mapped[str] = mapped_column(String(32), default=UserStatus.ACTIVE)
     roles: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     department: Mapped[str | None] = mapped_column(String(128))

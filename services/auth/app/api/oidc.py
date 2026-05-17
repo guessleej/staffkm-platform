@@ -144,9 +144,13 @@ async def oidc_callback(
     sub = userinfo.get('sub') or email
     name = userinfo.get('name') or userinfo.get('preferred_username') or email.split('@')[0]
 
-    # 3. upsert user（match by email）
-    res = await session.execute(select(User).where(User.email == email))
+    # 3. upsert user — v3.0：優先用 oidc_sub 比對，再 fallback email
+    res = await session.execute(select(User).where(User.oidc_sub == sub))
     user = res.scalar_one_or_none()
+    if not user:
+        # 用 email 再找一次（既有 user 第一次 SSO 自動連結）
+        res = await session.execute(select(User).where(User.email == email))
+        user = res.scalar_one_or_none()
     if not user:
         user = User(
             id=uuid.uuid4(),
@@ -154,7 +158,8 @@ async def oidc_callback(
             email=email,
             display_name=name,
             roles=[settings.OIDC_DEFAULT_ROLE],
-            ldap_dn=f"oidc:{sub}",   # 借 ldap_dn 欄存 sub，避免新增 column migration
+            oidc_sub=sub,                            # v3.0 正規欄
+            oidc_issuer=settings.OIDC_ISSUER,
             password_hash=None,
             status='active',
         )
@@ -162,12 +167,14 @@ async def oidc_callback(
         await session.commit()
         log.info("oidc_user_created", email=email, sub=sub)
     else:
-        # 更新 display_name 跟 sub 對應（若曾用密碼登入，第一次 SSO 自動補 sub）
+        # 既有 user 第一次 SSO → 補 oidc_sub / 更新 display_name
         changed = False
         if name and user.display_name != name:
             user.display_name = name; changed = True
-        if user.ldap_dn != f"oidc:{sub}":
-            user.ldap_dn = f"oidc:{sub}"; changed = True
+        if user.oidc_sub != sub:
+            user.oidc_sub = sub; changed = True
+        if user.oidc_issuer != settings.OIDC_ISSUER:
+            user.oidc_issuer = settings.OIDC_ISSUER; changed = True
         if changed:
             await session.commit()
 
