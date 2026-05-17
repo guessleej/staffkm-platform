@@ -43,6 +43,12 @@ const router = createRouter({
           meta: { title: '文件管理' },
         },
         {
+          path: 'knowledge/:kbId/documents/:docId/paragraphs',
+          name: 'knowledge-paragraphs',
+          component: () => import('../views/knowledge/ParagraphView.vue'),
+          meta: { title: '段落管理' },
+        },
+        {
           path: 'knowledge/:kbId/hit-test',
           name: 'hit-test',
           component: () => import('../views/knowledge/HitTestView.vue'),

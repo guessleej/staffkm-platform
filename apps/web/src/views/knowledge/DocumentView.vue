@@ -132,7 +132,11 @@
                     <component :is="fileTypeIcon(doc.file_type)" :size="14" />
                   </div>
                   <div class="min-w-0">
-                    <div class="text-sm text-neutral-900 truncate max-w-[280px]" :title="doc.name">{{ doc.name }}</div>
+                    <router-link
+                      :to="`/knowledge/${kbId}/documents/${doc.id}/paragraphs`"
+                      class="text-sm text-neutral-900 hover:text-brand-600 hover:underline truncate max-w-[280px] block"
+                      :title="`查看段落：${doc.name}`"
+                    >{{ doc.name }}</router-link>
                     <div class="text-[11px] text-neutral-400 font-mono uppercase">{{ doc.file_type }}</div>
                   </div>
                 </div>
