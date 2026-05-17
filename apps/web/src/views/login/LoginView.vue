@@ -248,11 +248,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const form = ref({ username: '', password: '' })
@@ -266,7 +267,9 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login(form.value.username, form.value.password)
-    router.push('/')
+    // 從 ?next= 拿目標路徑（401 interceptor 會帶過來）
+    const next = (route.query.next as string) || '/'
+    router.push(next.startsWith('/') ? next : '/')
   } catch (err: any) {
     errorMsg.value = err.response?.data?.detail ?? '帳號或密碼錯誤，請重新輸入'
   } finally {
