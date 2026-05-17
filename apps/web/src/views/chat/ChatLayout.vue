@@ -42,13 +42,7 @@
             class="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition"
             :title="ui.isDark ? $t('theme.light') : $t('theme.dark')"
           >
-            <svg v-if="!ui.isDark" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-            </svg>
-            <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="4" />
-              <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
-            </svg>
+            <SIcon :name="ui.isDark ? 'sun' : 'moon'" :size="16" />
           </button>
 
           <div ref="menuRef" class="relative">
@@ -111,6 +105,7 @@ import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
 import { useConversationStore } from '../../stores/conversation'
+import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
 import { useWorkspaceStore } from '../../stores/workspace'
 

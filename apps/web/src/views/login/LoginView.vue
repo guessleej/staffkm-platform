@@ -123,9 +123,9 @@
              style="background:linear-gradient(135deg,#4f46e5,#818cf8)">
           <SIcon name="file-text" :size="14" class="text-white" />
         </div>
-        <span class="text-sm font-bold text-slate-800 tracking-tight">StaffKM</span>
-        <div class="w-px h-4 bg-slate-200"></div>
-        <span class="text-xs text-slate-400">行政知識管理平台</span>
+        <span class="text-sm font-bold text-fg tracking-tight">StaffKM</span>
+        <div class="w-px h-4 bg-neutral-200"></div>
+        <span class="text-xs text-fg-tertiary">行政知識管理平台</span>
       </div>
 
       <!-- 中央表單（撐滿剩餘空間並置中） -->
@@ -134,8 +134,8 @@
 
           <!-- 標題 -->
           <div class="space-y-2">
-            <h2 class="text-[2rem] font-bold text-slate-900 tracking-tight leading-tight">登入系統</h2>
-            <p class="text-sm text-slate-400">請輸入您的工號及密碼以繼續使用</p>
+            <h2 class="text-[2rem] font-bold text-fg tracking-tight leading-tight">登入系統</h2>
+            <p class="text-sm text-fg-tertiary">請輸入您的工號及密碼以繼續使用</p>
           </div>
 
           <!-- 表單 -->
@@ -143,11 +143,11 @@
 
           <!-- 帳號 -->
           <div class="space-y-1.5">
-            <label for="username" class="block text-[13px] font-semibold text-slate-600 tracking-wide">工號 / 帳號</label>
+            <label for="username" class="block text-[13px] font-semibold text-fg-secondary tracking-wide">工號 / 帳號</label>
             <div class="relative group">
               <SIcon name="user" :size="16" :stroke-width="1.8"
                      class="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-indigo-500 pointer-events-none"
-                     :class="fieldError ? 'text-rose-400' : 'text-slate-400'" />
+                     :class="fieldError ? 'text-rose-400' : 'text-fg-tertiary'" />
               <input
                 id="username"
                 v-model="form.username"
@@ -156,10 +156,10 @@
                 placeholder="請輸入帳號"
                 :class="[
                   'w-full h-11 pl-10 pr-4 text-sm rounded-xl border transition-all duration-150 outline-none',
-                  'placeholder:text-slate-300 text-slate-800 bg-slate-50/80',
+                  'placeholder:text-fg-tertiary text-fg bg-surface-sunken/80',
                   fieldError
                     ? 'border-rose-300 bg-rose-50/50 focus:ring-2 focus:ring-rose-200 focus:border-rose-400'
-                    : 'border-slate-200 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
+                    : 'border-neutral-200 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
                 ]"
               />
             </div>
@@ -167,11 +167,11 @@
 
           <!-- 密碼 -->
           <div class="space-y-1.5">
-            <label for="password" class="block text-[13px] font-semibold text-slate-600 tracking-wide">密碼</label>
+            <label for="password" class="block text-[13px] font-semibold text-fg-secondary tracking-wide">密碼</label>
             <div class="relative group">
               <SIcon name="lock" :size="16" :stroke-width="1.8"
                      class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors"
-                     :class="fieldError ? 'text-rose-400' : 'text-slate-400 group-focus-within:text-indigo-500'" />
+                     :class="fieldError ? 'text-rose-400' : 'text-fg-tertiary group-focus-within:text-indigo-500'" />
               <input
                 id="password"
                 v-model="form.password"
@@ -180,19 +180,19 @@
                 placeholder="請輸入密碼"
                 :class="[
                   'w-full h-11 pl-10 pr-11 text-sm rounded-xl border transition-all duration-150 outline-none',
-                  'placeholder:text-slate-300 text-slate-800 bg-slate-50/80',
+                  'placeholder:text-fg-tertiary text-fg bg-surface-sunken/80',
                   fieldError
                     ? 'border-rose-300 bg-rose-50/50 focus:ring-2 focus:ring-rose-200 focus:border-rose-400'
-                    : 'border-slate-200 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
+                    : 'border-neutral-200 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
                 ]"
               />
               <button
                 type="button"
                 @click="showPwd = !showPwd"
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-350 hover:text-slate-600 transition-colors p-0.5"
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-fg-tertiary hover:text-fg-secondary transition-colors p-0.5"
                 :aria-label="showPwd ? '隱藏密碼' : '顯示密碼'"
               >
-                <SIcon :name="showPwd ? 'eye-off' : 'eye'" :size="16" :stroke-width="1.8" class="text-slate-400" />
+                <SIcon :name="showPwd ? 'eye-off' : 'eye'" :size="16" :stroke-width="1.8" class="text-fg-tertiary" />
               </button>
             </div>
           </div>
@@ -232,7 +232,7 @@
         </form>
 
         <!-- 底部說明 -->
-        <p class="text-center text-[12px] text-slate-400 leading-relaxed">
+        <p class="text-center text-[12px] text-fg-tertiary leading-relaxed">
           忘記密碼或帳號異常，請聯繫
           <span class="text-indigo-600 font-medium cursor-default">資訊管理部門</span>
           協助重置

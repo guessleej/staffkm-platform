@@ -15,11 +15,11 @@
           leave-to-class="opacity-0 scale-95"
           appear
         >
-          <div v-if="open" class="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div v-if="open" class="w-full max-w-md bg-surface-raised rounded-2xl shadow-2xl overflow-hidden">
             <!-- header -->
-            <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 class="text-base font-semibold text-gray-900">建立新工作區</h2>
-              <button @click="close" class="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+            <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
+              <h2 class="text-base font-semibold text-fg">建立新工作區</h2>
+              <button @click="close" class="p-1 rounded-md text-fg-tertiary hover:text-fg-secondary hover:bg-neutral-100 transition">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -29,7 +29,7 @@
             <!-- form -->
             <form @submit.prevent="onSubmit" class="px-5 py-4 space-y-4">
               <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">
+                <label class="block text-xs font-semibold text-fg-secondary mb-1">
                   工作區名稱 <span class="text-rose-500">*</span>
                 </label>
                 <input
@@ -37,12 +37,12 @@
                   v-model="form.name"
                   required maxlength="128"
                   placeholder="例：工程部、人事處、法規科"
-                  class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">
+                <label class="block text-xs font-semibold text-fg-secondary mb-1">
                   Slug（URL 識別子）<span class="text-rose-500">*</span>
                 </label>
                 <input
@@ -50,18 +50,18 @@
                   required pattern="^[a-z0-9][a-z0-9-]*[a-z0-9]$"
                   minlength="2" maxlength="64"
                   placeholder="engineering / hr-dept / legal-team"
-                  class="w-full text-sm font-mono border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  class="w-full text-sm font-mono border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
-                <p class="text-[11px] text-gray-400 mt-1">小寫英數字 + 連字號，不可開頭/結尾用連字號</p>
+                <p class="text-[11px] text-fg-tertiary mt-1">小寫英數字 + 連字號，不可開頭/結尾用連字號</p>
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">說明（選填）</label>
+                <label class="block text-xs font-semibold text-fg-secondary mb-1">說明（選填）</label>
                 <textarea
                   v-model="form.description"
                   maxlength="512" rows="3"
                   placeholder="這個工作區的用途、成員範圍等"
-                  class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none"
+                  class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none"
                 ></textarea>
               </div>
 
@@ -71,10 +71,10 @@
             </form>
 
             <!-- footer -->
-            <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-2 bg-gray-50">
+            <div class="px-5 py-3 border-t border-neutral-100 flex items-center justify-end gap-2 bg-surface-sunken">
               <button
                 @click="close"
-                class="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                class="px-4 py-2 text-sm text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:bg-surface-sunken transition"
               >取消</button>
               <button
                 @click="onSubmit"
