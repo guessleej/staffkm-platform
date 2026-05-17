@@ -11,6 +11,7 @@ import asyncio
 
 from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers
 from app.core.trigger_worker import trigger_worker_loop
+from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.middleware.legacy_bridge import LegacyURLBridge
@@ -25,19 +26,24 @@ log = structlog.get_logger()
 async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await run_bootstrap_ddl()
-    # M4：背景啟動 trigger worker
+    # M4：背景啟動 trigger worker（每 60s 掃 due triggers 寫 queued run）
     worker_task = asyncio.create_task(
         trigger_worker_loop(lambda: _db._session_factory, interval_sec=60),
+    )
+    # v2.1 12-4：背景啟動 dispatcher（每 10s 從 queued runs 真實執行 workflow）
+    dispatcher_task = asyncio.create_task(
+        trigger_dispatcher_loop(lambda: _db._session_factory, interval_sec=10),
     )
     log.info("agent_service_ready")
     try:
         yield
     finally:
-        worker_task.cancel()
-        try:
-            await worker_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        for t in (worker_task, dispatcher_task):
+            t.cancel()
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 class GatewayHeadersMiddleware(BaseHTTPMiddleware):
