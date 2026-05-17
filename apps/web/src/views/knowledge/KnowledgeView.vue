@@ -251,25 +251,63 @@
               />
             </div>
 
-            <!-- Sprint 16 / 18-C：Web 模式 URL 欄位（支援多 URL，每行一個） -->
+            <!-- Sprint 16 / 18-C / 19.x：Web 模式 URL 欄位 + sitemap 子模式 -->
             <div v-if="createMode === 'web'">
-              <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
-                來源 URL <span class="text-danger-500">*</span>
-                <span class="text-fg-tertiary font-normal ml-1">（每行一個，最多 20）</span>
-              </label>
-              <textarea
-                v-model="form.web_url"
-                rows="3"
-                placeholder="https://docs.example.com/handbook&#10;https://docs.example.com/faq&#10;https://docs.example.com/api"
-                class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none font-mono"
-              />
-              <p class="text-[11px] text-neutral-500 mt-1.5">
-                建立後自動抓取每個 URL、抽文字、切片入庫；同 URL 重抓會自動覆蓋。<br>
-                預設使用 trafilatura 抽文（JS-only 頁面可能抽不到內容）。
-              </p>
-              <p v-if="urlCount > 0" class="text-[11px] text-brand-700 mt-1">
-                準備同步 <strong>{{ urlCount }}</strong> 個 URL
-              </p>
+              <!-- 子模式切換 -->
+              <div class="inline-flex p-0.5 bg-neutral-100 rounded-md gap-0.5 mb-2">
+                <button type="button" @click="webSubMode = 'urls'"
+                        class="px-2.5 py-1 text-[11px] rounded transition"
+                        :class="webSubMode === 'urls' ? 'bg-surface-raised text-brand-700 shadow-sm font-medium' : 'text-fg-tertiary'">
+                  📝 URL 清單
+                </button>
+                <button type="button" @click="webSubMode = 'sitemap'"
+                        class="px-2.5 py-1 text-[11px] rounded transition"
+                        :class="webSubMode === 'sitemap' ? 'bg-surface-raised text-brand-700 shadow-sm font-medium' : 'text-fg-tertiary'">
+                  🗺️ sitemap.xml
+                </button>
+              </div>
+
+              <div v-if="webSubMode === 'urls'">
+                <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
+                  來源 URL <span class="text-danger-500">*</span>
+                  <span class="text-fg-tertiary font-normal ml-1">（每行一個，最多 20）</span>
+                </label>
+                <textarea
+                  v-model="form.web_url"
+                  rows="3"
+                  placeholder="https://docs.example.com/handbook&#10;https://docs.example.com/faq"
+                  class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none font-mono"
+                />
+                <p v-if="urlCount > 0" class="text-[11px] text-brand-700 mt-1">
+                  準備同步 <strong>{{ urlCount }}</strong> 個 URL
+                </p>
+              </div>
+
+              <div v-else>
+                <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
+                  sitemap.xml URL <span class="text-danger-500">*</span>
+                </label>
+                <input
+                  v-model="form.sitemap_url"
+                  type="url"
+                  placeholder="https://docs.example.com/sitemap.xml"
+                  class="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-500 focus:shadow-focus font-mono" />
+                <div class="grid grid-cols-2 gap-3 mt-2">
+                  <div>
+                    <label class="block text-[11px] text-fg-tertiary mb-1">最大 URL 數</label>
+                    <input v-model.number="form.sitemap_max" type="number" min="1" max="100"
+                           class="w-full h-9 px-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-500 font-mono" />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] text-fg-tertiary mb-1">URL 子字串 filter（選填）</label>
+                    <input v-model="form.sitemap_filter" placeholder="例：/docs/"
+                           class="w-full h-9 px-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-500 font-mono" />
+                  </div>
+                </div>
+                <p class="text-[11px] text-fg-tertiary mt-2">
+                  自動解析 sitemap → 篩選 → 排程 N 個抓取任務。支援 sitemap-index（recursive 一層）。
+                </p>
+              </div>
             </div>
 
             <!-- 切片策略（RFC-006）─────────────────────────────────── -->
@@ -320,13 +358,15 @@
             >取消</button>
             <button
               @click="createKB"
-              :disabled="!form.name || submitting || (createMode === 'web' && urlCount === 0)"
+              :disabled="!form.name || submitting || (createMode === 'web' && webSubMode === 'urls' && urlCount === 0) || (createMode === 'web' && webSubMode === 'sitemap' && !form.sitemap_url.trim())"
               class="h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
             >{{
               submitting
                 ? '建立中…'
                 : (createMode === 'web'
-                    ? (urlCount > 1 ? `建立並抓取 ${urlCount} 個 URL` : '建立並開始抓取')
+                    ? (webSubMode === 'sitemap'
+                        ? '建立並解析 sitemap'
+                        : urlCount > 1 ? `建立並抓取 ${urlCount} 個 URL` : '建立並開始抓取')
                     : '建立')
             }}</button>
           </div>
@@ -414,8 +454,12 @@ const form = ref({
   chunk_size: 512,
   chunk_overlap: 64,
   web_url: '',
+  sitemap_url: '',
+  sitemap_max: 20,
+  sitemap_filter: '',
 })
 const createMode = ref<'manual' | 'web'>('manual')
+const webSubMode = ref<'urls' | 'sitemap'>('urls')
 const submitting = ref(false)
 // 18-C：解析 textarea 內的 URL 清單
 const parsedUrls = computed<string[]>(() => {
@@ -537,13 +581,20 @@ async function createKB() {
       chunk_overlap: form.value.chunk_overlap,
     })
     // Web 模式：再 trigger 同步任務
-    if (createMode.value === 'web' && parsedUrls.value.length > 0) {
+    if (createMode.value === 'web') {
       const kbId = res?.id || res?.data?.id
       if (kbId) {
         try {
-          if (parsedUrls.value.length === 1) {
+          if (webSubMode.value === 'sitemap' && form.value.sitemap_url) {
+            const r = await knowledgeApi.syncFromSitemap(kbId, {
+              sitemap_url: form.value.sitemap_url.trim(),
+              max_urls: form.value.sitemap_max || 20,
+              url_filter: form.value.sitemap_filter.trim() || undefined,
+            })
+            alert(`從 sitemap 找到 ${r.url_count} 個 URL，已排程同步`)
+          } else if (parsedUrls.value.length === 1) {
             await knowledgeApi.syncFromWeb(kbId, parsedUrls.value[0])
-          } else {
+          } else if (parsedUrls.value.length > 1) {
             await knowledgeApi.syncFromWebBatch(kbId, parsedUrls.value)
           }
         } catch (e: any) {
@@ -552,8 +603,9 @@ async function createKB() {
       }
     }
     showCreate.value = false
-    form.value = { name: '', description: '', chunk_strategy: 'auto', chunk_size: 512, chunk_overlap: 64, web_url: '' }
+    form.value = { name: '', description: '', chunk_strategy: 'auto', chunk_size: 512, chunk_overlap: 64, web_url: '', sitemap_url: '', sitemap_max: 20, sitemap_filter: '' }
     createMode.value = 'manual'
+    webSubMode.value = 'urls'
     await load()
   } finally {
     submitting.value = false
