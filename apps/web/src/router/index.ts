@@ -116,6 +116,12 @@ const router = createRouter({
           meta: { title: '排程觸發' },
         },
         {
+          path: 'memories',
+          name: 'memories',
+          component: () => import('../views/memory/MemoriesView.vue'),
+          meta: { title: '長期記憶' },
+        },
+        {
           path: 'admin/users',
           name: 'admin-users',
           component: () => import('../views/admin/UsersView.vue'),
