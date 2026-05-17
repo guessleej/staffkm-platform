@@ -110,6 +110,12 @@ const router = createRouter({
           meta: { title: 'MCP Servers' },
         },
         {
+          path: 'triggers',
+          name: 'triggers',
+          component: () => import('../views/trigger/TriggersView.vue'),
+          meta: { title: '排程觸發' },
+        },
+        {
           path: 'admin/users',
           name: 'admin-users',
           component: () => import('../views/admin/UsersView.vue'),
