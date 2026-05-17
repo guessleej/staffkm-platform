@@ -356,6 +356,11 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_ws_app_templates_ws ON workspace_app_templates(workspace_id, created_at DESC)",
+
+    # v2.5-C：marketplace — 跨 workspace 分享
+    "ALTER TABLE workspace_app_templates ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE workspace_app_templates ADD COLUMN IF NOT EXISTS install_count INTEGER NOT NULL DEFAULT 0",
+    "CREATE INDEX IF NOT EXISTS idx_ws_app_templates_public ON workspace_app_templates(is_public, install_count DESC) WHERE is_public = true",
 ]
 
 
