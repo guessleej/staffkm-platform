@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
+from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -197,6 +198,9 @@ app = FastAPI(
 # 期望執行順序（request 進來時）：
 #   LegacyURLBridge → GatewayHeaders → TenantContext → endpoint
 # 因此「後加 = 先跑」的規則下，加入順序要顛倒：
+# Prometheus /metrics — v2.2
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 # Tenant 必須在 GatewayHeaders 後跑，才能拿到 user_id
 app.add_middleware(

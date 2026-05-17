@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
+from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -74,6 +75,9 @@ app = FastAPI(
 # ── Middleware（starlette 規則：後加 = 外層 = 先跑）──────────────────
 # 期望執行順序（request 進來時）：
 #   LegacyURLBridge → GatewayHeaders → TenantContext → endpoint
+# Prometheus /metrics — v2.2
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(
     TenantContextMiddleware,

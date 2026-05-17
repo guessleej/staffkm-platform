@@ -1,6 +1,7 @@
 """Auth Service — 身分驗證服務 (本地 + LDAP/AD)"""
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import structlog
@@ -32,6 +33,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="StaffKM Auth Service", version="1.0.0", lifespan=lifespan)
+# Prometheus /metrics — v2.2
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 app.add_middleware(GatewayHeadersMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["身分驗證"])
