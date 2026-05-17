@@ -3,7 +3,7 @@
     <!-- 觸發按鈕 -->
     <button
       @click="open = !open"
-      class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors group"
+      class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-neutral-200 bg-surface-raised hover:bg-surface-sunken transition-colors group"
       :title="ws?.name"
     >
       <div
@@ -13,17 +13,17 @@
         {{ avatarLetters }}
       </div>
       <div class="flex-1 min-w-0 text-left">
-        <p class="text-sm font-semibold text-gray-900 truncate">
+        <p class="text-sm font-semibold text-fg truncate">
           {{ ws?.name || '未選擇工作區' }}
         </p>
-        <p class="text-[11px] text-gray-400 flex items-center gap-1">
+        <p class="text-[11px] text-fg-tertiary flex items-center gap-1">
           <span :class="roleDotClass" class="w-1.5 h-1.5 rounded-full"></span>
           <span>{{ roleLabel }}</span>
-          <span v-if="ws" class="text-gray-300">·</span>
+          <span v-if="ws" class="text-fg-tertiary">·</span>
           <span v-if="ws">{{ ws.member_count }} 人</span>
         </p>
       </div>
-      <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600 flex-shrink-0 transition-transform"
+      <svg class="w-4 h-4 text-fg-tertiary group-hover:text-fg-secondary flex-shrink-0 transition-transform"
            :class="{ 'rotate-180': open }"
            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
@@ -38,9 +38,9 @@
       leave-to-class="opacity-0 -translate-y-1"
     >
       <div v-if="open"
-           class="absolute z-30 left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-        <div class="px-3 py-2 border-b border-gray-100">
-          <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">您的工作區</p>
+           class="absolute z-30 left-0 right-0 mt-1 bg-surface-raised rounded-xl border border-neutral-200 shadow-lg overflow-hidden">
+        <div class="px-3 py-2 border-b border-neutral-100">
+          <p class="text-[10px] font-semibold text-fg-tertiary uppercase tracking-wide">您的工作區</p>
         </div>
         <ul class="max-h-72 overflow-y-auto py-1">
           <li v-for="w in store.workspaces" :key="w.id">
@@ -56,8 +56,8 @@
                 {{ initialsOf(w.name) }}
               </div>
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-900 truncate">{{ w.name }}</p>
-                <p class="text-[10px] text-gray-400">{{ roleLabelOf(w.role) }} · {{ w.member_count }} 人</p>
+                <p class="text-sm font-medium text-fg truncate">{{ w.name }}</p>
+                <p class="text-[10px] text-fg-tertiary">{{ roleLabelOf(w.role) }} · {{ w.member_count }} 人</p>
               </div>
               <svg v-if="w.id === store.currentId" class="w-4 h-4 text-indigo-600 flex-shrink-0"
                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -66,7 +66,7 @@
             </button>
           </li>
         </ul>
-        <div class="px-1 py-1 border-t border-gray-100">
+        <div class="px-1 py-1 border-t border-neutral-100">
           <button
             @click="onCreate"
             class="w-full flex items-center gap-2 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"

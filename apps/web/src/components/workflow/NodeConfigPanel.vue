@@ -1,23 +1,23 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- Panel header -->
-    <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0 bg-white">
+    <div class="px-4 py-3 border-b border-neutral-200 flex items-center justify-between flex-shrink-0 bg-surface-raised">
       <div class="flex items-center gap-2 min-w-0">
         <span class="text-base flex-shrink-0">{{ meta?.icon }}</span>
         <div class="min-w-0">
-          <div class="text-sm font-semibold text-gray-900 truncate">{{ meta?.label }}</div>
-          <div class="text-[11px] text-gray-400 font-mono">{{ node.node_key }}</div>
+          <div class="text-sm font-semibold text-fg truncate">{{ meta?.label }}</div>
+          <div class="text-[11px] text-fg-tertiary font-mono">{{ node.node_key }}</div>
         </div>
       </div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <button @click="$emit('delete')" title="刪除節點"
-                class="p-1.5 rounded-lg text-gray-300 hover:text-rose-500 hover:bg-rose-50 transition">
+                class="p-1.5 rounded-lg text-fg-tertiary hover:text-rose-500 hover:bg-rose-50 transition">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
           </svg>
         </button>
         <button @click="$emit('close')" title="關閉"
-                class="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition">
+                class="p-1.5 rounded-lg text-fg-tertiary hover:text-fg-secondary hover:bg-neutral-100 transition">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -50,7 +50,7 @@
       <template v-if="node.node_type === 'llm'">
         <div>
           <label class="form-label">Prompt Template
-            <span class="text-gray-400 font-normal ml-1">可用 <code v-pre class="bg-gray-100 px-1 rounded">{{user_input}}</code></span>
+            <span class="text-fg-tertiary font-normal ml-1">可用 <code v-pre class="bg-neutral-100 px-1 rounded">{{user_input}}</code></span>
           </label>
           <textarea v-model="node.config.prompt_template" rows="5" class="form-input resize-none"
                     placeholder="根據以下知識回答：&#10;{{knowledge_results}}&#10;&#10;問題：{{user_input}}"/>
@@ -74,7 +74,7 @@
             </div>
             <!-- 確保 v-model 仍綁定（即便不顯示 select） -->
             <input type="hidden" :value="node.config.model = 'gemma4:e4b'" />
-            <p class="text-[11px] text-gray-400 mt-1">依 RFC-005 地端優先策略，本系統僅支援單一 LLM 模型，避免模型混用造成回應品質與權限稽核漂移。</p>
+            <p class="text-[11px] text-fg-tertiary mt-1">依 RFC-005 地端優先策略，本系統僅支援單一 LLM 模型，避免模型混用造成回應品質與權限稽核漂移。</p>
           </div>
           <div>
             <label class="form-label">Temperature</label>
@@ -87,18 +87,18 @@
             <input v-model.number="node.config.max_tokens" type="number" min="64" max="8192" class="form-input"/>
           </div>
           <div class="flex items-end pb-0.5">
-            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <label class="flex items-center gap-2 text-sm text-fg-secondary cursor-pointer">
               <input type="checkbox" v-model="node.config.stream" class="rounded"/>
               串流輸出
             </label>
           </div>
         </div>
         <div>
-          <label class="form-label">API Key <span class="text-gray-400 font-normal ml-1">（留空使用環境變數）</span></label>
+          <label class="form-label">API Key <span class="text-fg-tertiary font-normal ml-1">（留空使用環境變數）</span></label>
           <input v-model="node.config.api_key" type="password" class="form-input font-mono text-xs" placeholder="sk-…"/>
         </div>
         <div>
-          <label class="form-label">Base URL <span class="text-gray-400 font-normal ml-1">（自訂 OpenAI 相容端點）</span></label>
+          <label class="form-label">Base URL <span class="text-fg-tertiary font-normal ml-1">（自訂 OpenAI 相容端點）</span></label>
           <input v-model="node.config.base_url" class="form-input font-mono text-xs" placeholder="https://api.openai.com/v1"/>
         </div>
       </template>
@@ -156,7 +156,7 @@
             <div v-for="(cond, ci) in (node.config.conditions || [])" :key="ci"
                  class="flex items-center gap-1.5">
               <input v-model="cond.variable" class="form-input flex-1 font-mono text-xs" placeholder="變數名"/>
-              <select v-model="cond.operator" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 flex-shrink-0">
+              <select v-model="cond.operator" class="text-xs border border-neutral-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 flex-shrink-0">
                 <option value="contains">包含</option>
                 <option value="not_contains">不包含</option>
                 <option value="equals">等於</option>
@@ -168,7 +168,7 @@
               </select>
               <input v-model="cond.value" class="form-input flex-1 font-mono text-xs" placeholder="值"/>
               <button @click="node.config.conditions.splice(ci, 1)"
-                      class="text-gray-300 hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
+                      class="text-fg-tertiary hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
             </div>
           </div>
           <button @click="(node.config.conditions = node.config.conditions || []).push({ variable: '', operator: 'contains', value: '' })"
@@ -184,10 +184,10 @@
             <div v-for="(asgn, ai) in (node.config.assignments || [])" :key="ai"
                  class="flex items-center gap-1.5">
               <input v-model="asgn.variable" class="form-input flex-1 font-mono text-xs" placeholder="var_name"/>
-              <span class="text-gray-400 text-xs flex-shrink-0">=</span>
+              <span class="text-fg-tertiary text-xs flex-shrink-0">=</span>
               <input v-model="asgn.value" class="form-input flex-1 font-mono text-xs" placeholder="{{user_input}}"/>
               <button @click="node.config.assignments.splice(ai, 1)"
-                      class="text-gray-300 hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
+                      class="text-fg-tertiary hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
             </div>
           </div>
           <button @click="(node.config.assignments = node.config.assignments || []).push({ variable: '', value: '' })"
@@ -198,7 +198,7 @@
       <!-- ── HTTP Request ── -->
       <template v-if="node.node_type === 'http_request'">
         <div class="flex gap-2">
-          <select v-model="node.config.method" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 flex-shrink-0">
+          <select v-model="node.config.method" class="text-xs border border-neutral-200 rounded-lg px-2 py-1.5 outline-none focus:border-indigo-400 flex-shrink-0">
             <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option>
           </select>
           <input v-model="node.config.url" class="form-input flex-1 font-mono text-xs" placeholder="https://api.example.com/{{path}}"/>
@@ -230,14 +230,14 @@
       <template v-if="node.node_type === 'answer'">
         <div>
           <label class="form-label">回覆模板
-            <span class="text-gray-400 font-normal ml-1">可用 <code v-pre class="bg-gray-100 px-1 rounded">{{llm_response}}</code></span>
+            <span class="text-fg-tertiary font-normal ml-1">可用 <code v-pre class="bg-neutral-100 px-1 rounded">{{llm_response}}</code></span>
           </label>
           <textarea v-model="node.config.message_template" rows="5" class="form-input resize-none"
                     placeholder="{{llm_response}}"/>
         </div>
         <div class="flex items-center gap-2">
           <input type="checkbox" v-model="node.config.stream" class="rounded" id="answer_stream"/>
-          <label for="answer_stream" class="text-sm text-gray-600 cursor-pointer">串流輸出</label>
+          <label for="answer_stream" class="text-sm text-fg-secondary cursor-pointer">串流輸出</label>
         </div>
       </template>
 
@@ -297,11 +297,11 @@
           <label class="form-label">意圖列表</label>
           <div class="space-y-3">
             <div v-for="(intent, ii) in (node.config.intents || [])" :key="ii"
-                 class="border border-gray-200 rounded-xl p-3 space-y-2">
+                 class="border border-neutral-200 rounded-xl p-3 space-y-2">
               <div class="flex items-center gap-2">
                 <input v-model="intent.label" class="form-input flex-1 text-xs" placeholder="意圖名稱"/>
                 <button @click="node.config.intents.splice(ii, 1)"
-                        class="text-gray-300 hover:text-rose-500 transition text-lg leading-none">×</button>
+                        class="text-fg-tertiary hover:text-rose-500 transition text-lg leading-none">×</button>
               </div>
               <div v-if="node.config.method === 'keyword'">
                 <input :value="(intent.keywords || []).join(', ')"
@@ -328,20 +328,20 @@
           <label class="form-label">參數定義</label>
           <div class="space-y-2">
             <div v-for="(param, pi) in (node.config.parameters || [])" :key="pi"
-                 class="border border-gray-200 rounded-xl p-2 space-y-1.5">
+                 class="border border-neutral-200 rounded-xl p-2 space-y-1.5">
               <div class="flex items-center gap-2">
                 <input v-model="param.name" class="form-input flex-1 font-mono text-xs" placeholder="param_name"/>
-                <select v-model="param.type" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none flex-shrink-0">
+                <select v-model="param.type" class="text-xs border border-neutral-200 rounded-lg px-2 py-1.5 outline-none flex-shrink-0">
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
                   <option value="array">array</option>
                 </select>
                 <button @click="node.config.parameters.splice(pi, 1)"
-                        class="text-gray-300 hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
+                        class="text-fg-tertiary hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
               </div>
               <input v-model="param.description" class="form-input text-xs" placeholder="參數說明"/>
-              <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <label class="flex items-center gap-1.5 text-xs text-fg-secondary cursor-pointer">
                 <input type="checkbox" v-model="param.required" class="rounded"/> 必填
               </label>
             </div>
@@ -569,11 +569,11 @@
           <label class="form-label">表單欄位</label>
           <div class="space-y-3">
             <div v-for="(field, fi) in (node.config.fields || [])" :key="fi"
-                 class="border border-gray-200 rounded-xl p-3 space-y-2">
+                 class="border border-neutral-200 rounded-xl p-3 space-y-2">
               <div class="flex items-center gap-2">
                 <input v-model="field.name" class="form-input flex-1 font-mono text-xs" placeholder="變數名"/>
                 <select v-model="field.type"
-                        class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none flex-shrink-0">
+                        class="text-xs border border-neutral-200 rounded-lg px-2 py-1.5 outline-none flex-shrink-0">
                   <option value="text">text</option>
                   <option value="textarea">textarea</option>
                   <option value="number">number</option>
@@ -581,7 +581,7 @@
                   <option value="date">date</option>
                 </select>
                 <button @click="node.config.fields.splice(fi, 1)"
-                        class="text-gray-300 hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
+                        class="text-fg-tertiary hover:text-rose-500 transition text-lg leading-none flex-shrink-0">×</button>
               </div>
               <input v-model="field.label" class="form-input text-xs" placeholder="顯示標籤"/>
               <div class="flex items-center gap-3">
@@ -756,9 +756,9 @@ function tryParseJson(event: Event, cb: (v: any) => void) {
 
 <style scoped>
 .form-label {
-  @apply block text-xs font-semibold text-gray-600 mb-1;
+  @apply block text-xs font-semibold text-fg-secondary mb-1;
 }
 .form-input {
-  @apply w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition;
+  @apply w-full text-sm border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition;
 }
 </style>

@@ -15,7 +15,7 @@
         <div
           ref="panelRef"
           tabindex="-1"
-          class="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden focus:outline-none"
+          class="w-full max-w-md bg-surface-raised rounded-2xl shadow-2xl overflow-hidden focus:outline-none"
           role="dialog"
           aria-modal="true"
           :aria-labelledby="`dialog-title-${current.id}`"

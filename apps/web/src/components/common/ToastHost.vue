@@ -15,7 +15,7 @@
         <div
           v-for="t in toast._queue.value"
           :key="t.id"
-          class="pointer-events-auto min-w-[240px] max-w-md px-4 py-2.5 rounded-xl shadow-lg border flex items-start gap-2 text-sm bg-white"
+          class="pointer-events-auto min-w-[240px] max-w-md px-4 py-2.5 rounded-xl shadow-lg border flex items-start gap-2 text-sm bg-surface-raised"
           :class="toneClass(t.kind)"
           role="alert"
         >
