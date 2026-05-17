@@ -4,9 +4,7 @@
     <div class="w-64 bg-surface-raised border-r border-neutral-200 flex flex-col flex-shrink-0">
       <div class="p-3 border-b border-neutral-100">
         <button @click="newConversation" class="w-full flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
+          <SIcon name="plus" :size="16" />
           新對話
         </button>
       </div>
@@ -45,9 +43,7 @@
       <!-- 返回應用列表 -->
       <div class="p-3 border-t border-neutral-100">
         <router-link to="/applications" class="flex items-center gap-2 text-xs text-fg-tertiary hover:text-fg-secondary transition">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-          </svg>
+          <SIcon name="chevron-left" :size="14" />
           返回應用列表
         </router-link>
       </div>
@@ -158,9 +154,7 @@
             :disabled="!input.trim() || convStore.streaming"
             class="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
-            </svg>
+            <SIcon name="send" :size="16" :stroke-width="2.5" />
           </button>
         </div>
         <p class="text-center text-[11px] text-fg-tertiary mt-2">AI 可能產生錯誤，重要資訊請查閱官方文件</p>
@@ -174,6 +168,7 @@ import { ref, watch, nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useConversationStore } from '../../stores/conversation'
 import { applicationApi, type Application } from '../../api/application'
+import { SIcon } from '@staffkm/ui-kit'
 
 const route = useRoute()
 const convStore = useConversationStore()
