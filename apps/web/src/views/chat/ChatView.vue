@@ -10,6 +10,13 @@
           {{ $t('chat.welcome') }}
         </h1>
         <p class="text-sm text-neutral-500">{{ $t('chat.welcomeHint') }}</p>
+        <!-- Sprint 19.x：Project scope binding 指示 -->
+        <div v-if="projectStore.active" class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-700 text-xs">
+          <span>{{ projectStore.active.emoji || '#' }}</span>
+          <span>使用 Project：<strong>{{ projectStore.active.name }}</strong></span>
+          <span class="text-brand-500">·</span>
+          <span>{{ projectStore.active.knowledge_base_ids.length }} 個 KB 自動加入 RAG</span>
+        </div>
       </div>
 
       <ChatInput
@@ -108,12 +115,14 @@ import { useRoute } from 'vue-router'
 import ChatInput from '../../components/chat/ChatInput.vue'
 import { useConversationStore } from '../../stores/conversation'
 import { useArtifactStore } from '../../stores/artifact'
+import { useProjectStore } from '../../stores/project'
 import { http } from '../../api'
 import { streamChat } from '../../api/chat'
 import { SIcon } from '@staffkm/ui-kit'
 
 const route = useRoute()
 const convStore = useConversationStore()
+const projectStore = useProjectStore()
 const artifact = useArtifactStore()
 
 function openCitation(c: { doc_name: string; content: string }) {
@@ -169,9 +178,13 @@ async function selectFromRoute() {
 }
 
 async function startWithScenario(scenarioId: string) {
-  const conv = await convStore.createConversation(scenarioId)
+  // Sprint 19.x：active Project → 自動把 project 的 KB list 帶進新對話 RAG scope
+  const projectKbs = projectStore.active?.knowledge_base_ids ?? []
+  const title = projectStore.active
+    ? `[${projectStore.active.emoji || '#'} ${projectStore.active.name}] 新對話`
+    : undefined
+  const conv = await convStore.createConversation(scenarioId, title, projectKbs)
   if (conv) convStore.selectConversation(conv as any)
-  // route 更新由父層 drawer onSelect 控制；此處主動同步 query
   history.replaceState(null, '', `?conv=${(conv as any)?.id || ''}`)
 }
 
