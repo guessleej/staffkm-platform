@@ -132,6 +132,10 @@
             <button @click.stop="openApiKeyDialog(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-amber-600 py-1 rounded-lg hover:bg-amber-50 transition" title="API Keys">
               API Key
             </button>
+            <!-- Sprint 19-A：加入 Project -->
+            <div class="flex items-center justify-center flex-1">
+              <AttachToProjectButton kind="app" :resource-id="app.id" />
+            </div>
             <button @click.stop="deleteApp(app.id)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-rose-600 py-1 rounded-lg hover:bg-rose-50 transition">
               刪除
             </button>
@@ -492,6 +496,7 @@ import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue
 import { useProjectStore } from '../../stores/project'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { APP_TEMPLATES, TEMPLATE_CATEGORIES, type AppTemplate } from '../../data/appTemplates'
+import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
 
 const router = useRouter()
 const auth = useAuthStore()

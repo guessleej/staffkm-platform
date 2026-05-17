@@ -155,6 +155,8 @@
                 :to="`/knowledge/${kb.id}/hit-test`"
                 class="flex-1 text-center text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 py-1.5 rounded-md transition-colors"
               >檢索測試</router-link>
+              <!-- Sprint 19-A：加入 Project -->
+              <AttachToProjectButton kind="kb" :resource-id="kb.id" />
               <button
                 @click="openAclDrawer(kb)"
                 class="px-2 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
@@ -397,6 +399,7 @@ import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import { SEmpty } from '@staffkm/ui-kit'
 import FolderTree, { type FolderNode } from '../../components/common/FolderTree.vue'
 import KbAccessDrawer from '../../components/knowledge/KbAccessDrawer.vue'
+import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
 import { useProjectStore } from '../../stores/project'
 
 const kbs = ref<any[]>([])

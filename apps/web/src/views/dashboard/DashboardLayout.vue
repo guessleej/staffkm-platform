@@ -104,6 +104,11 @@
           <WorkspaceSwitcher />
         </div>
 
+        <!-- Sprint 19-A：Project picker（與 ChatLayout 同步入口）-->
+        <div class="hidden md:block">
+          <ProjectPicker />
+        </div>
+
         <button
           @click="ui.toggleTheme()"
           class="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
@@ -203,6 +208,7 @@ import { onClickOutside } from '@vueuse/core'
 
 import HNavItem from '../../components/common/HNavItem.vue'
 import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
+import ProjectPicker from '../../components/project/ProjectPicker.vue'
 import {
   IconChat, IconApps, IconKnowledge, IconAgent,
   IconUsers, IconCpu, IconSettings,
