@@ -164,6 +164,9 @@
       </div>
     </main>
   </div>
+
+  <!-- v2.3-A：first-run onboarding wizard -->
+  <OnboardingWizard ref="onboardingRef" />
 </template>
 
 <script setup lang="ts">
@@ -173,6 +176,7 @@ import { onClickOutside } from '@vueuse/core'
 
 import HNavItem from '../../components/common/HNavItem.vue'
 import NavIconLink from '../../components/common/NavIconLink.vue'
+import OnboardingWizard from '../../components/onboarding/OnboardingWizard.vue'
 import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
 import ProjectPicker from '../../components/project/ProjectPicker.vue'
 import {

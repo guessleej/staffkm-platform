@@ -573,7 +573,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { applicationApi, type Application } from '../../api/application'
 import { apiKeyApi, type ApiKey } from '../../api/apiKey'
@@ -590,6 +590,7 @@ import AttachToProjectButton from '../../components/project/AttachToProjectButto
 import TemplateTryModal from '../../components/application/TemplateTryModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const loading = ref(false)
@@ -945,7 +946,13 @@ function appEmoji(name: string) {
   return 'APP'
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // v2.3-A：onboarding wizard 透過 ?tour=templates|create 自動開
+  const tour = (route.query.tour as string) || ''
+  if (tour === 'templates') openTemplateGallery()
+  else if (tour === 'create') openCreateDialog()
+})
 </script>
 
 <style scoped>
