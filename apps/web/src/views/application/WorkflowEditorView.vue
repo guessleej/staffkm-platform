@@ -241,13 +241,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import LogicFlow from '@logicflow/core'
 import '@logicflow/core/dist/style/index.css'
 
 import { registerWorkflowNodes, NODE_META, PALETTE_GROUPS, getDefaultConfig } from '../../components/workflow/lf-nodes'
-import NodeConfigPanel from '../../components/workflow/NodeConfigPanel.vue'
+// Sprint 20-C：NodeConfigPanel 含 20+ node types 配置 UI（~30 KB），只在選中節點時才渲染
+const NodeConfigPanel = defineAsyncComponent(
+  () => import('../../components/workflow/NodeConfigPanel.vue')
+)
 import { workflowApi, type WorkflowNode, type WorkflowEdge } from '../../api/workflow'
 import { appVersionApi, type AppVersion } from '../../api/application'
 import { SIcon } from '@staffkm/ui-kit'
