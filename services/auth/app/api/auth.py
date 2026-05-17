@@ -16,26 +16,72 @@ from staffkm_core.utils.database import get_session
 router = APIRouter()
 
 
-# ── Sprint 20-B：失敗次數追蹤 + CAPTCHA ────────────────────────────────
-# in-process counter（單 instance OK；多 instance 部署可改 Redis）
-_FAIL_THRESHOLD = 3      # 連續失敗達此數即要求 CAPTCHA
-_FAIL_TTL_SEC   = 600    # 10 分鐘窗口
+# ── Sprint 20-B / v3.0：失敗次數追蹤（Redis-backed，多 instance ready）─
+# 升級自 v2.x 的 in-process counter；多 gateway / auth replica 部署正確
+import redis.asyncio as _aioredis
+from app.config import settings as _settings
+
+_FAIL_THRESHOLD = 3       # 連續失敗達此數即要求 CAPTCHA
+_FAIL_TTL_SEC   = 600     # 10 分鐘窗口
+_redis_client: _aioredis.Redis | None = None
+_REDIS_PREFIX = "staffkm:auth:fail:"
+# fallback：Redis 連不到時退回 in-process
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
+
+def _get_redis() -> _aioredis.Redis | None:
+    global _redis_client
+    if _redis_client is None:
+        try:
+            _redis_client = _aioredis.from_url(_settings.REDIS_URL, decode_responses=True)
+        except Exception as e:
+            log_msg = f"redis init failed, fallback to in-process: {e}"
+            import structlog; structlog.get_logger().warning(log_msg)
+            _redis_client = None
+    return _redis_client
+
 
 def _fail_key(req: Request, username: str) -> str:
     ip = (req.headers.get('x-forwarded-for') or req.client.host or 'unknown').split(',')[0].strip()
     return f"{ip}:{username.lower()}"
 
-def _fail_count(key: str) -> int:
+
+async def _fail_count(key: str) -> int:
+    """Redis: INCR 後讀目前值；連不上 → fallback in-process。"""
+    r = _get_redis()
+    if r:
+        try:
+            v = await r.get(_REDIS_PREFIX + key)
+            return int(v) if v else 0
+        except Exception:
+            pass
+    # fallback
     now = time.time()
     arr = _failed_attempts[key]
     arr[:] = [t for t in arr if now - t < _FAIL_TTL_SEC]
     return len(arr)
 
-def _fail_record(key: str) -> None:
+
+async def _fail_record(key: str) -> None:
+    r = _get_redis()
+    if r:
+        try:
+            full = _REDIS_PREFIX + key
+            # INCR + EXPIRE 一個 pipeline（也可用 NX 但保持簡單）
+            async with r.pipeline(transaction=False) as pipe:
+                await pipe.incr(full).expire(full, _FAIL_TTL_SEC).execute()
+            return
+        except Exception:
+            pass
     _failed_attempts[key].append(time.time())
 
-def _fail_clear(key: str) -> None:
+
+async def _fail_clear(key: str) -> None:
+    r = _get_redis()
+    if r:
+        try:
+            await r.delete(_REDIS_PREFIX + key); return
+        except Exception:
+            pass
     _failed_attempts.pop(key, None)
 
 
@@ -91,7 +137,7 @@ def _verify_captcha(token: str, answer: str) -> bool:
 @router.post("/login", response_model=ApiResponse[TokenResponse], summary="帳號密碼登入")
 async def login(body: LoginRequest, request: Request, session: AsyncSession = Depends(get_session)):
     fkey = _fail_key(request, body.username)
-    fails = _fail_count(fkey)
+    fails = await _fail_count(fkey)
 
     # 連續 N 次失敗後強制要求 CAPTCHA
     if fails >= _FAIL_THRESHOLD:
@@ -101,7 +147,7 @@ async def login(body: LoginRequest, request: Request, session: AsyncSession = De
                 detail="captcha_required",
             )
         if not _verify_captcha(body.captcha_token, body.captcha_answer):
-            _fail_record(fkey)
+            await _fail_record(fkey)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="captcha_invalid",
@@ -111,8 +157,8 @@ async def login(body: LoginRequest, request: Request, session: AsyncSession = De
     user = await svc.authenticate(body.username, body.password)
 
     if not user:
-        _fail_record(fkey)
-        new_fails = _fail_count(fkey)
+        await _fail_record(fkey)
+        new_fails = await _fail_count(fkey)
         # 達到門檻時告訴前端需要 CAPTCHA
         detail = "captcha_required" if new_fails >= _FAIL_THRESHOLD else "帳號或密碼錯誤"
         raise HTTPException(
@@ -121,7 +167,7 @@ async def login(body: LoginRequest, request: Request, session: AsyncSession = De
         )
 
     # 成功 → 清零失敗計數
-    _fail_clear(fkey)
+    await _fail_clear(fkey)
 
     tokens = svc.generate_tokens(user)
     return ApiResponse(
