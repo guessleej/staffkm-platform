@@ -2,6 +2,59 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [2.5.0] — 2026-05-17
+
+> **Developer partners** milestone — CLAUDE.md / API ref / template marketplace。
+> 重點：把 staffKM 變成可以「跟其他 dev / AI 助理協作」+ 「生態擴散」的平台。
+> v2.x roadmap 完成。
+
+### Highlights
+- 🧠 **CLAUDE.md** — repo-level project memory，凝結 Sprint 14-25 設計決策 + 踩雷集 + 風格慣例
+- 📘 **API reference 完整 doc** — 7000 字、12 個資源組、SSE 範例、SDK
+- 🌍 **Template marketplace** — 跨 workspace 分享模板 + 安裝計數 + install button
+
+### Added — CLAUDE.md (v2.5-A)
+新檔 `CLAUDE.md`（repo root）：
+- 10 個重要原則（compose / Auth / Design system / Icon / Nav / routing 三層 / SQL CAST / DDL / perf 等）
+- 常用指令 + Repo 結構地圖
+- **8 條踩雷集**（不要再踩）
+- 命名 / commit / PR 風格
+- 重要 PR / Tag 對照表
+- 跟使用者溝通方式 + 不要做的事
+
+下次任何 Claude session 進這個 repo 就有完整上下文，不必重新摸索。
+
+### Added — API reference (v2.5-B)
+`docs/dev/api-reference.md` — 7000 字：
+- 3 種認證方式（JWT / API Key / 公開）
+- 12 個資源組 endpoint 全表（applications / kbs / docs / chat / templates / mcp / triggers / memories / usage / projects / public / app-templates）
+- 統一回應格式 + SSE streaming JS / Python SDK 範例
+- Rate limit / OpenAPI / Webhook / 變更日誌
+
+### Added — Template marketplace (v2.5-C)
+- DDL：`workspace_app_templates` + `is_public` + `install_count` cols
+- 新 endpoints：
+  - `GET /api/v1/app-templates/marketplace` — 跨 workspace 列出 public 模板（排 install_count DESC）
+  - `POST /api/v1/app-templates/marketplace/{id}/install` — 複製到自己 workspace + install_count++
+- TemplateCreate / Update / Out 加 `is_public` + `install_count`
+- 前端 api 加 `listMarketplace()` / `installFromMarketplace()`
+
+### v2.x roadmap 完成
+
+| Tag | 主題 | 範圍 |
+|---|---|---|
+| v2.0 | GA | 105+ PRs，5 milestone |
+| v2.1 | Functional parity | MaxKB 缺口 5/5 + Orphan 5 模組 + Design system v2 |
+| v2.2 | Production-ready | metrics + TLS + backup |
+| v2.3 | Demo polish | onboarding + citation chip |
+| v2.4 | B2B | widget + SSO + user docs |
+| v2.5 | Dev partners | CLAUDE.md + API ref + marketplace |
+
+### PR refs
+#173
+
+---
+
 ## [2.4.0] — 2026-05-17
 
 > **B2B enablement** milestone — embed widget + SSO + user docs。
