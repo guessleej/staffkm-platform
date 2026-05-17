@@ -234,6 +234,23 @@
             </div>
           </div>
 
+          <!-- v2.4-B：SSO 按鈕（OIDC_ENABLED=true 才出現） -->
+          <div v-if="oidcEnabled" class="space-y-3">
+            <button
+              type="button"
+              @click="gotoSSO"
+              class="w-full h-11 rounded-xl text-sm font-semibold text-indigo-700 bg-white border-2 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 transition flex items-center justify-center gap-2"
+            >
+              <SIcon name="key" :size="14" />
+              使用 {{ oidcLabel }} 登入
+            </button>
+            <div class="flex items-center gap-3 text-[11px] text-slate-400">
+              <div class="flex-1 h-px bg-slate-200"></div>
+              <span>或使用帳號密碼</span>
+              <div class="flex-1 h-px bg-slate-200"></div>
+            </div>
+          </div>
+
           <!-- 登入按鈕 -->
           <button
             type="submit"
@@ -286,6 +303,43 @@ const fieldError = computed(() => !!errorMsg.value)
 
 // Sprint 20-B：CAPTCHA
 import { authApi as _authApi, type Captcha } from '../../api/auth'
+import { onMounted } from 'vue'
+
+// v2.4-B：OIDC SSO
+const oidcEnabled = ref(false)
+const oidcLabel   = ref('SSO')
+
+onMounted(async () => {
+  // 處理 OIDC callback 帶回的 #access_token=...&refresh_token=...
+  const hash = location.hash
+  if (hash.startsWith('#access_token=')) {
+    const params = new URLSearchParams(hash.slice(1))
+    const at = params.get('access_token')
+    const rt = params.get('refresh_token')
+    if (at) {
+      localStorage.setItem('access_token', at)
+      if (rt) localStorage.setItem('refresh_token', rt)
+      // 清 hash 避免再次觸發
+      history.replaceState(null, '', location.pathname + location.search)
+      // 載 user info
+      try {
+        await auth.init()
+        const next = (route.query.next as string) || '/'
+        router.push(next.startsWith('/') ? next : '/')
+        return
+      } catch { /* fall through to manual login */ }
+    }
+  }
+  // 探 OIDC 是否啟用
+  const info = await _authApi.oidcInfo()
+  oidcEnabled.value = info.enabled
+  oidcLabel.value   = info.display_name || 'SSO'
+})
+
+function gotoSSO() {
+  const next = (route.query.next as string) || '/'
+  location.href = _authApi.oidcLoginUrl(next)
+}
 const captcha = ref<Captcha | null>(null)
 const captchaAnswer = ref('')
 async function fetchCaptcha() {

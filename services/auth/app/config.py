@@ -16,5 +16,15 @@ class Settings(BaseSettings):
     LDAP_BIND_DN: str = ""
     LDAP_BIND_PASSWORD: str = ""
 
+    # v2.4-B：OIDC SSO（Google / Microsoft AD / Okta / Azure AD）
+    OIDC_ENABLED:        bool = False
+    OIDC_DISPLAY_NAME:   str  = "SSO"
+    OIDC_ISSUER:         str  = ""
+    OIDC_CLIENT_ID:      str  = ""
+    OIDC_CLIENT_SECRET:  str  = ""
+    OIDC_REDIRECT_URI:   str  = ""
+    OIDC_SCOPES:         str  = "openid email profile"
+    OIDC_DEFAULT_ROLE:   str  = "user"
+
 
 settings = Settings()
