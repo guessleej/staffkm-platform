@@ -104,6 +104,12 @@ const router = createRouter({
           meta: { title: 'Projects' },
         },
         {
+          path: 'mcp/servers',
+          name: 'mcp-servers',
+          component: () => import('../views/mcp/McpServersView.vue'),
+          meta: { title: 'MCP Servers' },
+        },
+        {
           path: 'admin/users',
           name: 'admin-users',
           component: () => import('../views/admin/UsersView.vue'),
