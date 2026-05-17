@@ -3,6 +3,45 @@
 @import "./spacing-radius.css";
 @import "./typography.css";
 
+/* ── 設計系統 v2：typography 階層 utility（沒寫到 Tailwind preset 是因為要保留覆蓋彈性）── */
+:where(.text-display) {
+  font-size: var(--text-4xl); font-weight: var(--font-bold);
+  line-height: var(--leading-tight); letter-spacing: var(--tracking-tighter);
+}
+:where(.text-h1) {
+  font-size: var(--text-3xl); font-weight: var(--font-bold);
+  line-height: var(--leading-tight); letter-spacing: var(--tracking-tight);
+}
+:where(.text-h2) {
+  font-size: var(--text-2xl); font-weight: var(--font-semibold);
+  line-height: var(--leading-snug); letter-spacing: var(--tracking-tight);
+}
+:where(.text-h3) {
+  font-size: var(--text-xl); font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+:where(.text-h4) {
+  font-size: var(--text-lg); font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+:where(.text-body-lg) {
+  font-size: var(--text-base); font-weight: var(--font-normal);
+  line-height: var(--leading-relaxed);
+}
+:where(.text-body) {
+  font-size: var(--text-sm); font-weight: var(--font-normal);
+  line-height: var(--leading-normal);
+}
+:where(.text-caption) {
+  font-size: var(--text-xs); font-weight: var(--font-normal);
+  line-height: var(--leading-normal); color: hsl(var(--color-text-secondary));
+}
+:where(.text-overline) {
+  font-size: var(--text-2xs); font-weight: var(--font-bold);
+  letter-spacing: var(--tracking-widest); text-transform: uppercase;
+  color: hsl(var(--color-text-tertiary));
+}
+
 /* 全域 base styles（可選）─ 設定字型 + 預設背景 */
 :where(html) {
   font-family: var(--font-sans);
