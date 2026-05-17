@@ -42,8 +42,8 @@ export const useAuthStore = defineStore('auth', () => {
     return _initPromise
   }
 
-  async function login(username: string, password: string) {
-    const data = await authApi.login(username, password)
+  async function login(username: string, password: string, captcha?: { token: string; answer: string }) {
+    const data = await authApi.login(username, password, captcha)
     accessToken.value = data.access_token
     user.value = data.user
     localStorage.setItem('access_token', data.access_token)
