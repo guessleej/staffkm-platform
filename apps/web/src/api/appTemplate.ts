@@ -13,6 +13,8 @@ export interface WorkspaceAppTemplate {
   welcome_message:     string
   suggested_questions: string[]
   requires_kb:         boolean
+  is_public:           boolean
+  install_count:       number
   created_at:          string
   updated_at:          string
 }
@@ -43,5 +45,14 @@ export const appTemplateApi = {
   },
   remove: async (id: string): Promise<void> => {
     await http.delete(`/app-templates/${id}`)
+  },
+  // v2.5-C：marketplace
+  listMarketplace: async (): Promise<WorkspaceAppTemplate[]> => {
+    const { data } = await http.get('/app-templates/marketplace')
+    return data.data || []
+  },
+  installFromMarketplace: async (id: string): Promise<{ id: string }> => {
+    const { data } = await http.post(`/app-templates/marketplace/${id}/install`)
+    return data.data
   },
 }
