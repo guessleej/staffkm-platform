@@ -40,6 +40,7 @@ _LEGACY_PREFIXES = (
     "/api/v1/model-providers",
     "/api/v1/media-providers",
     "/api/v1/app-templates",
+    "/api/v1/admin/audit-logs",
 )
 
 _EXCLUDE_PREFIXES = (

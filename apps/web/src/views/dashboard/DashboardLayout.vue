@@ -50,6 +50,8 @@
           <HNavItem to="/admin/users" :label="$t('nav.users')">
             <template #icon><IconUsers :size="16" /></template>
           </HNavItem>
+          <!-- v3.0：admin audit log icon-only -->
+          <NavIconLink to="/admin/audit-logs" label="Audit Log" icon="file-text" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>

@@ -15,7 +15,7 @@ from app.routers._generic_proxy import (
     tools_router, skills_router, data_sources_router, folders_router,
     model_providers_router, media_providers_router,
     usage_router, triggers_router, mcp_router, memories_router,
-    app_templates_router,
+    app_templates_router, audit_logs_router,
 )
 
 log = structlog.get_logger()
@@ -84,3 +84,4 @@ app.include_router(triggers_router, prefix="/api/v1/triggers", tags=["Event Trig
 app.include_router(mcp_router,      prefix="/api/v1/mcp",      tags=["MCP Servers"])
 app.include_router(memories_router, prefix="/api/v1/memories", tags=["長期記憶"])
 app.include_router(app_templates_router, prefix="/api/v1/app-templates", tags=["Workspace App Templates"])
+app.include_router(audit_logs_router,    prefix="/api/v1/admin/audit-logs",   tags=["Audit Log (v3.0)"])

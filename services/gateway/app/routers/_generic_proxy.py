@@ -39,3 +39,5 @@ triggers_router     = make_proxy_router("triggers")
 mcp_router          = make_proxy_router("mcp")
 memories_router     = make_proxy_router("memories")
 app_templates_router = make_proxy_router("app-templates")
+# v3.0：audit log（前端在 /admin/audit-logs）
+audit_logs_router = make_proxy_router("admin/audit-logs")

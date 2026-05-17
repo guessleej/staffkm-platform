@@ -1,0 +1,36 @@
+{
+  "title": "staffKM v3 — 資源 (CPU / RAM)",
+  "uid": "staffkm-v3-resource",
+  "tags": ["staffkm", "v3.0"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Process resident memory (per service)",
+      "gridPos": {"x":0,"y":0,"w":12,"h":8},
+      "targets": [{"expr":"process_resident_memory_bytes","legendFormat":"{{job}}","refId":"A"}],
+      "fieldConfig": {"defaults":{"unit":"bytes"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU seconds total (rate, per service)",
+      "gridPos": {"x":12,"y":0,"w":12,"h":8},
+      "targets": [{"expr":"rate(process_cpu_seconds_total[1m])","legendFormat":"{{job}}","refId":"A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Open file descriptors",
+      "gridPos": {"x":0,"y":8,"w":12,"h":6},
+      "targets": [{"expr":"process_open_fds","legendFormat":"{{job}}","refId":"A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Python GC collected (rate)",
+      "gridPos": {"x":12,"y":8,"w":12,"h":6},
+      "targets": [{"expr":"rate(python_gc_collected_objects_total[5m])","legendFormat":"{{job}} gen{{generation}}","refId":"A"}]
+    }
+  ]
+}

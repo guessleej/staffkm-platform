@@ -361,6 +361,13 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "ALTER TABLE workspace_app_templates ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false",
     "ALTER TABLE workspace_app_templates ADD COLUMN IF NOT EXISTS install_count INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_ws_app_templates_public ON workspace_app_templates(is_public, install_count DESC) WHERE is_public = true",
+
+    # ── v3.0：Audit log（既有 audit_logs 是 partition by date；補欄不重建）─
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS workspace_id UUID",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_username VARCHAR(64)",
+    "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_label VARCHAR(256)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_logs_ws_created ON audit_logs(workspace_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_audit_logs_resource   ON audit_logs(resource, resource_id)",
 ]
 
 
