@@ -50,6 +50,9 @@ export const NODE_META: Record<string, NodeMeta> = {
   schedule:            { color: '#a855f7', bg: '#faf5ff', icon: 'CRON', label: '排程觸發', w: 190, h: 72, noInput: true },
   transform:           { color: '#06b6d4', bg: '#ecfeff', icon: 'TRF', label: '資料轉換', w: 190, h: 72 },
   merge:               { color: '#64748b', bg: '#f8fafc', icon: 'MRG', label: '合併資料流', w: 190, h: 72 },
+
+  // ── v2.1：寫入 workflow KB（RFC-013）──────────────────────────────
+  kb_writer:           { color: '#0d9488', bg: '#f0fdfa', icon: 'KW', label: '寫入知識庫', w: 200, h: 72 },
 }
 
 // ─── 預設 config ───────────────────────────────────────────────────────────────
@@ -87,6 +90,17 @@ export function getDefaultConfig(nodeType: string): Record<string, any> {
     schedule:            { cron: '0 9 * * 1-5', timezone: 'Asia/Taipei' },
     transform:           { input_variable: 'input', expression: '{{input}}', output_variable: 'transformed' },
     merge:               { source_variables: ['a', 'b'], output_variable: 'merged' },
+
+    // ── v2.1：kb_writer（RFC-013）────────────────────────────────
+    kb_writer:           {
+      kb_id: '',
+      content_variable: '{{llm_response}}',
+      title_variable: '',
+      source_variable: '',
+      chunking: 'single',
+      upsert_key: '',
+      output_variable: 'kb_write_result',
+    },
   }
   return defaults[nodeType] ?? {}
 }
@@ -121,6 +135,11 @@ export const PALETTE_GROUPS = [
   {
     label: '觸發',
     items: ['webhook', 'schedule'] as const,
+  },
+  // ── v2.1 ──────────────────────────────────────────────────────
+  {
+    label: '知識庫',
+    items: ['kb_writer'] as const,
   },
 ]
 
