@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
-from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants
+from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
@@ -213,6 +213,7 @@ app.include_router(search.router,          prefix=f"{_PREFIX}/search",     tags=
 app.include_router(hit_test.router,        prefix=f"{_PREFIX}/hit-test",   tags=["命中測試"])
 app.include_router(tasks.router,           prefix=f"{_PREFIX}/tasks",      tags=["任務管理"])
 app.include_router(kb_grants.router,       prefix=f"{_PREFIX}/bases",      tags=["KB 資源授權（Round 10-4）"])
+app.include_router(inline_write.router,    prefix=f"{_PREFIX}/documents",  tags=["Workflow KB inline-write（RFC-013）"])
 
 
 @app.get("/health")

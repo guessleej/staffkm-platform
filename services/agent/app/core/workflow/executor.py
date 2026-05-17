@@ -212,6 +212,11 @@ class WorkflowExecutor:
                     async for ev in self._exec_shell(config, context):
                         yield ev
 
+                # ── v2.1 / RFC-013：寫入 workflow KB ───────────────
+                elif node_type == "kb_writer":
+                    async for ev in self._exec_kb_writer(config, context):
+                        yield ev
+
             except Exception as e:
                 # M2-2：manager='retry' 時自動重試（最多 3 次、指數退避）
                 attempts = _node_attempts.get(current_key, 0) + 1
@@ -1515,3 +1520,72 @@ class WorkflowExecutor:
             "timed_out": res.timed_out,
             "elapsed_ms": res.elapsed_ms,
         })}
+
+    # ── v2.1 / RFC-013：寫入 workflow KB ───────────────────────────
+    async def _exec_kb_writer(self, config: dict, context: dict):
+        """寫一段純文字到指定 workflow KB。
+
+        config:
+          kb_id:             必填，target KB（必須為 workflow 型）
+          content_variable:  必填，從 context 取要寫入的純文字（模板字串）
+          title_variable:    可選
+          source_variable:   可選
+          chunking:          'single'(預設) | 'auto' | 'paragraph'
+          upsert_key:        可選，命中時先刪舊 Document
+        """
+        kb_id = config.get("kb_id")
+        if not kb_id:
+            yield {"event": "kb_writer_blocked", "data": json.dumps({"reason": "缺 kb_id"})}
+            return
+
+        content_tpl = config.get("content_variable") or "{{llm_response}}"
+        title_tpl   = config.get("title_variable") or ""
+        source_tpl  = config.get("source_variable") or ""
+        upsert_tpl  = config.get("upsert_key") or ""
+
+        content = self._render_template(content_tpl, context)
+        if not content.strip():
+            yield {"event": "kb_writer_skip", "data": json.dumps({"reason": "content 為空"})}
+            return
+
+        body: dict[str, Any] = {
+            "content":  content,
+            "chunking": config.get("chunking", "single"),
+        }
+        if title_tpl:
+            t = self._render_template(title_tpl, context)
+            if t: body["title"] = t
+        if source_tpl:
+            s = self._render_template(source_tpl, context)
+            if s: body["source"] = s
+        if upsert_tpl:
+            uk = self._render_template(upsert_tpl, context)
+            if uk: body["upsert_key"] = uk
+
+        url = self._knowledge_url(context, f"documents/{kb_id}/inline-write")
+        headers = self._downstream_headers(context)
+
+        yield {"event": "kb_writer_start", "data": json.dumps({
+            "kb_id": kb_id, "chunking": body["chunking"],
+            "upsert_key": body.get("upsert_key"),
+        })}
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.post(url, headers=headers, json=body)
+                if r.status_code >= 400:
+                    detail = ""
+                    try: detail = r.json().get("detail", "")
+                    except Exception: detail = r.text[:200]
+                    yield {"event": "kb_writer_error", "data": json.dumps({
+                        "status": r.status_code, "detail": detail,
+                    })}
+                    return
+                data = r.json().get("data") or {}
+        except Exception as e:
+            log.warning("kb_writer_call_failed", error=str(e), **self._audit_fields(context))
+            yield {"event": "kb_writer_error", "data": json.dumps({"error": str(e)})}
+            return
+
+        out_var = config.get("output_variable", "kb_write_result")
+        context[out_var] = data
+        yield {"event": "kb_writer_done", "data": json.dumps(data)}
