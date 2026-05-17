@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
-from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write
+from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
@@ -76,6 +76,12 @@ _BOOTSTRAP_STATEMENTS: list[str] = [
     "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_type VARCHAR(16) NOT NULL DEFAULT 'manual'",
     "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_workflow_id UUID",
     "CREATE INDEX IF NOT EXISTS idx_kb_source_workflow ON knowledge_bases(source_workflow_id) WHERE source_workflow_id IS NOT NULL",
+
+    # 9b. Sprint 16：Web KB 同步 — source_url + crawl meta
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_url TEXT",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS sync_status VARCHAR(16)",
+    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS sync_error TEXT",
 
     # 8. Round 10-4：KB 資源授權（per-KB ACL；workspace 內針對特定 user / role 限制存取）
     """
@@ -214,6 +220,7 @@ app.include_router(hit_test.router,        prefix=f"{_PREFIX}/hit-test",   tags=
 app.include_router(tasks.router,           prefix=f"{_PREFIX}/tasks",      tags=["任務管理"])
 app.include_router(kb_grants.router,       prefix=f"{_PREFIX}/bases",      tags=["KB 資源授權（Round 10-4）"])
 app.include_router(inline_write.router,    prefix=f"{_PREFIX}/documents",  tags=["Workflow KB inline-write（RFC-013）"])
+app.include_router(web_sync.router,        prefix=f"{_PREFIX}/bases",      tags=["Web KB 同步（Sprint 16）"])
 
 
 @app.get("/health")

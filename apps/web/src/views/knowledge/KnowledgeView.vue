@@ -189,6 +189,26 @@
             </button>
           </div>
           <div class="px-5 py-4 space-y-4">
+            <!-- Sprint 16：建立方式 tab -->
+            <div class="inline-flex p-1 bg-neutral-100 rounded-lg gap-1">
+              <button
+                type="button"
+                @click="createMode = 'manual'"
+                class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                :class="createMode === 'manual'
+                  ? 'bg-surface-raised text-brand-700 shadow-sm'
+                  : 'text-neutral-600 hover:text-neutral-900'"
+              >📁 手動上傳</button>
+              <button
+                type="button"
+                @click="createMode = 'web'"
+                class="px-3 py-1.5 text-xs font-medium rounded-md transition"
+                :class="createMode === 'web'
+                  ? 'bg-surface-raised text-brand-700 shadow-sm'
+                  : 'text-neutral-600 hover:text-neutral-900'"
+              >🌐 從 URL 匯入</button>
+            </div>
+
             <div>
               <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
                 名稱 <span class="text-danger-500">*</span>
@@ -208,6 +228,23 @@
                 placeholder="這個知識庫的用途、適用對象等"
                 class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none"
               />
+            </div>
+
+            <!-- Sprint 16：Web 模式 URL 欄位 -->
+            <div v-if="createMode === 'web'">
+              <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
+                來源 URL <span class="text-danger-500">*</span>
+              </label>
+              <input
+                v-model="form.web_url"
+                type="url"
+                placeholder="https://docs.example.com/handbook"
+                class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus"
+              />
+              <p class="text-[11px] text-neutral-500 mt-1.5">
+                建立後將自動抓取頁面內容、抽文字、切片入庫。<br>
+                MVP 只抓單頁；如需多頁/全站爬取請逐個建立。
+              </p>
             </div>
 
             <!-- 切片策略（RFC-006）─────────────────────────────────── -->
@@ -258,9 +295,9 @@
             >取消</button>
             <button
               @click="createKB"
-              :disabled="!form.name"
+              :disabled="!form.name || submitting || (createMode === 'web' && !form.web_url)"
               class="h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
-            >建立</button>
+            >{{ submitting ? '建立中…' : (createMode === 'web' ? '建立並開始抓取' : '建立') }}</button>
           </div>
         </div>
       </div>
@@ -344,7 +381,10 @@ const form = ref({
   chunk_strategy: 'auto' as 'auto' | 'recursive' | 'markdown' | 'qa',
   chunk_size: 512,
   chunk_overlap: 64,
+  web_url: '',
 })
+const createMode = ref<'manual' | 'web'>('manual')
+const submitting = ref(false)
 
 // 切片策略選項（RFC-006）
 const CHUNK_STRATEGIES = [
@@ -443,17 +483,35 @@ async function load() {
 }
 
 async function createKB() {
-  await knowledgeApi.createBase({
-    name: form.value.name,
-    description: form.value.description || undefined,
-    folder_id: activeFolderId.value,
-    chunk_strategy: form.value.chunk_strategy,
-    chunk_size: form.value.chunk_size,
-    chunk_overlap: form.value.chunk_overlap,
-  })
-  showCreate.value = false
-  form.value = { name: '', description: '', chunk_strategy: 'auto', chunk_size: 512, chunk_overlap: 64 }
-  await load()
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    const res: any = await knowledgeApi.createBase({
+      name: form.value.name,
+      description: form.value.description || undefined,
+      folder_id: activeFolderId.value,
+      chunk_strategy: form.value.chunk_strategy,
+      chunk_size: form.value.chunk_size,
+      chunk_overlap: form.value.chunk_overlap,
+    })
+    // Web 模式：再 trigger 同步任務
+    if (createMode.value === 'web' && form.value.web_url) {
+      const kbId = res?.id || res?.data?.id
+      if (kbId) {
+        try {
+          await knowledgeApi.syncFromWeb(kbId, form.value.web_url.trim())
+        } catch (e: any) {
+          alert(`KB 已建立，但啟動 URL 同步失敗：${e?.response?.data?.detail || e?.message || ''}`)
+        }
+      }
+    }
+    showCreate.value = false
+    form.value = { name: '', description: '', chunk_strategy: 'auto', chunk_size: 512, chunk_overlap: 64, web_url: '' }
+    createMode.value = 'manual'
+    await load()
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function deleteKB(id: string) {

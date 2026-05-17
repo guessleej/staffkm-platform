@@ -193,6 +193,22 @@ export const knowledgeApi = {
     return data.data
   },
 
+  // — Sprint 16：Web KB 同步
+  async syncFromWeb(kbId: string, url: string): Promise<{ task_id?: string | null }> {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/web-sync`, { url })
+    return data.data || {}
+  },
+  async getKbSyncInfo(kbId: string): Promise<{
+    source_type: 'manual' | 'workflow' | 'web';
+    source_url: string | null;
+    sync_status: 'pending' | 'running' | 'ready' | 'failed' | null;
+    sync_error: string | null;
+    last_synced_at: string | null;
+  }> {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/sync-info`)
+    return data.data
+  },
+
   // — 段落排序（v2.1 11-3）
   async reorderParagraphs(docId: string, orderedIds: string[]) {
     const { data } = await http.put(`/knowledge/paragraphs/doc/${docId}/reorder`, { ordered_ids: orderedIds })
