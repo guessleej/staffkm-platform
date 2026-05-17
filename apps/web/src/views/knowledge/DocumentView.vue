@@ -12,8 +12,21 @@
           <IconArrowLeft :size="16" />
         </button>
         <div>
-          <h2 class="text-base font-semibold text-neutral-900">文件</h2>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-semibold text-neutral-900">文件</h2>
+            <span v-if="sourceInfo?.source_type === 'workflow'"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-brand-50 text-brand-700 rounded">
+              <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              工作流知識庫
+            </span>
+            <span v-else class="text-[10px] text-neutral-400">手動</span>
+          </div>
           <p class="text-[11px] text-neutral-400 font-mono">{{ kbId }}</p>
+          <p v-if="sourceInfo?.source_workflow_id" class="text-[10px] text-neutral-500 mt-0.5">
+            來源 workflow：<code class="font-mono">{{ sourceInfo.source_workflow_id }}</code>
+          </p>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -275,6 +288,7 @@ const loading = ref(false)
 const dragging = ref(false)
 const uploadingFile = ref<File | null>(null)
 const uploadProgress = ref(0)
+const sourceInfo = ref<{ source_type?: string; source_workflow_id?: string } | null>(null)
 let pollTimer: any = null
 
 async function loadDocs() {
@@ -288,6 +302,15 @@ async function loadDocs() {
   }
 }
 
+async function loadSourceInfo() {
+  try {
+    sourceInfo.value = await knowledgeApi.getKbSourceInfo(kbId.value)
+  } catch (e) {
+    console.warn('getKbSourceInfo failed', e)
+    sourceInfo.value = null
+  }
+}
+
 function startPolling() {
   stopPolling()
   pollTimer = setInterval(() => {
@@ -298,7 +321,7 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-onMounted(() => { loadDocs(); startPolling() })
+onMounted(() => { loadDocs(); loadSourceInfo(); startPolling() })
 onBeforeUnmount(stopPolling)
 
 async function onFileSelected(e: Event) {
