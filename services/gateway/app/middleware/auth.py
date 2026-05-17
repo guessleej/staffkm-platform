@@ -9,6 +9,7 @@ from app.config import settings
 PUBLIC_PATHS = {
     "/api/v1/auth/login",
     "/api/v1/auth/refresh",
+    "/api/v1/auth/captcha",
     "/api/v1/health",
     "/api/docs",
     "/api/redoc",

@@ -212,6 +212,28 @@
             </div>
           </Transition>
 
+          <!-- Sprint 20-B：CAPTCHA challenge（3 次失敗後出現） -->
+          <div v-if="captcha" class="space-y-1.5">
+            <label for="cap" class="block text-[13px] font-semibold text-fg-secondary tracking-wide">
+              驗證碼
+              <button type="button" @click="fetchCaptcha"
+                      class="ml-2 text-[11px] text-indigo-600 hover:underline">換一題</button>
+            </label>
+            <div class="flex items-center gap-2">
+              <div class="px-3 h-11 rounded-xl bg-slate-50 border border-slate-200 flex items-center text-base font-mono text-slate-700 select-none">
+                {{ captcha.question }}
+              </div>
+              <input
+                id="cap"
+                v-model="captchaAnswer"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="算式答案"
+                class="flex-1 h-11 px-3 text-sm rounded-xl border border-slate-200 placeholder:text-slate-300 text-slate-800 bg-slate-50/80 focus:bg-surface-raised focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none"
+              />
+            </div>
+          </div>
+
           <!-- 登入按鈕 -->
           <button
             type="submit"
@@ -262,16 +284,38 @@ const errorMsg = ref('')
 const showPwd = ref(false)
 const fieldError = computed(() => !!errorMsg.value)
 
+// Sprint 20-B：CAPTCHA
+import { authApi as _authApi, type Captcha } from '../../api/auth'
+const captcha = ref<Captcha | null>(null)
+const captchaAnswer = ref('')
+async function fetchCaptcha() {
+  try { captcha.value = await _authApi.getCaptcha(); captchaAnswer.value = '' }
+  catch { captcha.value = null }
+}
+
 async function handleLogin() {
   errorMsg.value = ''
   loading.value = true
   try {
-    await auth.login(form.value.username, form.value.password)
-    // 從 ?next= 拿目標路徑（401 interceptor 會帶過來）
+    const cap = captcha.value && captchaAnswer.value
+      ? { token: captcha.value.token, answer: captchaAnswer.value.trim() }
+      : undefined
+    await auth.login(form.value.username, form.value.password, cap)
     const next = (route.query.next as string) || '/'
     router.push(next.startsWith('/') ? next : '/')
   } catch (err: any) {
-    errorMsg.value = err.response?.data?.detail ?? '帳號或密碼錯誤，請重新輸入'
+    const detail = err.response?.data?.detail
+    if (detail === 'captcha_required') {
+      errorMsg.value = '請完成下方驗證碼後重新登入'
+      await fetchCaptcha()
+    } else if (detail === 'captcha_invalid') {
+      errorMsg.value = '驗證碼錯誤，請重試'
+      await fetchCaptcha()
+    } else {
+      errorMsg.value = detail ?? '帳號或密碼錯誤，請重新輸入'
+      // 若已有 captcha 顯示中，重抓新題（避免 token 被重用）
+      if (captcha.value) await fetchCaptcha()
+    }
   } finally {
     loading.value = false
   }
