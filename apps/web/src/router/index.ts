@@ -122,6 +122,12 @@ const router = createRouter({
           meta: { title: '長期記憶' },
         },
         {
+          path: 'admin/audit-logs',
+          name: 'admin-audit-logs',
+          component: () => import('../views/admin/AuditLogsView.vue'),
+          meta: { title: 'Audit Log', roles: ['admin'] },
+        },
+        {
           path: 'admin/users',
           name: 'admin-users',
           component: () => import('../views/admin/UsersView.vue'),

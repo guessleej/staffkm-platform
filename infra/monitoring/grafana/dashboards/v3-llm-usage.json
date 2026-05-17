@@ -1,0 +1,54 @@
+{
+  "title": "staffKM v3 — LLM 用量 (from usage_log)",
+  "uid": "staffkm-v3-llm",
+  "tags": ["staffkm", "v3.0"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "5m",
+  "panels": [
+    {
+      "type": "text",
+      "title": "說明",
+      "gridPos": {"x":0,"y":0,"w":24,"h":3},
+      "options": {"mode":"markdown","content":"此 dashboard 需 PostgreSQL datasource 才能 query `usage_log` table。\n\n當前 stack 只有 Prometheus；資料源請手動加 PG datasource，或直接在 staffKM `/admin/usage` 看圖。\n\nPanel 設定預留 — datasource UID 改為實際 PG 後生效。"}
+    },
+    {
+      "type": "stat",
+      "title": "今日 tokens",
+      "gridPos": {"x":0,"y":3,"w":6,"h":4},
+      "datasource": {"type":"postgres","uid":"PG_DATASOURCE_UID_HERE"},
+      "targets": [{"refId":"A","rawSql":"SELECT COALESCE(SUM(total_tokens), 0) FROM usage_log WHERE created_at >= now() - INTERVAL '24 hours'","format":"table"}]
+    },
+    {
+      "type": "stat",
+      "title": "今日成本 (USD)",
+      "gridPos": {"x":6,"y":3,"w":6,"h":4},
+      "datasource": {"type":"postgres","uid":"PG_DATASOURCE_UID_HERE"},
+      "targets": [{"refId":"A","rawSql":"SELECT COALESCE(SUM(cost_usd), 0) FROM usage_log WHERE created_at >= now() - INTERVAL '24 hours'","format":"table"}],
+      "fieldConfig":{"defaults":{"unit":"currencyUSD"}}
+    },
+    {
+      "type": "stat",
+      "title": "今日請求數",
+      "gridPos": {"x":12,"y":3,"w":6,"h":4},
+      "datasource": {"type":"postgres","uid":"PG_DATASOURCE_UID_HERE"},
+      "targets": [{"refId":"A","rawSql":"SELECT count(*) FROM usage_log WHERE created_at >= now() - INTERVAL '24 hours'","format":"table"}]
+    },
+    {
+      "type": "stat",
+      "title": "錯誤率（今日）",
+      "gridPos": {"x":18,"y":3,"w":6,"h":4},
+      "datasource": {"type":"postgres","uid":"PG_DATASOURCE_UID_HERE"},
+      "targets": [{"refId":"A","rawSql":"SELECT 100.0 * count(*) FILTER (WHERE status != 'ok') / NULLIF(count(*), 0) AS pct FROM usage_log WHERE created_at >= now() - INTERVAL '24 hours'","format":"table"}],
+      "fieldConfig":{"defaults":{"unit":"percent"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens by day (last 14d, by workspace)",
+      "gridPos": {"x":0,"y":7,"w":24,"h":8},
+      "datasource": {"type":"postgres","uid":"PG_DATASOURCE_UID_HERE"},
+      "targets": [{"refId":"A","rawSql":"SELECT date_trunc('day', created_at) AS time, workspace_id::text AS metric, SUM(total_tokens) AS value FROM usage_log WHERE created_at >= now() - INTERVAL '14 days' GROUP BY 1, 2 ORDER BY 1","format":"time_series"}]
+    }
+  ]
+}

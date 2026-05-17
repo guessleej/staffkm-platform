@@ -1,0 +1,35 @@
+{
+  "title": "staffKM v3 — Endpoint 細項",
+  "uid": "staffkm-v3-endpoints",
+  "tags": ["staffkm", "v3.0"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-3h", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "type": "table",
+      "title": "Top 10 endpoints by RPS",
+      "gridPos": {"x":0,"y":0,"w":12,"h":10},
+      "targets": [{"expr":"topk(10, sum(rate(http_requests_total[5m])) by (handler))","refId":"A","format":"table","instant":true}]
+    },
+    {
+      "type": "table",
+      "title": "Endpoints with 5xx",
+      "gridPos": {"x":12,"y":0,"w":12,"h":10},
+      "targets": [{"expr":"topk(10, sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (handler))","refId":"A","format":"table","instant":true}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Per-method RPS",
+      "gridPos": {"x":0,"y":10,"w":12,"h":8},
+      "targets": [{"expr":"sum(rate(http_requests_total[1m])) by (method)","legendFormat":"{{method}}","refId":"A"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Per-status RPS",
+      "gridPos": {"x":12,"y":10,"w":12,"h":8},
+      "targets": [{"expr":"sum(rate(http_requests_total[1m])) by (status)","legendFormat":"{{status}}","refId":"A"}]
+    }
+  ]
+}

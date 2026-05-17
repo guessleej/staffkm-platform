@@ -1,0 +1,43 @@
+{
+  "title": "staffKM v3 — Celery Tasks (knowledge worker)",
+  "uid": "staffkm-v3-celery",
+  "tags": ["staffkm", "v3.0"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-3h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "text",
+      "title": "說明",
+      "gridPos": {"x":0,"y":0,"w":24,"h":3},
+      "options": {"mode":"markdown","content":"此 dashboard 需 [celery-exporter](https://github.com/danihodovic/celery-exporter) 才有資料。\n\nv3 暫時：可以直接 query Redis：`docker exec staffkm-redis redis-cli -a $PW LLEN celery` 看 queue length。\n\nv3.x 再補 exporter。"}
+    },
+    {
+      "type": "stat",
+      "title": "Queue length (Redis LLEN)",
+      "gridPos": {"x":0,"y":3,"w":8,"h":4},
+      "targets": [{"expr":"celery_queue_length","refId":"A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Active workers",
+      "gridPos": {"x":8,"y":3,"w":8,"h":4},
+      "targets": [{"expr":"celery_workers","refId":"A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Failed tasks (last 1h)",
+      "gridPos": {"x":16,"y":3,"w":8,"h":4},
+      "targets": [{"expr":"increase(celery_tasks_failed_total[1h])","refId":"A"}],
+      "fieldConfig":{"defaults":{"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":10}]}}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Task duration p95 by task name",
+      "gridPos": {"x":0,"y":7,"w":24,"h":10},
+      "targets": [{"expr":"histogram_quantile(0.95, sum(rate(celery_task_runtime_seconds_bucket[5m])) by (le, name))","legendFormat":"{{name}}","refId":"A"}],
+      "fieldConfig":{"defaults":{"unit":"s"}}
+    }
+  ]
+}
