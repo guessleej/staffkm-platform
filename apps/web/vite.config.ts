@@ -24,11 +24,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          // 15-3: 重型 vendors 拆獨立 chunk 利於長期 cache
           'lf-vendor':   ['@logicflow/core'],
           'vue-vendor':  ['vue', 'vue-router', 'pinia'],
+          // 19-perf：marked + highlight.js (~400KB) 拆出，避免污染 ChatLayout
+          'md-vendor':   ['marked', 'highlight.js'],
         },
       },
     },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 650,
   },
 })

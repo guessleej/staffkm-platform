@@ -88,8 +88,8 @@
       </main>
     </div>
 
-    <!-- 右側 Artifact 預覽欄（store.isOpen 控制 slide-in）-->
-    <ArtifactPane />
+    <!-- 右側 Artifact 預覽欄（lazy：只有真的要開時才 import marked + highlight.js）-->
+    <ArtifactPane v-if="artifact.isOpen" />
   </div>
 </template>
 
@@ -99,12 +99,18 @@ import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
 import ChatHistoryDrawer from '../../components/chat/ChatHistoryDrawer.vue'
-import ArtifactPane from '../../components/chat/ArtifactPane.vue'
+// 19-perf：ArtifactPane 含 marked + highlight.js (~400KB)；只有 store.isOpen 時才
+// 真的渲染，用 defineAsyncComponent 讓它在 pane 首次開啟時才下載 md-vendor chunk
+import { defineAsyncComponent } from 'vue'
+const ArtifactPane = defineAsyncComponent(
+  () => import('../../components/chat/ArtifactPane.vue')
+)
 import ProjectPicker from '../../components/project/ProjectPicker.vue'
 import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useUIStore } from '../../stores/ui'
 import { useConversationStore } from '../../stores/conversation'
+import { useArtifactStore } from '../../stores/artifact'
 import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -112,6 +118,7 @@ import { useWorkspaceStore } from '../../stores/workspace'
 const auth = useAuthStore()
 const ui = useUIStore()
 const convStore = useConversationStore()
+const artifact = useArtifactStore()
 const workspace = useWorkspaceStore()
 const projects = useProjectStore()
 const route = useRoute()
