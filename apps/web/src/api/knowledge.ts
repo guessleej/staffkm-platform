@@ -192,4 +192,26 @@ export const knowledgeApi = {
     const { data } = await http.get(`/knowledge/bases/${kbId}/source-info`)
     return data.data
   },
+
+  // — 段落排序（v2.1 11-3）
+  async reorderParagraphs(docId: string, orderedIds: string[]) {
+    const { data } = await http.put(`/knowledge/paragraphs/doc/${docId}/reorder`, { ordered_ids: orderedIds })
+    return data.data
+  },
+  async moveParagraph(paragraphId: string, direction: 'up' | 'down' | 'top' | 'bottom') {
+    const { data } = await http.post(`/knowledge/paragraphs/${paragraphId}/move?direction=${direction}`)
+    return data.data
+  },
+
+  // — Workflow KB inline-write（v2.1 11-1，給 SDK / 工具用）
+  async inlineWrite(kbId: string, body: {
+    content: string;
+    title?: string;
+    source?: string;
+    chunking?: 'single' | 'auto' | 'paragraph';
+    upsert_key?: string;
+  }) {
+    const { data } = await http.post(`/knowledge/documents/${kbId}/inline-write`, body)
+    return data.data
+  },
 }

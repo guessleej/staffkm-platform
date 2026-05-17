@@ -165,3 +165,108 @@ async def replace_qa(
     p.qa_pairs = [pair.model_dump() for pair in body.qa]
     await session.commit()
     return ApiResponse(message="qa_pairs 已更新", data={"count": len(p.qa_pairs)})
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  v2.1 11-3：段落排序（拖移上下 / 移到頂 / 移到底）
+# ═══════════════════════════════════════════════════════════════════════
+class ReorderReq(BaseModel):
+    """以新的 order 順序 PUT 整個 document 的段落 ID 序列。"""
+    ordered_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=2000)
+
+
+@router.put("/doc/{doc_id}/reorder", response_model=ApiResponse)
+async def reorder_paragraphs(
+    doc_id: uuid.UUID,
+    body: ReorderReq,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """整批更新段落 order_index。
+
+    - ordered_ids 必須涵蓋 document 內所有段落
+    - 任一 id 不屬於 document → 400
+    - 一次 transaction 內完成 N 次 UPDATE
+    """
+    # 驗證 doc 屬於 workspace
+    doc_q = WorkspaceScopedQuery(Document).select().where(Document.id == doc_id)
+    doc = (await session.execute(doc_q)).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文件不存在或不屬於此工作區")
+
+    # 取目前段落 id set
+    existing_q = (
+        WorkspaceScopedQuery(Paragraph).select()
+        .where(Paragraph.document_id == doc_id)
+    )
+    existing = list((await session.execute(existing_q)).scalars().all())
+    existing_ids = {p.id for p in existing}
+    sent_ids = set(body.ordered_ids)
+
+    if sent_ids != existing_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "ordered_ids 必須與 document 內所有段落一致 "
+                f"（傳入 {len(sent_ids)}，現有 {len(existing_ids)}）"
+            ),
+        )
+
+    # 索引映射
+    id_to_pos = {pid: i for i, pid in enumerate(body.ordered_ids)}
+    for p in existing:
+        p.order_index = id_to_pos[p.id]
+    await session.commit()
+    return ApiResponse(message="段落順序已更新", data={"count": len(existing)})
+
+
+@router.post("/{paragraph_id}/move", response_model=ApiResponse)
+async def move_paragraph(
+    paragraph_id: uuid.UUID,
+    direction: str,    # "up" | "down" | "top" | "bottom"
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """單筆段落上下移動 / 移到頂 / 底；自動重排同 document 內其餘段落 order_index。"""
+    if direction not in ("up", "down", "top", "bottom"):
+        raise HTTPException(status_code=400, detail="direction 必須為 up|down|top|bottom")
+
+    q = WorkspaceScopedQuery(Paragraph).select().where(Paragraph.id == paragraph_id)
+    p = (await session.execute(q)).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
+
+    siblings_q = (
+        WorkspaceScopedQuery(Paragraph).select()
+        .where(Paragraph.document_id == p.document_id)
+        .order_by(Paragraph.order_index)
+    )
+    siblings = list((await session.execute(siblings_q)).scalars().all())
+    if len(siblings) <= 1:
+        return ApiResponse(message="僅一段，無需移動")
+
+    cur_idx = next((i for i, s in enumerate(siblings) if s.id == p.id), None)
+    if cur_idx is None:
+        raise HTTPException(status_code=500, detail="找不到當前段落於文件中")
+
+    new_idx = cur_idx
+    if direction == "up" and cur_idx > 0:
+        new_idx = cur_idx - 1
+    elif direction == "down" and cur_idx < len(siblings) - 1:
+        new_idx = cur_idx + 1
+    elif direction == "top":
+        new_idx = 0
+    elif direction == "bottom":
+        new_idx = len(siblings) - 1
+
+    if new_idx == cur_idx:
+        return ApiResponse(message="已在邊界，未變動")
+
+    moved = siblings.pop(cur_idx)
+    siblings.insert(new_idx, moved)
+    for i, s in enumerate(siblings):
+        s.order_index = i
+    await session.commit()
+    return ApiResponse(message="移動完成", data={
+        "from_index": cur_idx, "to_index": new_idx,
+    })
