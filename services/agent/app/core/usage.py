@@ -141,3 +141,30 @@ async def check_quota(session: AsyncSession, workspace_id: str) -> None:
             f"workspace {workspace_id} 已達月成本上限 "
             f"(${u['cost_usd']:.2f}/${q['monthly_cost_cap_usd']:.2f})"
         )
+
+
+async def calc_cost(
+    session: AsyncSession,
+    *,
+    model: str | None,
+    prompt_tokens: int,
+    completion_tokens: int,
+) -> float:
+    """查 ai_models 取定價算 cost；查不到 / NULL 都回 0.0。"""
+    if not model:
+        return 0.0
+    r = await session.execute(
+        text("""
+            SELECT price_per_1k_input_usd, price_per_1k_output_usd
+            FROM ai_models
+            WHERE model_name = :model
+            LIMIT 1
+        """),
+        {"model": model},
+    )
+    row = r.fetchone()
+    if not row:
+        return 0.0
+    pin = float(row[0] or 0)
+    pout = float(row[1] or 0)
+    return round((prompt_tokens / 1000.0) * pin + (completion_tokens / 1000.0) * pout, 6)
