@@ -1,0 +1,125 @@
+name: RAG eval weekly bench
+
+# 每週日 02:00 UTC 自動跑 RAG bench，append 結果到 docs/perf/v3.3-rag-bench-history.md，
+# 並用 hit@5 threshold gate 偵測 retrieval 退化。
+#
+# 注意：
+# - 首次 enable 此 workflow 前確認 GH runner 有夠記憶體（>=8GB）— 起 docker compose 整套很重。
+# - 預設未跑 reranker container（cold start ~120s），如需請於 P5+ 加入 `--profile reranker`。
+# - SECRET_KEY / POSTGRES_PASSWORD / REDIS_PASSWORD 走 CI-only 預設值，僅供 ephemeral 測試。
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bring up core services
+        working-directory: infra
+        env:
+          POSTGRES_PASSWORD: ci_pass
+          SECRET_KEY: ci_secret_key_for_testing_only_32chars
+          REDIS_PASSWORD: ci_redis
+        run: docker compose up -d --wait
+
+      - name: Wait for gateway health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost/api/v1/health > /dev/null; then
+              echo "gateway healthy"
+              break
+            fi
+            sleep 5
+          done
+          curl -sf http://localhost/api/v1/health || (echo "gateway not healthy"; exit 1)
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install eval deps
+        run: pip install httpx
+
+      - name: Login → get token & workspace
+        id: token
+        run: |
+          TOKEN=$(curl -s -X POST http://localhost/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"Admin@2026"}' | jq -r .access_token)
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "::error::failed to obtain admin token"
+            exit 1
+          fi
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          WS=$(curl -s http://localhost/api/v1/workspaces \
+            -H "Authorization: Bearer $TOKEN" | jq -r '.data[0].id')
+          echo "workspace=$WS" >> $GITHUB_OUTPUT
+
+      - name: Seed eval KB
+        run: |
+          python tools/eval/seed_eval_kb.py \
+            --base http://localhost \
+            --token ${{ steps.token.outputs.token }} \
+            --workspace-id ${{ steps.token.outputs.workspace }} \
+            --output /tmp/seeded.json
+
+      - name: Run eval
+        run: |
+          KB_ID=$(jq -r .kb_id /tmp/seeded.json)
+          python tools/eval/rag_eval.py \
+            --base http://localhost \
+            --token ${{ steps.token.outputs.token }} \
+            --kb-id $KB_ID \
+            --dataset tools/eval/rag_eval_dataset.json \
+            --seeded /tmp/seeded.json \
+            --modes vector hybrid fts \
+            --output /tmp/bench-result.md
+
+      - name: Append to history doc
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          {
+            echo ""
+            echo "## $DATE (CI)"
+            echo ""
+            cat /tmp/bench-result.md
+          } >> docs/perf/v3.3-rag-bench-history.md
+
+      - name: Threshold gate (hybrid+none hit@5 >= 0.5)
+        run: |
+          HIT=$(grep "hybrid+none" /tmp/bench-result.md | head -n1 | awk -F'|' '{print $4}' | tr -d ' ')
+          echo "hybrid+none hit@5 = $HIT"
+          if [ -z "$HIT" ]; then
+            echo "::error::could not parse hybrid+none hit@5"
+            exit 1
+          fi
+          awk -v h="$HIT" 'BEGIN { exit (h+0 < 0.5) ? 1 : 0 }' || {
+            echo "::error::hybrid+none hit@5 ($HIT) below threshold 0.5"
+            exit 1
+          }
+
+      - name: Commit history if changed
+        run: |
+          if git diff --quiet docs/perf/v3.3-rag-bench-history.md; then
+            echo "no change"
+            exit 0
+          fi
+          git config user.email "ci@staffkm"
+          git config user.name "staffKM CI"
+          git add docs/perf/v3.3-rag-bench-history.md
+          git commit -m "chore(perf): weekly RAG bench $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Tear down
+        if: always()
+        working-directory: infra
+        run: docker compose down -v

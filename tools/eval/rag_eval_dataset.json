@@ -1,64 +1,106 @@
 {
   "kb_name": "staffkm-eval-kb",
-  "description": "v3.3 RAG eval dataset — 10 條 zh-TW HR / policy 範例 query",
+  "description": "v3.3 RAG eval dataset — 10 條 zh-TW HR / policy 範例 query；v3.4-P4 加 expected_corpus_anchors（file + title_contains），由 rag_eval.py 配 --seeded 解析為實際 paragraph_id。",
   "queries": [
     {
       "id": "q1",
       "query": "請假規定",
+      "expected_corpus_anchors": [
+        {"file": "01-leave-policy.md", "title_contains": "年假"},
+        {"file": "01-leave-policy.md", "title_contains": "事假"},
+        {"file": "01-leave-policy.md", "title_contains": "病假"},
+        {"file": "01-leave-policy.md", "title_contains": "特休"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "policy", "leave"]
     },
     {
       "id": "q2",
       "query": "員工年假可累積幾天",
+      "expected_corpus_anchors": [
+        {"file": "01-leave-policy.md", "title_contains": "年假"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "policy", "leave"]
     },
     {
       "id": "q3",
       "query": "出差差旅報銷流程",
+      "expected_corpus_anchors": [
+        {"file": "08-business-trip.md", "title_contains": "報銷"},
+        {"file": "08-business-trip.md", "title_contains": "差旅費"},
+        {"file": "03-expense-report.md", "title_contains": "申請時機"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "process", "finance"]
     },
     {
       "id": "q4",
-      "query": "勞健保投保級距怎麼算",
+      "query": "報帳要附什麼單據",
+      "expected_corpus_anchors": [
+        {"file": "03-expense-report.md", "title_contains": "必備單據"},
+        {"file": "03-expense-report.md", "title_contains": "簽核"}
+      ],
       "expected_paragraph_ids": [],
-      "tags": ["zh-tw", "policy", "insurance"]
+      "tags": ["zh-tw", "process", "finance"]
     },
     {
       "id": "q5",
       "query": "新人到職第一天要準備什麼文件",
+      "expected_corpus_anchors": [
+        {"file": "04-onboarding.md", "title_contains": "報到當日"},
+        {"file": "04-onboarding.md", "title_contains": "配發物品"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "onboarding"]
     },
     {
       "id": "q6",
       "query": "績效考核標準與升等流程",
+      "expected_corpus_anchors": [
+        {"file": "09-performance-review.md", "title_contains": "評估標準"},
+        {"file": "09-performance-review.md", "title_contains": "升等"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "hr", "performance"]
     },
     {
       "id": "q7",
       "query": "公司 VPN 怎麼設定",
+      "expected_corpus_anchors": [
+        {"file": "07-it-security.md", "title_contains": "VPN"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "it", "howto"]
     },
     {
       "id": "q8",
       "query": "離職交接清單",
+      "expected_corpus_anchors": [
+        {"file": "10-resignation.md", "title_contains": "交接清單"},
+        {"file": "10-resignation.md", "title_contains": "設備"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "hr", "offboarding"]
     },
     {
       "id": "q9",
       "query": "加班費怎麼計算",
+      "expected_corpus_anchors": [
+        {"file": "02-overtime-policy.md", "title_contains": "加班費"},
+        {"file": "02-overtime-policy.md", "title_contains": "補休"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "policy", "salary"]
     },
     {
       "id": "q10",
       "query": "公司資安規範與密碼政策",
+      "expected_corpus_anchors": [
+        {"file": "07-it-security.md", "title_contains": "密碼政策"},
+        {"file": "07-it-security.md", "title_contains": "MFA"},
+        {"file": "07-it-security.md", "title_contains": "資料分級"}
+      ],
       "expected_paragraph_ids": [],
       "tags": ["zh-tw", "it", "security"]
     }
