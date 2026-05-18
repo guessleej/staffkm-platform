@@ -13,7 +13,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -207,6 +207,9 @@ app.include_router(heartbeats.router,        prefix="/api/v1/admin/heartbeats", 
 
 # ── v3.8 P2：admin per-user billing 報表（跨 workspace 真實用了多少錢）─
 app.include_router(admin_billing.router,     prefix="/api/v1/admin/billing", tags=["Admin Billing (v3.8)"])
+
+# ── v3.8 P4：admin slow query plan analyzer（自動捕獲 EXPLAIN ANALYZE）─
+app.include_router(slow_queries.router,      prefix="/api/v1/admin/slow-queries", tags=["Admin Slow Queries (v3.8)"])
 
 
 @app.get("/health")
