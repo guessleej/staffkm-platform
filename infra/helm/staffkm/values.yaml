@@ -19,6 +19,12 @@ replicaCount:
   auth:      2
   chat:      2
   ui:        2
+  worker:    2   # v4.0 P3+P4: arq workers (worker.enabled=true 才生效)
+
+# v4.0 P3+P4: Distributed worker backend (arq + redis)
+# 啟用後 agent service 內部 in-process worker 自動 disable (WORKER_BACKEND=arq)
+worker:
+  enabled: false   # 預設關 (v3.x in-process 行為)；切到 true 時也要設 agent env
 
 autoscaling:
   enabled: true
@@ -37,6 +43,9 @@ resources:
   knowledge:
     requests: { cpu: "500m", memory: "1Gi" }
     limits:   { cpu: "2000m", memory: "4Gi" }   # pgvector caller 吃較多
+  worker:
+    requests: { cpu: "200m", memory: "512Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
 
 # ── 安全 / 多租戶 ──────────────────────────────────────────────────
 secrets:
