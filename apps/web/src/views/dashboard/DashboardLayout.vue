@@ -72,6 +72,8 @@
           <NavIconLink to="/admin/billing/stripe" label="Stripe Billing" icon="key" />
           <!-- v3.8 P4：slow query plan analyzer -->
           <NavIconLink to="/admin/slow-queries" label="Slow Query Analyzer" icon="database" />
+          <!-- v5.0 K：active-active multi-region (scaffolding) -->
+          <NavIconLink to="/admin/regions" label="Multi-Region" icon="globe" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>

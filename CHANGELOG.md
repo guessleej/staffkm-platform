@@ -2,6 +2,63 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [5.0.0] — 2026-05-18
+
+> **Major release** — Theme K：active-active multi-region **scaffolding**。
+> ⚠️ 本版只交付架構 + framework；**真實多 region 寫流量請排到 v5.1+**。
+> 升級指南：[`docs/upgrade/v4-to-v5.md`](./docs/upgrade/v4-to-v5.md)
+
+### Highlights
+
+- 🌐 **L1 region-pin**：每 workspace 綁 primary region；非 primary 寫請求 → 308 redirect
+- 🪪 **regions 表 + region_conflict_log 表** — cluster-wide registry + conflict 治理
+- 🧰 **CRDT primitives stub**（`app/core/crdt.py`：LWW-Register + G-Counter reference）
+- 🛠️ **Admin API**：`/admin/regions`、`/admin/conflicts`、`/admin/workspaces/{id}/region`
+- 🖥️ **Admin UI**：`/admin/regions` 列 + 新增 region、查 conflicts、一鍵 LWW 解決
+- 📚 **完整文件**：`docs/deploy/active-active.md` 約 200 行架構深度說明
+
+### Breaking Changes
+
+| 項目 | 影響 | 處理 |
+|---|---|---|
+| alembic 新 revision `0019_multi_region` | schema 加 1 欄 + 2 表（純 additive） | lifespan 自動跑 |
+| **無其他 breaking** — `MULTI_REGION_ENABLED` 預設 `false`、行為等同 v4.x | — | — |
+
+可隨時 `alembic downgrade -1` 完整回滾。
+
+### Added — Theme K (PR #240)
+
+- **alembic 0019_multi_region**：
+  - `workspace.primary_region VARCHAR(32) DEFAULT 'default'`
+  - `regions(id, name, db_url, minio_endpoint, is_active, created_at)` registry
+  - `region_conflict_log(...)` append log + `idx_conflict_pending` partial index
+- **`app/middleware/region_router.py`** — `RegionRouterMiddleware`
+  - 只攔寫操作（POST/PUT/PATCH/DELETE）
+  - 跳過 webhook / metrics / health
+  - workspace primary region → process-local cache 5 min
+  - 跨 region → 308 + `Location: <REGION_X_URL><path>`
+  - 預設 disabled（`MULTI_REGION_ENABLED=true` 才掛）
+- **`app/api/admin_regions.py`** — admin CRUD（regions / conflicts / ws-bind）
+- **`app/core/crdt.py`** — `lww_resolve()` + `gcounter_merge()` + `gcounter_increment()` 純 reference
+- **Gateway proxy**：3 個新 admin router（regions / conflicts / workspaces）
+- **Frontend**：`apps/web/src/api/regions.ts` + `views/admin/RegionsView.vue` + nav icon `globe`
+- **compose env**：`MULTI_REGION_ENABLED`、`REGION_ID`
+- **`.env.example`** v5.0 section 註解版範例
+
+### Docs
+
+- `docs/plans/v5.0-roadmap.md` — scope + v5.1–v5.5 後續計畫
+- `docs/deploy/active-active.md` — 三層策略（L1 region-pin / L2 logical replication / L3 CRDT）、衝突來源、dev 試法
+- `docs/upgrade/v4-to-v5.md` — 升級 + 回滾步驟
+
+### Not Done（明確留 v5.x）
+
+- ❌ 真實跨 region PG logical replication 設定（DBA 工作 → v5.5 playbook）
+- ❌ Region failover automation（health-based DNS swap → v5.4）
+- ❌ 真實 CRDT 接 hot path（model_usage_logs / user_quotas merge → v5.2）
+- ❌ Conflict resolution side-by-side UI（→ v5.3）
+- ❌ compose 模擬多 region（compose 是單 host）
+
 ## [4.0.0] — 2026-05-18
 
 > **Major release** — 拔技術債 + distributed task queue + multi-region readiness。

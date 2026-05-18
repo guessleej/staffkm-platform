@@ -273,3 +273,61 @@ def _make_admin_plugins_router() -> APIRouter:
 
 
 admin_plugins_router = _make_admin_plugins_router()
+
+
+# v5.0 K：admin regions registry — 非 workspace-scoped
+def _make_admin_regions_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET", "POST"])
+    @router.api_route("/", methods=["GET", "POST"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/regions")
+
+    @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/regions{suffix}")
+
+    return router
+
+
+admin_regions_router = _make_admin_regions_router()
+
+
+# v5.0 K：admin conflicts log — 非 workspace-scoped
+def _make_admin_conflicts_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET"])
+    @router.api_route("/", methods=["GET"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/conflicts")
+
+    @router.api_route("/{path:path}", methods=["GET", "POST"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/conflicts{suffix}")
+
+    return router
+
+
+admin_conflicts_router = _make_admin_conflicts_router()
+
+
+# v5.0 K：admin workspace region binding (PUT /admin/workspaces/{id}/region)
+def _make_admin_workspaces_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/workspaces{suffix}")
+
+    return router
+
+
+admin_workspaces_router = _make_admin_workspaces_router()
