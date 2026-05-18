@@ -47,6 +47,7 @@ class WorkflowExecutor:
         *,
         run_id: _uuid.UUID | str | None = None,  # v3.5 P1：寫 workflow_run_steps 用
         resume_from_node: str | None = None,  # v3.5 P2：resume worker 用，從此 node 的下一個 node 開始跑
+        depth: int = 0,  # v3.5 P3：sub_workflow 巢狀深度，>3 raise 防無窮遞迴
     ):
         # M2-2：執行策略
         if workflow_manager not in _VALID_MANAGERS:
@@ -68,6 +69,10 @@ class WorkflowExecutor:
         self._step_idx: int = 0
         # v3.5 P2：resume worker 帶入；若設了，main loop 會從 resume_from_node 的下一個 node 開始
         self.resume_from_node = resume_from_node
+        # v3.5 P3：sub_workflow 巢狀深度
+        if depth > 3:
+            raise RuntimeError(f"sub_workflow depth exceeded (>3): {depth}")
+        self.depth = depth
         # 建立有向圖（key -> [key, ...]）
         self.children: dict[str, list[str]] = {n: [] for n in self.nodes}
         self.edge_conditions: dict[tuple, Any] = {}
@@ -366,6 +371,11 @@ class WorkflowExecutor:
                 # ── v3.5 P2：human_approval — 寫 pending row + raise WorkflowPaused ──
                 elif node_type == "human_approval":
                     await self._exec_human_approval(config, context, current_key)
+
+                # ── v3.5 P3：sub_workflow — 呼叫另一個 application 的 workflow ──
+                elif node_type == "sub_workflow":
+                    async for ev in self._exec_sub_workflow(config, context):
+                        yield ev
 
             except WorkflowPaused:
                 # v3.5 P2：暫停而非錯誤；寫一筆 paused step 後 re-raise，caller 處理 run.status
@@ -2064,3 +2074,66 @@ class WorkflowExecutor:
         out_var = config.get("output_variable", "kb_write_result")
         context[out_var] = data
         yield {"event": "kb_writer_done", "data": json.dumps(data)}
+
+    # ── v3.5 P3：sub_workflow — 呼叫另一個 application 的 workflow ──
+    async def _exec_sub_workflow(self, config: dict, context: dict):
+        """執行 sub_application 的 workflow，把最後結果塞回外層 context。
+
+        config:
+          sub_application_id: UUID (必填)
+          input_template:    Jinja string，渲染成 sub workflow 的 user_input
+          output_variable:   外層 context 接收 sub 結果的 key（預設 'sub_result'）
+        """
+        sub_app_id = config.get("sub_application_id")
+        if not sub_app_id:
+            yield {"event": "error", "data": json.dumps({"error": "sub_workflow: sub_application_id missing"})}
+            return
+        if not self.workspace_id or not _db._session_factory:
+            yield {"event": "error", "data": json.dumps({"error": "sub_workflow needs workspace + DB context"})}
+            return
+
+        input_tpl = config.get("input_template", "{{user_input}}")
+        try:
+            sub_input = self._render_template(input_tpl, context)
+        except Exception:
+            sub_input = str(input_tpl)
+
+        out_var = config.get("output_variable", "sub_result")
+
+        # 載入 sub workflow
+        from app.core.trigger_dispatcher import _load_workflow
+        try:
+            async with _db._session_factory() as ssession:
+                sub_nodes, sub_edges, sub_mgr, _ = await _load_workflow(ssession, sub_app_id, self.workspace_id)
+        except Exception as e:
+            log.warning("sub_workflow_load_failed", sub=sub_app_id, error=str(e))
+            yield {"event": "error", "data": json.dumps({"error": f"sub_workflow load failed: {e}"})}
+            return
+
+        # 巢狀 executor（depth+1 防無窮遞迴）
+        try:
+            sub_exec = WorkflowExecutor(
+                nodes=sub_nodes, edges=sub_edges,
+                workspace_id=self.workspace_id,
+                user_id=self.user_id,
+                roles=self.roles,
+                workflow_manager=sub_mgr or "simple",
+                application_id=sub_app_id,
+                run_id=None,         # 不寫 step（避免污染外層 run_id）；sub 的 step 在巢狀 metering 可後續加
+                depth=self.depth + 1,
+            )
+        except RuntimeError as e:
+            yield {"event": "error", "data": json.dumps({"error": str(e)})}
+            return
+
+        last_data = None
+        async for ev in sub_exec.execute(user_input=sub_input, user_id=self.user_id or "sub"):
+            name = ev.get("event", "")
+            data = ev.get("data", "")
+            # 巢狀事件加 sub. prefix 不污染外層 stream
+            yield {"event": f"sub.{name}", "data": data}
+            if name == "done":
+                last_data = data
+
+        context[out_var] = last_data
+        yield {"event": "sub_workflow_done", "data": json.dumps({"output_variable": out_var})}
