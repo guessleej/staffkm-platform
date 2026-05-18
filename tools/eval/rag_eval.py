@@ -164,11 +164,15 @@ async def run_mode(
     dataset: dict,
     mode: str,
     rerank_config: dict | None,
-    judge_cfg: dict | None = None,
+    judge_cfgs: list[dict] | None = None,  # v3.8 P3: multi-judge
 ) -> dict[str, float]:
     hits_at_5: list[float] = []
     mrr_scores: list[float] = []
-    judge_scores: list[float] = []
+    # v3.8 P3: per-judge 累計，最後算 consensus
+    judge_scores_by_model: dict[str, list[float]] = {}
+    if judge_cfgs:
+        for jc in judge_cfgs:
+            judge_scores_by_model[jc["model"]] = []
     skipped = 0
     for q in dataset["queries"]:
         expected = set(q.get("expected_paragraph_ids") or [])
@@ -205,34 +209,49 @@ async def run_mode(
         )
         mrr_scores.append(1.0 / rank if rank else 0.0)
 
-        # v3.7 P3: LLM-as-judge — 對整組 top-5 評分
-        if judge_cfg:
+        # v3.7 P3 + v3.8 P3: LLM-as-judge — 每個 judge 都評一次
+        if judge_cfgs:
             passages = [r.get("content", "") for r in results[:5]]
             rubric_extra = q.get("judge_criteria", "")
-            score = await llm_judge(
-                client,
-                base_url=judge_cfg["base_url"],
-                api_key=judge_cfg["api_key"],
-                judge_model=judge_cfg["model"],
-                query=q["query"],
-                passages=passages,
-                rubric_extra=rubric_extra,
-            )
-            if score is not None:
-                judge_scores.append(score)
+            for jc in judge_cfgs:
+                score = await llm_judge(
+                    client,
+                    base_url=jc["base_url"],
+                    api_key=jc["api_key"],
+                    judge_model=jc["model"],
+                    query=q["query"],
+                    passages=passages,
+                    rubric_extra=rubric_extra,
+                )
+                if score is not None:
+                    judge_scores_by_model[jc["model"]].append(score)
 
     if not hits_at_5:
-        return {"hit@5": float("nan"), "MRR": float("nan"), "judge_avg": float("nan"),
+        return {"hit@5": float("nan"), "MRR": float("nan"),
                 "n": 0, "skipped": skipped}
-    out: dict[str, float] = {
+    out: dict[str, float | dict] = {
         "hit@5": sum(hits_at_5) / len(hits_at_5),
         "MRR": statistics.mean(mrr_scores),
         "n": float(len(hits_at_5)),
         "skipped": float(skipped),
     }
-    if judge_cfg:
-        out["judge_avg"] = (statistics.mean(judge_scores) if judge_scores else float("nan"))
-        out["judge_n"] = float(len(judge_scores))
+    if judge_cfgs:
+        # 個別 judge 平均
+        per_judge = {}
+        all_means: list[float] = []
+        for model, scores in judge_scores_by_model.items():
+            avg = statistics.mean(scores) if scores else float("nan")
+            per_judge[model] = {"avg": avg, "n": len(scores)}
+            if scores:
+                all_means.append(avg)
+        out["judge_per_model"] = per_judge
+        # consensus = mean of means; stdev 給 judge 間分歧度
+        if all_means:
+            out["judge_consensus"] = statistics.mean(all_means)
+            out["judge_stdev"] = statistics.stdev(all_means) if len(all_means) > 1 else 0.0
+        else:
+            out["judge_consensus"] = float("nan")
+            out["judge_stdev"] = float("nan")
     return out
 
 
@@ -251,18 +270,24 @@ async def main() -> None:
         choices=list(RERANK_PRESETS.keys()),
     )
     parser.add_argument("--output", default="docs/perf/v3.3-rag-bench-results.md")
-    # v3.7 P3: LLM-as-judge
+    # v3.7 P3 / v3.8 P3: LLM-as-judge (multi-judge averaging)
     parser.add_argument(
         "--judge-model", default=None,
-        help="若指定，啟用 LLM-as-judge 評分（0-5）。建議用跟測試 model 不同的 judge 避免偏袒。",
+        help="單一 judge model（v3.7 相容；新版建議用 --judge-models）",
+    )
+    parser.add_argument(
+        "--judge-models", nargs="+", default=None,
+        help="v3.8 P3: 多個 judge models 取平均（每 query 對每個 judge 評一次）。"
+             "預設用 --judge-base + --judge-key；想對不同 judge 用不同 base/key 可用 "
+             "format 'model@base@key' (例: gpt-4o-mini@https://api.openai.com/v1@sk-xxx)",
     )
     parser.add_argument(
         "--judge-base", default=os.environ.get("JUDGE_BASE_URL", "https://api.openai.com/v1"),
-        help="judge model 的 OpenAI-compat endpoint",
+        help="judge model 的 OpenAI-compat endpoint (預設給所有 judge 用)",
     )
     parser.add_argument(
         "--judge-key", default=os.environ.get("JUDGE_API_KEY", os.environ.get("OPENAI_API_KEY", "")),
-        help="judge model API key",
+        help="judge model API key (預設給所有 judge 用)",
     )
     parser.add_argument(
         "--seeded",
@@ -280,14 +305,21 @@ async def main() -> None:
         print(f"[anchors] resolved {added} paragraph_id(s) from seeded corpus")
     results: dict[str, dict[str, float]] = {}
 
-    judge_cfg = None
-    if args.judge_model:
-        judge_cfg = {
-            "model": args.judge_model,
-            "base_url": args.judge_base,
-            "api_key": args.judge_key,
-        }
-        print(f"[judge] enabled: {args.judge_model} via {args.judge_base}")
+    # v3.8 P3: build judge_cfgs (list)
+    judge_cfgs: list[dict] | None = None
+    raw_models = args.judge_models or ([args.judge_model] if args.judge_model else None)
+    if raw_models:
+        judge_cfgs = []
+        for spec in raw_models:
+            # parse `model@base@key` format
+            parts = spec.split("@")
+            jc = {
+                "model":    parts[0],
+                "base_url": parts[1] if len(parts) > 1 and parts[1] else args.judge_base,
+                "api_key":  parts[2] if len(parts) > 2 and parts[2] else args.judge_key,
+            }
+            judge_cfgs.append(jc)
+            print(f"[judge] enabled: {jc['model']} via {jc['base_url']}")
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         for mode in args.modes:
@@ -299,13 +331,12 @@ async def main() -> None:
                     results[key] = await run_mode(
                         client, args.base, args.token, args.kb_id,
                         dataset, mode, rcfg,
-                        judge_cfg=judge_cfg,
+                        judge_cfgs=judge_cfgs,
                     )
                 except Exception as e:
                     print(f"[fail] {key}: {e}")
                     results[key] = {
                         "hit@5": float("nan"), "MRR": float("nan"),
-                        "judge_avg": float("nan"),
                         "n": 0, "skipped": 0,
                     }
 
@@ -317,24 +348,44 @@ async def main() -> None:
         f"- kb_id: `{args.kb_id}`",
         f"- queries: {len(dataset['queries'])}",
         "",
-        ("| mode+rerank | n | hit@5 | MRR | judge_avg | skipped |"
-         if judge_cfg else
+        ("| mode+rerank | n | hit@5 | MRR | judge_consensus | judge_stdev | skipped |"
+         if judge_cfgs else
          "| mode+rerank | n | hit@5 | MRR | skipped |"),
-        ("|-------------|----|-------|------|-----------|---------|"
-         if judge_cfg else
+        ("|-------------|----|-------|------|-----------------|-------------|---------|"
+         if judge_cfgs else
          "|-------------|----|-------|------|---------|"),
     ]
     for k, v in results.items():
-        if judge_cfg:
-            ja = v.get("judge_avg", float("nan"))
-            ja_str = f"{ja:.2f}" if not (ja != ja) else "nan"  # NaN check
+        if judge_cfgs:
+            jc = v.get("judge_consensus", float("nan"))
+            jc_str = f"{jc:.2f}" if jc == jc else "nan"  # NaN check
+            js = v.get("judge_stdev", float("nan"))
+            js_str = f"{js:.2f}" if js == js else "nan"
             lines.append(
-                f"| {k} | {int(v['n'])} | {v['hit@5']:.3f} | {v['MRR']:.3f} | {ja_str} | {int(v['skipped'])} |"
+                f"| {k} | {int(v['n'])} | {v['hit@5']:.3f} | {v['MRR']:.3f} | {jc_str} | {js_str} | {int(v['skipped'])} |"
             )
         else:
             lines.append(
                 f"| {k} | {int(v['n'])} | {v['hit@5']:.3f} | {v['MRR']:.3f} | {int(v['skipped'])} |"
             )
+
+    # v3.8 P3: per-judge breakdown
+    if judge_cfgs:
+        lines.append("")
+        lines.append("## Per-judge breakdown")
+        lines.append("")
+        lines.append("| mode+rerank | " + " | ".join(jc["model"] for jc in judge_cfgs) + " |")
+        lines.append("|" + "---|" * (len(judge_cfgs) + 1))
+        for k, v in results.items():
+            pj = v.get("judge_per_model", {})
+            cells = []
+            for jc in judge_cfgs:
+                d = pj.get(jc["model"], {})
+                avg = d.get("avg", float("nan"))
+                n = d.get("n", 0)
+                avg_str = f"{avg:.2f} (n={n})" if avg == avg else "nan"
+                cells.append(avg_str)
+            lines.append(f"| {k} | " + " | ".join(cells) + " |")
     out = "\n".join(lines) + "\n"
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(out, encoding="utf-8")
