@@ -8,7 +8,7 @@ from typing import AsyncIterator, Any
 from openai import AsyncOpenAI
 from app.config import settings
 # v3.3：workflow LLM 節點接 metering（quota check + usage record + cost calc）
-from app.core.metering import meter_llm_call
+from app.core.metering import meter_llm_call, meter_media_call
 from app.core.providers.base import BaseProvider, ChatRequest
 from app.core.providers.openai_compat import OpenAICompatProvider
 from staffkm_core.utils import database as _db
@@ -928,9 +928,7 @@ class WorkflowExecutor:
     async def _exec_image_generate(self, config: dict, context: dict) -> None:
         """圖像生成：呼叫 DALL-E 相容 API，將圖片 URL 或 Base64 存入 context。
 
-        TODO v3.4: separate metering — image generation 走 per-image pricing，
-        不適合套 meter_llm_call（token-based）。需單獨 record_usage with
-        provider_type='image_gen' + units=image_count。
+        v3.4 P1: metered via meter_media_call（per-image pricing）。
         """
         output_var = config.get("output_variable", "generated_image_url")
         output_type = config.get("output_type", "url")   # "url" | "base64"
@@ -963,20 +961,49 @@ class WorkflowExecutor:
             gen_kwargs["quality"] = config.get("quality", "standard")
             gen_kwargs["style"] = config.get("style", "vivid")
 
-        try:
+        async def _do_generate() -> None:
             llm = AsyncOpenAI(**client_kwargs)
             resp = await llm.images.generate(**gen_kwargs)
             first = resp.data[0]
             context[output_var] = (first.b64_json or "") if output_type == "base64" else (first.url or "")
             if revised_var and first.revised_prompt:
                 context[revised_var] = first.revised_prompt
+
+        # v3.4 P1: 接 meter_media_call（per-image）；無 session/workspace 時 graceful degrade
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                await _do_generate()
+            except Exception as e:
+                log.error("image_generate_failed", error=str(e), **self._audit_fields(context))
+            return
+
+        try:
+            async with sess_factory() as meter_session:
+                async with meter_media_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="openai",
+                    model=model,
+                    unit_type="image",
+                ) as meter:
+                    try:
+                        await _do_generate()
+                    finally:
+                        meter.record(unit_count=n)
         except Exception as e:
+            from app.core.usage import QuotaExceeded
+            if isinstance(e, QuotaExceeded):
+                raise
             log.error("image_generate_failed", error=str(e), **self._audit_fields(context))
 
     async def _exec_stt(self, config: dict, context: dict) -> None:
         """Speech-to-Text：呼叫 Whisper 相容 API，轉錄音訊後寫入 context.
 
-        TODO v3.4: separate metering — STT 走 per-second pricing。
+        v3.4 P1: metered via meter_media_call（per-second pricing）。
+        實際秒數從 audio_bytes 粗估（32 kbps 假設），無法精準時就以此為記帳基準。
         """
         input_var = config.get("input_variable", "audio_url")
         output_var = config.get("output_variable", "transcription")
@@ -991,7 +1018,9 @@ class WorkflowExecutor:
         model = config.get("model", "whisper-1")
         language = config.get("language", "")
 
-        try:
+        async def _do_stt() -> float:
+            """執行 STT，回傳粗估的 audio 秒數（用於計費）。"""
+            nonlocal_state: dict = {}
             if input_type == "url":
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     ar = await client.get(audio_input)
@@ -1018,14 +1047,45 @@ class WorkflowExecutor:
                 )
                 resp.raise_for_status()
                 context[output_var] = resp.json().get("text", "")
+            # 粗估秒數：bytes / (32 kbps / 8) = bytes / 4000；最少 1 秒
+            return max(1.0, len(audio_bytes) / 4000.0)
+
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                await _do_stt()
+            except Exception as e:
+                log.warning("stt_failed", error=str(e), **self._audit_fields(context))
+                context[output_var] = ""
+            return
+
+        try:
+            async with sess_factory() as meter_session:
+                async with meter_media_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="openai",
+                    model=model,
+                    unit_type="second",
+                ) as meter:
+                    duration = 0.0
+                    try:
+                        duration = await _do_stt()
+                    finally:
+                        meter.record(unit_count=duration)
         except Exception as e:
+            from app.core.usage import QuotaExceeded
+            if isinstance(e, QuotaExceeded):
+                raise
             log.warning("stt_failed", error=str(e), **self._audit_fields(context))
             context[output_var] = ""
 
     async def _exec_tts(self, config: dict, context: dict) -> None:
         """Text-to-Speech：呼叫 OpenAI TTS 相容 API，將文字轉為 base64 音訊後寫入 context.
 
-        TODO v3.4: separate metering — TTS 走 per-character pricing。
+        v3.4 P1: metered via meter_media_call（per-character pricing）。
         """
         input_var = config.get("input_variable", "llm_response")
         output_var = config.get("output_variable", "audio_base64")
@@ -1045,7 +1105,7 @@ class WorkflowExecutor:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        try:
+        async def _do_tts() -> None:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(
                     f"{base_url}/audio/speech",
@@ -1060,12 +1120,42 @@ class WorkflowExecutor:
                 )
                 resp.raise_for_status()
                 context[output_var] = base64.b64encode(resp.content).decode()
+
+        text_len = float(len(text))
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                await _do_tts()
+            except Exception as e:
+                log.warning("tts_failed", error=str(e), **self._audit_fields(context))
+            return
+
+        try:
+            async with sess_factory() as meter_session:
+                async with meter_media_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="openai",
+                    model=model,
+                    unit_type="char",
+                ) as meter:
+                    try:
+                        await _do_tts()
+                    finally:
+                        meter.record(unit_count=text_len)
         except Exception as e:
+            from app.core.usage import QuotaExceeded
+            if isinstance(e, QuotaExceeded):
+                raise
             log.warning("tts_failed", error=str(e), **self._audit_fields(context))
 
-    # TODO v3.4: separate metering — reranker 走 per-document pricing，不同 token model。
     async def _exec_reranker(self, config: dict, context: dict) -> None:
-        """對 knowledge_results（或任意 docs 變數）重新排序，結果寫回 output_variable。"""
+        """對 knowledge_results（或任意 docs 變數）重新排序，結果寫回 output_variable。
+
+        v3.4 P1: metered via meter_media_call（per-call pricing；cohere = $0.001/call、self-host = 0）。
+        """
         query_var = config.get("query_variable", "user_input")
         docs_var = config.get("docs_variable", "knowledge_results")
         output_var = config.get("output_variable") or docs_var
@@ -1079,12 +1169,15 @@ class WorkflowExecutor:
             return
 
         contents = [d.get("content", "") for d in docs]
-        reranked: list[dict] = []
+        if provider == "cohere":
+            model = config.get("model", "rerank-multilingual-v3.0")
+        else:
+            model = config.get("model", "bge-reranker-v2-m3")
 
-        try:
+        async def _do_rerank() -> list[dict]:
+            out: list[dict] = []
             if provider == "cohere":
                 api_key = config.get("api_key", "") or getattr(settings, "COHERE_API_KEY", "")
-                model = config.get("model", "rerank-multilingual-v3.0")
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     resp = await client.post(
                         "https://api.cohere.com/v2/rerank",
@@ -1097,12 +1190,10 @@ class WorkflowExecutor:
                         if score >= threshold:
                             doc = dict(docs[r["index"]])
                             doc["rerank_score"] = score
-                            reranked.append(doc)
-
+                            out.append(doc)
             else:  # generic HTTP (BGE-Reranker / Cohere-compatible)
                 base_url = config.get("base_url", "").rstrip("/")
                 api_key = config.get("api_key", "")
-                model = config.get("model", "bge-reranker-v2-m3")
                 headers: dict = {"Content-Type": "application/json"}
                 if api_key:
                     headers["Authorization"] = f"Bearer {api_key}"
@@ -1118,9 +1209,39 @@ class WorkflowExecutor:
                         if score >= threshold:
                             doc = dict(docs[r["index"]])
                             doc["rerank_score"] = score
-                            reranked.append(doc)
+                            out.append(doc)
+            return out
 
+        reranked: list[dict] = []
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                reranked = await _do_rerank()
+            except Exception as e:
+                log.warning("workflow_reranker_failed", error=str(e), fallback="truncate", **self._audit_fields(context))
+                reranked = docs[:top_n]
+            context[output_var] = reranked
+            return
+
+        try:
+            async with sess_factory() as meter_session:
+                async with meter_media_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type=provider,
+                    model=model,
+                    unit_type="call",
+                ) as meter:
+                    try:
+                        reranked = await _do_rerank()
+                    finally:
+                        meter.record(unit_count=1)
         except Exception as e:
+            from app.core.usage import QuotaExceeded
+            if isinstance(e, QuotaExceeded):
+                raise
             log.warning("workflow_reranker_failed", error=str(e), fallback="truncate", **self._audit_fields(context))
             reranked = docs[:top_n]
 

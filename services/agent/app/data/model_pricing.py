@@ -28,3 +28,22 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "llama3.2":            (0, 0),
     "qwen2.5":             (0, 0),
 }
+
+
+# v3.4 P1: non-LLM media pricing (USD)
+# unit columns: image (per image) / second (per audio sec) / chars_1k (per 1k chars) / call (per call)
+MEDIA_PRICING: dict[str, dict[str, float | None]] = {
+    # OpenAI image gen
+    "dall-e-3":              {"image": 0.04,  "second": None, "chars_1k": None, "call": None},
+    "dall-e-3-hd":           {"image": 0.08,  "second": None, "chars_1k": None, "call": None},
+    "dall-e-2":              {"image": 0.02,  "second": None, "chars_1k": None, "call": None},
+    # OpenAI STT (Whisper) — $0.006/min = $0.0001/sec
+    "whisper-1":             {"image": None,  "second": 0.0001, "chars_1k": None, "call": None},
+    # OpenAI TTS — $15/1M chars = $0.015/1k; HD $30/1M
+    "tts-1":                 {"image": None,  "second": None, "chars_1k": 0.015,  "call": None},
+    "tts-1-hd":              {"image": None,  "second": None, "chars_1k": 0.030,  "call": None},
+    # Reranker
+    "bge-reranker-v2-m3":    {"image": None,  "second": None, "chars_1k": None, "call": 0},      # self-host free
+    "rerank-multilingual-v3.0": {"image": None, "second": None, "chars_1k": None, "call": 0.001},  # cohere $1/1k calls
+    "rerank-english-v3.0":   {"image": None,  "second": None, "chars_1k": None, "call": 0.001},
+}

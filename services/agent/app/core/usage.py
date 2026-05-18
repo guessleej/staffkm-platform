@@ -39,6 +39,9 @@ class UsageRecord:
     latency_ms:        int              = 0
     status:            str              = "ok"
     error:             str | None       = None
+    # v3.4 P1: non-LLM unit-based metering（image / second / char / call）
+    unit_type:         str | None       = None
+    unit_count:        float            = 0.0
 
 
 async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
@@ -51,12 +54,14 @@ async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
                     id, workspace_id, user_id, application_id,
                     provider_type, model,
                     prompt_tokens, completion_tokens, total_tokens,
-                    cost_usd, latency_ms, status, error
+                    cost_usd, latency_ms, status, error,
+                    unit_type, unit_count
                 ) VALUES (
                     :id, :ws, :uid, :app_id,
                     :ptype, :model,
                     :pt, :ct, :tt,
-                    :cost, :latency, :status, :error
+                    :cost, :latency, :status, :error,
+                    :unit_type, :unit_count
                 )
                 """
             ),
@@ -74,6 +79,8 @@ async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
                 "latency": rec.latency_ms,
                 "status":  rec.status,
                 "error":   rec.error,
+                "unit_type":  rec.unit_type,
+                "unit_count": rec.unit_count,
             },
         )
     except Exception as e:
@@ -243,3 +250,37 @@ async def calc_cost(
     pin = float(row[0] or 0)
     pout = float(row[1] or 0)
     return round((prompt_tokens / 1000.0) * pin + (completion_tokens / 1000.0) * pout, 6)
+
+
+async def calc_media_cost(
+    session: AsyncSession,
+    *,
+    model: str | None,
+    unit_type: str,     # 'image' | 'second' | 'char' | 'call'
+    unit_count: float,
+) -> float:
+    """查 ai_models 取 unit-based 定價算 cost；查不到 / NULL 都回 0.0。
+
+    char 為 per-1k chars，內部會自動 / 1000。
+    """
+    if not model or unit_count <= 0:
+        return 0.0
+    col = {
+        "image":  "price_per_image_usd",
+        "second": "price_per_second_usd",
+        "char":   "price_per_1k_chars_usd",  # 注意：char 是 per-1k
+        "call":   "price_per_call_usd",
+    }.get(unit_type)
+    if not col:
+        return 0.0
+    r = await session.execute(
+        text(f"SELECT {col} FROM ai_models WHERE model_name = :model LIMIT 1"),  # noqa: S608 (col 為固定白名單)
+        {"model": model},
+    )
+    row = r.fetchone()
+    if not row or row[0] is None:
+        return 0.0
+    rate = float(row[0])
+    if unit_type == "char":
+        return round((unit_count / 1000.0) * rate, 6)
+    return round(unit_count * rate, 6)
