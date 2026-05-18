@@ -10,7 +10,31 @@ log = structlog.get_logger()
 
 
 async def seed_model_pricing(session_factory):
-    """從 MODEL_PRICING dict UPSERT 進 ai_models 表。"""
+    """v5.0.4: 對既有 provider INSERT default model row（如果還沒有）+ UPSERT pricing。"""
+    # 0. 先 seed model row（per provider type）— v5.0.4 修：之前只 UPDATE 不 INSERT 導致 admin/models 空
+    async with session_factory() as session:
+        from app.data.model_pricing import PROVIDER_DEFAULT_MODELS
+        seeded = 0
+        # 對每個現有 provider，看它的 type 對應該補哪些 model
+        provider_rows = (await session.execute(
+            text("SELECT id, provider_type FROM model_providers WHERE status = 'active'")
+        )).fetchall()
+        for prov in provider_rows:
+            defaults = PROVIDER_DEFAULT_MODELS.get(prov.provider_type, [])
+            for name, mtype, display in defaults:
+                r = await session.execute(text("""
+                    INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default)
+                    SELECT CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM ai_models
+                        WHERE provider_id = CAST(:pid AS uuid) AND model_name = CAST(:n AS varchar)
+                    )
+                """), {"pid": str(prov.id), "n": name, "t": mtype, "d": display})
+                seeded += r.rowcount or 0
+        await session.commit()
+        if seeded:
+            log.info("default_models_seeded", count=seeded, providers=len(provider_rows))
+
     async with session_factory() as session:
         updated = 0
         for model_name, (price_in, price_out) in MODEL_PRICING.items():
