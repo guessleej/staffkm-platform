@@ -1,0 +1,66 @@
+{
+  "kb_name": "staffkm-eval-kb",
+  "description": "v3.3 RAG eval dataset — 10 條 zh-TW HR / policy 範例 query",
+  "queries": [
+    {
+      "id": "q1",
+      "query": "請假規定",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "policy", "leave"]
+    },
+    {
+      "id": "q2",
+      "query": "員工年假可累積幾天",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "policy", "leave"]
+    },
+    {
+      "id": "q3",
+      "query": "出差差旅報銷流程",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "process", "finance"]
+    },
+    {
+      "id": "q4",
+      "query": "勞健保投保級距怎麼算",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "policy", "insurance"]
+    },
+    {
+      "id": "q5",
+      "query": "新人到職第一天要準備什麼文件",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "onboarding"]
+    },
+    {
+      "id": "q6",
+      "query": "績效考核標準與升等流程",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "hr", "performance"]
+    },
+    {
+      "id": "q7",
+      "query": "公司 VPN 怎麼設定",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "it", "howto"]
+    },
+    {
+      "id": "q8",
+      "query": "離職交接清單",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "hr", "offboarding"]
+    },
+    {
+      "id": "q9",
+      "query": "加班費怎麼計算",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "policy", "salary"]
+    },
+    {
+      "id": "q10",
+      "query": "公司資安規範與密碼政策",
+      "expected_paragraph_ids": [],
+      "tags": ["zh-tw", "it", "security"]
+    }
+  ]
+}

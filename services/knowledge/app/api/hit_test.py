@@ -26,6 +26,11 @@ class HitTestRequest(BaseModel):
     vector_weight: float = Field(default=0.7)
     search_mode: Literal["hybrid", "vector", "fts"] = Field(default="hybrid")
     rrf_k: int = Field(default=60, ge=1, le=200)
+    reranker: dict | None = Field(
+        default=None,
+        description="reranker 設定（type/api_key/model_name/base_url ...）；None 不啟用",
+    )
+    rerank_top_n: int = Field(default=5, ge=1, le=20)
 
 
 @router.post("", response_model=ApiResponse)
@@ -60,10 +65,35 @@ async def hit_test(
         rrf_k=body.rrf_k,
     )
 
+    # C3 — 可選 reranker
+    reranked_ids: dict[str, float] = {}
+    if body.reranker:
+        from app.core.reranker import rerank
+
+        reranked = await rerank(
+            query=body.query,
+            documents=hits,
+            reranker_config=body.reranker,
+            top_n=body.rerank_top_n,
+        )
+        # 依 reranked 順序衍生 rerank_score：若 doc 本身被 reranker 塞了 relevance_score
+        # 則用該值，否則用「排序倒數」當 fallback
+        n = len(reranked)
+        for idx, doc in enumerate(reranked):
+            pid = str(doc["id"])
+            rs = doc.get("relevance_score")
+            if rs is None:
+                rs = (n - idx) / n if n else 0.0
+            reranked_ids[pid] = float(rs)
+        # 把 reranked 順序套回 hits（保留沒入選的在後面）
+        order_map = {str(d["id"]): i for i, d in enumerate(reranked)}
+        hits = sorted(hits, key=lambda h: order_map.get(str(h["id"]), 10_000))
+
     return ApiResponse(data={
         "query": body.query,
         "search_mode": body.search_mode,
         "hit_count": len(hits),
+        "reranked": bool(body.reranker),
         "results": [
             {
                 "paragraph_id": str(h["id"]),
@@ -71,6 +101,16 @@ async def hit_test(
                 "doc_name": h["doc_name"],
                 "score": round(float(h["score"]), 6),
                 "vector_score": round(float(h.get("vector_score", 0.0)), 6),
+                "rrf_score": (
+                    round(float(h["score"]), 6)
+                    if body.search_mode == "hybrid"
+                    else None
+                ),
+                "rerank_score": (
+                    round(reranked_ids[str(h["id"])], 6)
+                    if str(h["id"]) in reranked_ids
+                    else None
+                ),
                 "title": h.get("title"),
             }
             for h in hits
