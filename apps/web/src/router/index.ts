@@ -176,6 +176,12 @@ const router = createRouter({
           meta: { title: 'Workflow 執行紀錄', roles: ['admin'] },
         },
         {
+          path: 'admin/webhook-outbox',
+          name: 'admin-webhook-outbox',
+          component: () => import('../views/admin/WebhookOutboxView.vue'),
+          meta: { title: 'Webhook Outbox', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),

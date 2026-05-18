@@ -13,11 +13,12 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
 from app.core.resume_worker import resume_worker_loop
+from app.core.webhook_outbox import webhook_dispatcher_loop
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
@@ -55,11 +56,15 @@ async def lifespan(app: FastAPI):
     resume_task = asyncio.create_task(
         resume_worker_loop(lambda: _db._session_factory, interval_sec=30),
     )
+    # v3.6 P1：webhook outbox dispatcher（每 30s 派發 pending webhooks，含 backoff retry）
+    webhook_task = asyncio.create_task(
+        webhook_dispatcher_loop(lambda: _db._session_factory, interval_sec=30),
+    )
     log.info("agent_service_ready")
     try:
         yield
     finally:
-        for t in (worker_task, dispatcher_task, alert_task, resume_task):
+        for t in (worker_task, dispatcher_task, alert_task, resume_task, webhook_task):
             t.cancel()
             try:
                 await t
@@ -156,6 +161,9 @@ app.include_router(media_providers.router,   prefix="/api/v1/media-providers", t
 
 # ── v3.2 P3：admin 跨 workspace quota 管理（不是 workspace-scoped）─────
 app.include_router(admin_quota.router,       prefix="/api/v1/admin", tags=["Admin Quota (v3.2)"])
+
+# ── v3.6 P1：admin webhook outbox（跨 workspace 系統 webhooks 監看 + retry）─
+app.include_router(webhook_outbox.router,    prefix="/api/v1/admin/webhook-outbox", tags=["Admin Webhook Outbox (v3.6)"])
 
 
 @app.get("/health")
