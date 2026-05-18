@@ -176,6 +176,26 @@ docs/
 | 「進階下拉」UX 突兀 | 改 icon-only nav + hover tooltip |
 | Token expiry 多 request 並發 → N 次 /refresh | 用 module-scoped promise 去重 |
 | router-view + Transition mode='out-in' 連點 race | 改用 watch + CSS key toggle |
+| 跑了 v3-v5 十幾個 milestone 才發現 `/admin/users` 跟 `/admin/system` 一直是 `UnderConstructionView` placeholder（v5.0.1 才補）| 廣度做了、深度沒收尾的典型債 — 加進下面 release checklist |
+
+## Release checklist（每個 tag 前**必跑**）
+
+每個 minor / patch release 前，下面兩條**不能跳**：
+
+```bash
+# 1. 沒有殘留的 placeholder view（或必須有對應 backlog ticket）
+grep -rl "UnderConstructionView" apps/web/src/
+# 預期：no matches（exit 1）
+
+# 2. 點過每個 nav item，確認有真實內容
+grep -cE 'to="/[a-z]' apps/web/src/views/dashboard/DashboardLayout.vue
+# 拿到數字 N → 手動點過 N 個 nav，每個都要看到非 placeholder 內容
+```
+
+額外建議：
+- 每 5 個 minor 跑一次完整 frontend grep：`UnderConstructionView` / `TODO` / `placeholder` / `coming soon`
+- nav 加新 entry **同 PR** 內要包含對應 view 真實實作（不准先 placeholder 後補）
+- 跑 milestone 規劃時，先 `ls apps/web/src/views/` 對比 nav，找出「有 view 但 placeholder」或「無 view 但 nav 已建」的缺口
 
 ## 命名 / 語氣
 
