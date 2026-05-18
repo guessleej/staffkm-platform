@@ -181,6 +181,34 @@ services:
     networks:
       - backend
 
+  # ── v3.4 P3: Cross-encoder reranker（profile opt-in）─────────
+  reranker:
+    image: staffkm/reranker:${TAG:-latest}
+    container_name: staffkm-reranker
+    profiles: ["reranker"]
+    build:
+      context: ..
+      dockerfile: services/reranker/Dockerfile
+    restart: unless-stopped
+    environment:
+      MODEL_NAME:   ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      MODEL_DEVICE: ${RERANKER_DEVICE:-cpu}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+    ports:
+      - "8010:8000"
+    volumes:
+      - reranker_hf_cache:/home/reranker/.cache/huggingface
+    networks: [backend]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
   # MinIO 初始化：建立預設 bucket
   minio-init:
     image: minio/mc:latest
@@ -771,6 +799,10 @@ volumes:
     driver: local
     labels:
       staffkm.backup: "weekly"   # HuggingFace 模型快取，重灌可重下載
+  reranker_hf_cache:
+    driver: local
+    labels:
+      staffkm.backup: "weekly"   # bge-reranker model cache（v3.4 P3）
 
 # ──────────────────────────────────────────────────────────────
 #  網路 — 前後端隔離
