@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "plugins": [
+    {
+      "name": "weather-node",
+      "description": "查天氣範例 plugin（wttr.in）",
+      "repository": "https://github.com/staffkm-platform/plugin-weather",
+      "min_platform_version": "4.3.0",
+      "tags": ["demo", "weather"],
+      "verified": true
+    }
+  ],
+  "updated_at": "2026-05-18T00:00:00Z"
+}

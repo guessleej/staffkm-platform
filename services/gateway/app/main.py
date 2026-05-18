@@ -26,6 +26,7 @@ from app.routers._generic_proxy import (
     admin_slow_queries_router,
     admin_workers_router,
     admin_starter_pack_router,
+    admin_plugins_router,
 )
 
 log = structlog.get_logger()
@@ -118,3 +119,4 @@ app.include_router(admin_slow_queries_router, prefix="/api/v1/admin/slow-queries
 app.include_router(admin_workers_router, prefix="/api/v1/admin/workers", tags=["Admin Workers (v4.0)"])
 # v4.1 A：admin starter pack（install 預設 application templates）
 app.include_router(admin_starter_pack_router, prefix="/api/v1/admin/starter-pack", tags=["Starter Pack (v4.1)"])
+app.include_router(admin_plugins_router, prefix="/api/v1/admin/plugins", tags=["Admin Plugins (v4.3)"])

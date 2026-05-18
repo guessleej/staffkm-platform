@@ -58,6 +58,8 @@ services:
     volumes:
       - ../services/agent/app:/app/app
       - ../packages/python/staffkm-core/staffkm_core:/app/staffkm_core
+      # v4.3 Theme C：把 host ./plugins/ 掛進去，admin reload 即生效
+      - ../plugins:/app/plugins:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
     deploy:
       resources: {}

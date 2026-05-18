@@ -380,6 +380,26 @@ class WorkflowExecutor:
                     async for ev in self._exec_sub_workflow(config, context):
                         yield ev
 
+                # ── v4.3 Theme C：plugin node fallback ─────────────────────────
+                # TODO (v4.4): 從 app.core.plugin_loader.get_plugin_node 取 BaseNode
+                # 實例，注入 PluginContext(workspace_id, user_id, session_factory)，
+                # 呼叫 await pnode.execute(config, ctx, context)；dict 結果 update
+                # 回 context。本 PR 暫不實接以免 break workflow runtime；plugin SDK
+                # 已可在 lifespan 內 load 並透過 /api/v1/admin/plugins 列出。
+                # else:
+                #     from app.core.plugin_loader import get_plugin_node
+                #     pnode = get_plugin_node(node_type)
+                #     if pnode:
+                #         from staffkm_plugin_sdk.base import PluginContext
+                #         pctx = PluginContext(
+                #             workspace_id=str(self.workspace_id),
+                #             user_id=str(self.user_id) if self.user_id else None,
+                #             session_factory=lambda: _db._session_factory,
+                #         )
+                #         _result = await pnode.execute(config, pctx, context)
+                #         if isinstance(_result, dict):
+                #             context.update(_result)
+
             except WorkflowPaused:
                 # v3.5 P2：暫停而非錯誤；寫一筆 paused step 後 re-raise，caller 處理 run.status
                 await self._record_step(

@@ -1,0 +1,12 @@
+name: weather-node
+version: 0.1.0
+description: 查天氣（範例 plugin）
+author: staffKM team
+license: MIT
+nodes:
+  - plugin:WeatherNode
+requirements:
+  - httpx>=0.27
+min_platform_version: "4.3.0"
+icon: cloud
+tags: [demo, weather]
