@@ -14,12 +14,13 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
 from app.core.resume_worker import resume_worker_loop
 from app.core.webhook_outbox import webhook_dispatcher_loop
+from app.core.trial_expiry_worker import trial_expiry_loop  # v4.1 A
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 from staffkm_core.utils import database as _db
@@ -69,7 +70,11 @@ async def lifespan(app: FastAPI):
         webhook_task = asyncio.create_task(
             webhook_dispatcher_loop(lambda: _db._session_factory, interval_sec=30),
         )
-        _bg_tasks = (worker_task, dispatcher_task, alert_task, resume_task, webhook_task)
+        # v4.1 A：trial expiry worker（每小時掃過期 trial workspace → is_frozen）
+        trial_task = asyncio.create_task(
+            trial_expiry_loop(lambda: _db._session_factory, interval_sec=3600),
+        )
+        _bg_tasks = (worker_task, dispatcher_task, alert_task, resume_task, webhook_task, trial_task)
         log.info("worker_backend_inprocess_active")
     else:
         # v4.0 P3：arq backend → worker 跑在獨立 container（python -m arq …）
@@ -220,6 +225,9 @@ app.include_router(slow_queries.router,      prefix="/api/v1/admin/slow-queries"
 
 # ── v4.0 P3/P4：admin worker backend 狀態（inprocess vs arq + queue depth）─
 app.include_router(admin_workers.router,     prefix="/api/v1/admin/workers", tags=["Admin Workers (v4.0)"])
+
+# ── v4.1 A：starter pack（admin install 預設 5 個 application templates）─
+app.include_router(starter_pack.router,      prefix="/api/v1/admin/starter-pack", tags=["Starter Pack (v4.1)"])
 
 
 @app.get("/health")

@@ -1,0 +1,25 @@
+{
+  "name": "知識庫 QA",
+  "description": "通用企業知識問答 — 任何文件上傳後可立即問答",
+  "icon": "book-open",
+  "type": "knowledge-chat",
+  "system_prompt": "你是企業知識問答機器人。基於上傳的文件嚴格回答，沒有依據就說「不知道」。",
+  "welcome_message": "上傳你的公司文件，我幫你做精準問答（含引用）。",
+  "suggested_questions": [
+    "公司去年營收多少？",
+    "我們的退貨政策是什麼？",
+    "請摘要這份合約重點"
+  ],
+  "nodes": [
+    {"node_key": "start", "node_type": "start", "label": "開始", "config": {}},
+    {"node_key": "kb",    "node_type": "knowledge_retrieval", "label": "檢索", "config": {"top_k": 8, "search_mode": "hybrid", "rerank": true}},
+    {"node_key": "llm",   "node_type": "llm", "label": "回答+引用", "config": {"system_prompt": "{{system_prompt}}", "prompt_template": "資料：{{knowledge_results}}\n\n問題：{{user_input}}\n\n請回答並附引用編號 [1][2]。"}},
+    {"node_key": "answer","node_type": "answer", "label": "輸出", "config": {"message_template": "{{llm_response}}", "stream": true, "show_citations": true}}
+  ],
+  "edges": [
+    {"source_node_key": "start", "target_node_key": "kb"},
+    {"source_node_key": "kb",    "target_node_key": "llm"},
+    {"source_node_key": "llm",   "target_node_key": "answer"}
+  ],
+  "sample_knowledge": []
+}

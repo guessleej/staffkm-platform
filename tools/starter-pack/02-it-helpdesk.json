@@ -1,0 +1,25 @@
+{
+  "name": "IT Helpdesk",
+  "description": "電腦故障排除 / 軟體安裝 / VPN 設定 SOP",
+  "icon": "wrench",
+  "type": "knowledge-chat",
+  "system_prompt": "你是公司 IT Helpdesk 機器人，幫員工排除電腦、網路、軟體問題。",
+  "welcome_message": "我是 IT Helpdesk。請描述你的問題，我會給你 SOP 或建議開單給工程師。",
+  "suggested_questions": [
+    "VPN 連不上怎麼辦？",
+    "怎麼申請新軟體？",
+    "Outlook 收不到信"
+  ],
+  "nodes": [
+    {"node_key": "start", "node_type": "start", "label": "開始", "config": {}},
+    {"node_key": "kb",    "node_type": "knowledge_retrieval", "label": "查 IT SOP", "config": {"top_k": 5, "search_mode": "hybrid"}},
+    {"node_key": "llm",   "node_type": "llm", "label": "診斷", "config": {"system_prompt": "{{system_prompt}}", "prompt_template": "SOP 參考：{{knowledge_results}}\n\n使用者問題：{{user_input}}\n\n請依 SOP 給步驟；若 SOP 無覆蓋，請建議開 ticket。"}},
+    {"node_key": "answer","node_type": "answer", "label": "輸出", "config": {"message_template": "{{llm_response}}", "stream": true}}
+  ],
+  "edges": [
+    {"source_node_key": "start", "target_node_key": "kb"},
+    {"source_node_key": "kb",    "target_node_key": "llm"},
+    {"source_node_key": "llm",   "target_node_key": "answer"}
+  ],
+  "sample_knowledge": []
+}

@@ -1,0 +1,25 @@
+{
+  "name": "銷售知識助理",
+  "description": "產品 spec / 競品比較 / 報價 FAQ — 業務隨時查詢",
+  "icon": "trending-up",
+  "type": "knowledge-chat",
+  "system_prompt": "你是業務銷售助理。基於產品文件、競品比較、價目表回答；不確定就標明。",
+  "welcome_message": "我幫你查產品規格、競品比較、報價邏輯。",
+  "suggested_questions": [
+    "我們的旗艦產品跟 X 競品差在哪？",
+    "企業版年費怎麼算？",
+    "教育優惠有什麼條件？"
+  ],
+  "nodes": [
+    {"node_key": "start", "node_type": "start", "label": "開始", "config": {}},
+    {"node_key": "kb",    "node_type": "knowledge_retrieval", "label": "查銷售資料", "config": {"top_k": 6, "search_mode": "hybrid"}},
+    {"node_key": "llm",   "node_type": "llm", "label": "業務口吻回答", "config": {"system_prompt": "{{system_prompt}}", "prompt_template": "資料：{{knowledge_results}}\n\n業務問題：{{user_input}}\n\n用業務簡潔語氣回答，數字加粗。"}},
+    {"node_key": "answer","node_type": "answer", "label": "輸出", "config": {"message_template": "{{llm_response}}", "stream": true}}
+  ],
+  "edges": [
+    {"source_node_key": "start", "target_node_key": "kb"},
+    {"source_node_key": "kb",    "target_node_key": "llm"},
+    {"source_node_key": "llm",   "target_node_key": "answer"}
+  ],
+  "sample_knowledge": []
+}

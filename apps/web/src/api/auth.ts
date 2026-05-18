@@ -35,4 +35,14 @@ export const authApi = {
     const base = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
     return `${base}/auth/oidc/login?next=${encodeURIComponent(next)}`
   },
+  // v4.1 A: public 14-day trial signup
+  async trialSignup(body: { email: string; password: string; workspace_name: string }) {
+    const { data } = await http.post('/auth/trial', body)
+    return data.data as {
+      workspace_id: string
+      user_id: string
+      trial_expires_at: string
+      next_step: string
+    }
+  },
 }
