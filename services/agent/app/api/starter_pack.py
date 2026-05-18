@@ -25,14 +25,24 @@ router = APIRouter()
 
 # Container layout：Dockerfile COPY tools/starter-pack → /app/tools/starter-pack
 STARTER_PACK_DIR = Path("/app/tools/starter-pack")
-# dev fallback（uvicorn 本機跑 cwd=services/agent → 找 repo root 的 tools）
-_DEV_FALLBACK = Path(__file__).resolve().parents[4] / "tools" / "starter-pack"
+
+
+def _dev_fallback() -> Path | None:
+    """uvicorn 本機跑 cwd=services/agent → 找 repo root 的 tools。
+    Container 內 path 只到 /app（parents[3]=/）會 IndexError，包 try。"""
+    try:
+        return Path(__file__).resolve().parents[4] / "tools" / "starter-pack"
+    except IndexError:
+        return None
 
 
 def _pack_dir() -> Path:
     if STARTER_PACK_DIR.exists():
         return STARTER_PACK_DIR
-    return _DEV_FALLBACK
+    fallback = _dev_fallback()
+    if fallback and fallback.exists():
+        return fallback
+    return STARTER_PACK_DIR  # 即使不存在也回，list 時自然空
 
 
 def _require_admin(request: Request) -> None:

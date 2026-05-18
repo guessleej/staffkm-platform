@@ -25,10 +25,14 @@ _SERVICE = "knowledge"
 
 
 def _sync_url(url: str) -> str:
-    return (
+    url = (
         url.replace("postgresql+asyncpg://", "postgresql://")
         .replace("postgres+asyncpg://", "postgresql://")
     )
+    # asyncpg uses ?ssl=disable; psycopg2 uses ?sslmode=disable
+    url = url.replace("?ssl=disable", "?sslmode=disable").replace("&ssl=disable", "&sslmode=disable")
+    url = url.replace("?ssl=require", "?sslmode=require").replace("&ssl=require", "&sslmode=require")
+    return url
 
 
 def run_migrations_offline() -> None:
