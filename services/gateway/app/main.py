@@ -29,6 +29,7 @@ from app.routers._generic_proxy import (
     admin_workers_router,
     admin_starter_pack_router,
     admin_plugins_router,
+    workflow_gen_router,
 )
 
 log = structlog.get_logger()
@@ -126,3 +127,5 @@ app.include_router(admin_workers_router, prefix="/api/v1/admin/workers", tags=["
 # v4.1 A：admin starter pack（install 預設 application templates）
 app.include_router(admin_starter_pack_router, prefix="/api/v1/admin/starter-pack", tags=["Starter Pack (v4.1)"])
 app.include_router(admin_plugins_router, prefix="/api/v1/admin/plugins", tags=["Admin Plugins (v4.3)"])
+# v4.9 I：AI-generated workflow（自然語言 → workflow JSON）
+app.include_router(workflow_gen_router, prefix="/api/v1/workflow-gen", tags=["AI Workflow Gen (v4.9)"])

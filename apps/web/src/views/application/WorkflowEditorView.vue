@@ -31,6 +31,12 @@
                 class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition">
           自動排版
         </button>
+        <!-- v4.9 I：AI 生成 workflow -->
+        <button @click="showAIGen = true"
+                class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
+                title="自然語言描述 → AI 產生 workflow 草稿">
+          ✨ AI 生成
+        </button>
         <!-- 應用版本 (D-7) -->
         <button @click="openHistory"
                 class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition"
@@ -237,6 +243,12 @@
       @restored="reloadCanvas"
     />
 
+    <!-- v4.9 I：AI 生成 workflow modal -->
+    <AIWorkflowGenModal
+      v-model="showAIGen"
+      @apply="applyAIWorkflow"
+    />
+
   </div>
 </template>
 
@@ -255,6 +267,10 @@ import { workflowApi, type WorkflowNode, type WorkflowEdge } from '../../api/wor
 import { appVersionApi, type AppVersion } from '../../api/application'
 import { SIcon } from '@staffkm/ui-kit'
 import WorkflowVersionsDrawer from '../../components/workflow/WorkflowVersionsDrawer.vue'
+// v4.9 I：AI 生成 workflow modal（lazy — ~8 KB，只在點按鈕後才載）
+const AIWorkflowGenModal = defineAsyncComponent(
+  () => import('./AIWorkflowGenModal.vue')
+)
 
 // ─── 路由 ──────────────────────────────────────────────────────────────────────
 const route  = useRoute()
@@ -290,9 +306,40 @@ function snapToGrid(p: number) { return Math.round(p / GRID) * GRID }
 
 // Sprint 19：節點版本 drawer state
 const showWfVersions = ref(false)
+// v4.9 I：AI 生成 modal 顯示狀態
+const showAIGen = ref(false)
 async function reloadCanvas() {
   // 回滾後重 load workflow nodes + edges 到 canvas
   await loadWorkflow()
+}
+
+// v4.9 I：把 AI 生成的 workflow JSON 套到 LogicFlow 畫布
+// 生成的格式只有 node_key/node_type/config + edges 沒 id/position；
+// 在此補 id（用 node_key）+ 用簡單 layered layout 算座標。
+function applyAIWorkflow(wf: { nodes: any[]; edges: any[] }) {
+  if (!lf || !wf?.nodes?.length) return
+  const dx = 240, dy = 120
+  const apiNodes: WorkflowNode[] = wf.nodes.map((n: any, i: number) => ({
+    id:        n.node_key,                                    // 用 key 當 id
+    node_key:  n.node_key,
+    node_type: n.node_type,
+    label:     n.label || n.node_key,
+    config:    n.config || {},
+    position:  { x: 120 + (i % 4) * dx, y: 120 + Math.floor(i / 4) * dy },
+  }))
+  const apiEdges: WorkflowEdge[] = (wf.edges || []).map((e: any, i: number) => ({
+    id:               e.id || `e_${i}`,
+    source_node_key:  e.source_node_key,
+    target_node_key:  e.target_node_key,
+    condition:        e.condition,
+  }))
+  const lfData = apiToLf({ nodes: apiNodes, edges: apiEdges })
+  lf.render(lfData)
+  nextTick(() => {
+    lf!.fitView()
+    countNodes()
+    refreshHistoryState()
+  })
 }
 
 // ─── 歷史版本抽屜 (D-7 後續) ────────────────────────────────────────────

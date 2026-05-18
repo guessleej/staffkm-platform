@@ -23,6 +23,7 @@ from app.core.webhook_outbox import webhook_dispatcher_loop
 from app.core.trial_expiry_worker import trial_expiry_loop  # v4.1 A
 from app.core.usage_report_worker import usage_report_loop  # v4.8 H
 from app.api import billing_stripe  # v4.7 G
+from app.api import workflow_gen  # v4.9 I
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 from staffkm_core.utils import database as _db
@@ -248,6 +249,9 @@ app.include_router(starter_pack.router,      prefix="/api/v1/admin/starter-pack"
 
 # ── v4.3 Theme C：plugin install/list (admin only) ───────────────────
 app.include_router(plugins_api.router,       prefix="/api/v1/admin/plugins", tags=["Admin Plugins (v4.3)"])
+
+# ── v4.9 I：AI-generated workflow（自然語言 → workflow JSON）─
+app.include_router(workflow_gen.router,       prefix=f"{_PREFIX}/workflow-gen", tags=["AI Workflow Gen (v4.9)"])
 
 
 @app.get("/health")
