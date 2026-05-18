@@ -28,6 +28,8 @@ async def rerank(
             return await _rerank_cohere(query, documents, reranker_config, top_n)
         elif reranker_type == "ollama":
             return await _rerank_ollama(query, documents, reranker_config, top_n)
+        elif reranker_type == "cross_encoder":
+            return await _rerank_cross_encoder(query, documents, reranker_config, top_n)
         else:  # 通用 HTTP endpoint（相容 Cohere API 格式、BGE-Reranker 等）
             return await _rerank_http(query, documents, reranker_config, top_n)
     except NotImplementedError as e:
@@ -92,6 +94,39 @@ async def _rerank_http(query, documents, config, top_n):
             )
             out.append(doc)
         return out
+
+
+async def _rerank_cross_encoder(query, documents, config, top_n):
+    """呼叫 staffkm-reranker container（v3.4 P3）。
+
+    config 必須帶 endpoint (預設 http://reranker:8000)。
+    每個 doc 的 content 抽 text 送 model；回 indices+scores 後重排 documents。
+    """
+    endpoint = config.get("endpoint", "http://reranker:8000").rstrip("/")
+    doc_texts = [d.get("content", "") if isinstance(d, dict) else str(d) for d in documents]
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{endpoint}/rerank",
+                json={"query": query, "documents": doc_texts, "top_n": top_n},
+            )
+            r.raise_for_status()
+            result = r.json()
+    except Exception as e:
+        log.warning("cross_encoder_rerank_failed", error=str(e), fallback="original_order")
+        return documents[:top_n]
+
+    indices = result.get("indices", [])
+    scores  = result.get("scores", [])
+    ranked: list[dict] = []
+    for i, idx in enumerate(indices):
+        if 0 <= idx < len(documents):
+            doc = documents[idx]
+            if isinstance(doc, dict):
+                doc = dict(doc)
+                doc["relevance_score"] = float(scores[i]) if i < len(scores) else None
+            ranked.append(doc)
+    return ranked
 
 
 async def _rerank_ollama(query, documents, config, top_n):
