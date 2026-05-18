@@ -48,6 +48,44 @@ RERANK_PRESETS: dict[str, dict | None] = {
 }
 
 
+def resolve_anchors(dataset: dict, seeded: dict | None) -> int:
+    """把 dataset 內每條 query 的 expected_corpus_anchors 解析為 paragraph_id。
+
+    回傳新增解析的 id 總數。若 seeded 為 None / 對不到 file，保留原 expected_paragraph_ids。
+    比對規則：anchor.file 對應 seeded.documents[].file；title_contains 子字串 match
+    paragraph.title（fallback：match content 前綴）。每個 anchor 取首個 match。
+    """
+    if not seeded:
+        return 0
+    file_index = {d["file"]: d for d in seeded.get("documents", [])}
+    added = 0
+    for q in dataset["queries"]:
+        anchors = q.get("expected_corpus_anchors") or []
+        existing = set(q.get("expected_paragraph_ids") or [])
+        for a in anchors:
+            doc = file_index.get(a.get("file"))
+            if not doc:
+                print(f"[anchor-miss] q={q['id']} file={a.get('file')} not in seeded")
+                continue
+            needle = a.get("title_contains", "")
+            matched = None
+            for p in doc["paragraphs"]:
+                hay = (p.get("title") or "") + " " + (p.get("content") or "")
+                if needle and needle in hay:
+                    matched = p["id"]
+                    break
+            if matched and matched not in existing:
+                existing.add(matched)
+                added += 1
+            elif not matched:
+                print(
+                    f"[anchor-miss] q={q['id']} file={a.get('file')} "
+                    f"title_contains={needle!r} no paragraph match"
+                )
+        q["expected_paragraph_ids"] = list(existing)
+    return added
+
+
 async def run_mode(
     client: httpx.AsyncClient,
     base: str,
@@ -120,9 +158,20 @@ async def main() -> None:
         choices=list(RERANK_PRESETS.keys()),
     )
     parser.add_argument("--output", default="docs/perf/v3.3-rag-bench-results.md")
+    parser.add_argument(
+        "--seeded",
+        default=None,
+        help="seeded_paragraphs.json（由 seed_eval_kb.py 輸出），用來把 dataset "
+             "中 expected_corpus_anchors 解析為實際 paragraph_id",
+    )
     args = parser.parse_args()
 
     dataset = json.loads(Path(args.dataset).read_text(encoding="utf-8"))
+    seeded = None
+    if args.seeded:
+        seeded = json.loads(Path(args.seeded).read_text(encoding="utf-8"))
+        added = resolve_anchors(dataset, seeded)
+        print(f"[anchors] resolved {added} paragraph_id(s) from seeded corpus")
     results: dict[str, dict[str, float]] = {}
 
     async with httpx.AsyncClient(timeout=60.0) as client:
