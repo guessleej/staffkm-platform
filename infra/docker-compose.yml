@@ -244,6 +244,7 @@ services:
       CHAT_SERVICE_URL: http://chat:8005
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/0
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health || exit 1"]
@@ -296,6 +297,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CHUNK_SIZE: ${CHUNK_SIZE:-512}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-64}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
@@ -395,6 +397,7 @@ services:
       # legacy（v1 相容、後續移除）
       OPENAI_MODEL:    ${OPENAI_MODEL:-gemma4:e4b}
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # LEGACY_URL_MODE: rewrite   # v3.1+ 預設 410；如有舊 client 暫無法遷移可開回 rewrite
     healthcheck:
       <<: *api-healthcheck
@@ -440,6 +443,7 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN:-}
       LDAP_BIND_DN: ${LDAP_BIND_DN:-}
       LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]
@@ -479,6 +483,7 @@ services:
       LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
       TEAMS_APP_ID: ${TEAMS_APP_ID:-}
       TEAMS_APP_PASSWORD: ${TEAMS_APP_PASSWORD:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8004/health || exit 1"]
@@ -515,6 +520,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/5
       AGENT_SERVICE_URL: http://agent:8002
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8005/health || exit 1"]
@@ -612,6 +618,55 @@ services:
   #  可選：監控套件（profile=monitoring 才啟動）
   # ══════════════════════════════════════════════════════════════
 
+  # ── v3.3 B1: OpenTelemetry Tracing backend ──────────────────────
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: staffkm-tempo
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./infra/monitoring/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4318:4318"   # OTLP HTTP receiver
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ── v3.3 B2: Log aggregation ─────────────────────────────────────
+  loki:
+    image: grafana/loki:3.3.1
+    container_name: staffkm-loki
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./infra/monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    logging: *default-logging
+    networks:
+      - backend
+
+  promtail:
+    image: grafana/promtail:3.3.1
+    container_name: staffkm-promtail
+    restart: unless-stopped
+    profiles: ["observability"]
+    volumes:
+      - ./infra/monitoring/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    depends_on:
+      - loki
+    logging: *default-logging
+    networks:
+      - backend
+
   prometheus:
     image: prom/prometheus:v3.0.1
     container_name: staffkm-prometheus
@@ -700,6 +755,10 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  tempo_data:
+    driver: local
+  loki_data:
     driver: local
   embedder_cache:
     driver: local

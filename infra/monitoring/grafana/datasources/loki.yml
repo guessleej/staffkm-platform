@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  - name: staffkm-loki
+    type: loki
+    uid: staffkm-loki
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          datasourceUid: 'staffkm-tempo'
+          matcherRegex: 'trace_id=(\w+)'
+          url: '$${__value.raw}'

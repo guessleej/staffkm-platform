@@ -8,17 +8,20 @@ import structlog
 from app.connectors.line_bot import router as line_router
 from app.connectors.teams_bot import router as teams_router
 from app.config import settings
+from staffkm_core.observability import setup_otel, instrument_fastapi
 
 log = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_otel(service_name="staffkm-integration")
     log.info("integration_service_ready")
     yield
 
 
 app = FastAPI(title="StaffKM Integration Service", version="1.0.0", lifespan=lifespan)
+instrument_fastapi(app, service_name="staffkm-integration")
 # Prometheus /metrics — v2.2
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

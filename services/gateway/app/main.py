@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
+from staffkm_core.observability import setup_otel, instrument_fastapi
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import StructuredLoggingMiddleware
 from app.middleware.rate_limit import setup_rate_limiter
@@ -24,6 +25,7 @@ log = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_otel(service_name="staffkm-gateway")
     log.info("staffkm_gateway_starting", version=settings.VERSION)
     yield
     log.info("staffkm_gateway_stopped")
@@ -38,6 +40,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+instrument_fastapi(app, service_name="staffkm-gateway")
 
 # CORS
 app.add_middleware(

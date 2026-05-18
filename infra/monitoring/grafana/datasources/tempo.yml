@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: staffkm-tempo
+    type: tempo
+    uid: staffkm-tempo
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: 'staffkm-loki'
+        tags: ['service']
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+      serviceMap:
+        datasourceUid: 'prometheus'   # 若 prometheus datasource uid 不一樣需對齊；先寫 prometheus 之後可改
