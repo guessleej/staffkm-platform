@@ -188,6 +188,12 @@ const router = createRouter({
           meta: { title: 'Worker Heartbeats', roles: ['admin'] },
         },
         {
+          path: 'admin/billing',
+          name: 'admin-billing',
+          component: () => import('../views/admin/BillingView.vue'),
+          meta: { title: 'Per-User Billing', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),

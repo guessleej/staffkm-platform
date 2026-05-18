@@ -66,6 +66,8 @@
           <NavIconLink to="/admin/webhook-outbox" label="Webhook Outbox" icon="send" />
           <!-- v3.6 P2：worker heartbeats freshness -->
           <NavIconLink to="/admin/heartbeats" label="Worker Heartbeats" icon="loader" />
+          <!-- v3.8 P2：per-user billing 報表 -->
+          <NavIconLink to="/admin/billing" label="Per-User Billing" icon="file-text" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>

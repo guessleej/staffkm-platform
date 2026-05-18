@@ -22,6 +22,7 @@ from app.routers._generic_proxy import (
     conversations_router,
     admin_webhook_outbox_router,
     admin_heartbeats_router,
+    admin_billing_router,
 )
 
 log = structlog.get_logger()
@@ -106,3 +107,5 @@ app.include_router(conversations_router, prefix="/api/v1/conversations",      ta
 app.include_router(admin_webhook_outbox_router, prefix="/api/v1/admin/webhook-outbox", tags=["Admin Webhook Outbox (v3.6)"])
 # v3.6 P2：admin worker heartbeats freshness
 app.include_router(admin_heartbeats_router, prefix="/api/v1/admin/heartbeats", tags=["Admin Heartbeats (v3.6)"])
+# v3.8 P2：admin per-user billing 報表
+app.include_router(admin_billing_router, prefix="/api/v1/admin/billing", tags=["Admin Billing (v3.8)"])
