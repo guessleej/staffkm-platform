@@ -1,15 +1,17 @@
-"""LegacyURLBridge — v3.0 起改為 sunset 模式。
+"""LegacyURLBridge — v3.1 起預設 410 Gone。
 
 v2.x：把 v1 URL 自動重寫為 v2 workspace-scoped URL。
-v3.0：（本檔）改為直接回 410 Gone，附 Link header 指向 v2 URL。
+v3.0：保留 bridge 但提供 410 模式（default 仍 rewrite，因 gateway/frontend 還在用 v1 URL）。
+v3.1：（本檔）gateway proxy + frontend axios 都已自動注入 workspace_id，
+       預設翻成 410 — bridge 只擋未遷移的 SDK / custom client。
 
 部署可透過 env `LEGACY_URL_MODE` 控制：
-  rewrite    — 舊行為（v2.x），重寫 v1 → v2 + Deprecation header（過渡期用）
-  410        — v3.0 預設，直接 410 + Link header 指 v2 URL
+  rewrite    — 舊行為，重寫 v1 → v2 + Deprecation header（用 hardcoded DEFAULT_WORKSPACE_ID，等於假設單租戶，僅作為 backstop）
+  410        — v3.1 預設，直接 410 + Link header 指 v2 URL
   off        — 完全不攔截（v1 URL 變 404）
 
-過渡期建議：升 v3.0 前先設 `LEGACY_URL_MODE=410` 跑一段時間，
-確認沒有 client 還在打 v1，再正式升 v3 安心拿掉這個中介層。
+升 v3.1 後建議監控有沒有 unexpected 410（log 標籤 `legacy_url_blocked_410`）。
+若仍有舊 client 無法即時遷移可暫時 `LEGACY_URL_MODE=rewrite` 回滾；v4.0 將拔除本中介層。
 """
 from __future__ import annotations
 
@@ -60,10 +62,10 @@ class LegacyURLBridge(BaseHTTPMiddleware):
 
     def __init__(self, app):
         super().__init__(app)
-        # v3.0：預設仍 'rewrite' — 因為 gateway proxy 跟 frontend 都用 v1 URL，
-        # 改 410 需要 gateway 補上 workspace_id 注入（另外 PR 做）。
-        # 環境想跑 410 mode（已驗證 client 不再用 v1）→ 設 LEGACY_URL_MODE=410
-        self.mode = os.environ.get("LEGACY_URL_MODE", "rewrite").lower()
+        # v3.1：default 翻成 '410' — gateway proxy + frontend axios 已自動注入
+        # X-Workspace-ID，正常 caller 不會再進到 bridge。
+        # 若有舊 SDK / custom client 暫時無法遷移 → 設 LEGACY_URL_MODE=rewrite 回滾。
+        self.mode = os.environ.get("LEGACY_URL_MODE", "410").lower()
         if self.mode not in ("rewrite", "410", "off"):
             log.warning("invalid_legacy_url_mode", mode=self.mode, fallback="rewrite")
             self.mode = "rewrite"
