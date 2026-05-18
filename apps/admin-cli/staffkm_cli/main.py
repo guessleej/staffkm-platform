@@ -23,6 +23,15 @@ from rich.table import Table
 
 from staffkm_sdk import AuthError, QuotaExceeded, StaffKMClient, StaffKMError
 
+from .commands import app as app_cmd
+from .commands import billing as billing_cmd
+from .commands import kb as kb_cmd
+from .commands import login as login_cmd_mod
+from .commands import obs as obs_cmd
+from .commands import plugin as plugin_cmd
+from .commands import user as user_cmd
+from .commands import workspace as workspace_cmd
+
 console = Console()
 
 
@@ -162,6 +171,18 @@ def quota_set(ctx, tokens, cost):
     with _make_client(ctx) as c:
         result = c.usage.set_quota(monthly_token_cap=tokens, monthly_cost_cap_usd=cost)
         console.print_json(json.dumps(result))
+
+
+# ── v4.4 D：新 command groups（cred file based，補既有 env-based 工具） ──
+cli.add_command(login_cmd_mod.login_cmd)
+cli.add_command(login_cmd_mod.logout_cmd)
+cli.add_command(workspace_cmd.workspace_group)
+cli.add_command(app_cmd.app_group)
+cli.add_command(kb_cmd.kb_group)
+cli.add_command(user_cmd.user_group)
+cli.add_command(plugin_cmd.plugin_group)
+cli.add_command(obs_cmd.obs_group)
+cli.add_command(billing_cmd.billing_group)
 
 
 if __name__ == "__main__":
