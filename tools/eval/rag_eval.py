@@ -86,6 +86,76 @@ def resolve_anchors(dataset: dict, seeded: dict | None) -> int:
     return added
 
 
+# ── v3.7 P3: LLM-as-judge ───────────────────────────────────────────────────
+
+JUDGE_PROMPT = """你是一位 RAG 系統評分員。給定一個 query 與檢索出來的段落（top-k），請評估 \
+這些段落是否足以回答 query。
+
+評分標準（0-5）：
+0 = 完全無關
+1 = 微弱相關
+2 = 部分相關但缺關鍵資訊
+3 = 大致相關，可作參考
+4 = 高度相關，幾乎可回答
+5 = 完整命中，可直接回答
+
+{rubric_extra}
+
+Query：{query}
+
+檢索段落（top-{k}）：
+{passages}
+
+只輸出一個整數分數（0-5），不要其他文字。"""
+
+
+async def llm_judge(
+    client: httpx.AsyncClient,
+    *,
+    base_url: str,
+    api_key: str,
+    judge_model: str,
+    query: str,
+    passages: list[str],
+    rubric_extra: str = "",
+) -> float | None:
+    """呼叫 judge model 評分，回 0-5 float。失敗回 None。
+
+    OpenAI-compatible endpoint（base_url 範例：https://api.openai.com/v1
+    或 http://embedder:11434/v1 for Ollama）。
+    """
+    prompt = JUDGE_PROMPT.format(
+        query=query,
+        k=len(passages),
+        passages="\n---\n".join(f"[{i+1}] {p[:300]}" for i, p in enumerate(passages)),
+        rubric_extra=rubric_extra or "",
+    )
+    try:
+        r = await client.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            json={
+                "model": judge_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,
+                "max_tokens": 8,
+            },
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        content = r.json()["choices"][0]["message"]["content"].strip()
+        # 取第一個數字
+        import re
+        m = re.search(r"\d+", content)
+        if not m:
+            return None
+        score = float(m.group())
+        return max(0.0, min(5.0, score))
+    except Exception as e:
+        print(f"[judge-error] {e}")
+        return None
+
+
 async def run_mode(
     client: httpx.AsyncClient,
     base: str,
@@ -94,9 +164,11 @@ async def run_mode(
     dataset: dict,
     mode: str,
     rerank_config: dict | None,
+    judge_cfg: dict | None = None,
 ) -> dict[str, float]:
     hits_at_5: list[float] = []
     mrr_scores: list[float] = []
+    judge_scores: list[float] = []
     skipped = 0
     for q in dataset["queries"]:
         expected = set(q.get("expected_paragraph_ids") or [])
@@ -133,14 +205,35 @@ async def run_mode(
         )
         mrr_scores.append(1.0 / rank if rank else 0.0)
 
+        # v3.7 P3: LLM-as-judge — 對整組 top-5 評分
+        if judge_cfg:
+            passages = [r.get("content", "") for r in results[:5]]
+            rubric_extra = q.get("judge_criteria", "")
+            score = await llm_judge(
+                client,
+                base_url=judge_cfg["base_url"],
+                api_key=judge_cfg["api_key"],
+                judge_model=judge_cfg["model"],
+                query=q["query"],
+                passages=passages,
+                rubric_extra=rubric_extra,
+            )
+            if score is not None:
+                judge_scores.append(score)
+
     if not hits_at_5:
-        return {"hit@5": float("nan"), "MRR": float("nan"), "n": 0, "skipped": skipped}
-    return {
+        return {"hit@5": float("nan"), "MRR": float("nan"), "judge_avg": float("nan"),
+                "n": 0, "skipped": skipped}
+    out: dict[str, float] = {
         "hit@5": sum(hits_at_5) / len(hits_at_5),
         "MRR": statistics.mean(mrr_scores),
         "n": float(len(hits_at_5)),
         "skipped": float(skipped),
     }
+    if judge_cfg:
+        out["judge_avg"] = (statistics.mean(judge_scores) if judge_scores else float("nan"))
+        out["judge_n"] = float(len(judge_scores))
+    return out
 
 
 async def main() -> None:
@@ -158,6 +251,19 @@ async def main() -> None:
         choices=list(RERANK_PRESETS.keys()),
     )
     parser.add_argument("--output", default="docs/perf/v3.3-rag-bench-results.md")
+    # v3.7 P3: LLM-as-judge
+    parser.add_argument(
+        "--judge-model", default=None,
+        help="若指定，啟用 LLM-as-judge 評分（0-5）。建議用跟測試 model 不同的 judge 避免偏袒。",
+    )
+    parser.add_argument(
+        "--judge-base", default=os.environ.get("JUDGE_BASE_URL", "https://api.openai.com/v1"),
+        help="judge model 的 OpenAI-compat endpoint",
+    )
+    parser.add_argument(
+        "--judge-key", default=os.environ.get("JUDGE_API_KEY", os.environ.get("OPENAI_API_KEY", "")),
+        help="judge model API key",
+    )
     parser.add_argument(
         "--seeded",
         default=None,
@@ -174,6 +280,15 @@ async def main() -> None:
         print(f"[anchors] resolved {added} paragraph_id(s) from seeded corpus")
     results: dict[str, dict[str, float]] = {}
 
+    judge_cfg = None
+    if args.judge_model:
+        judge_cfg = {
+            "model": args.judge_model,
+            "base_url": args.judge_base,
+            "api_key": args.judge_key,
+        }
+        print(f"[judge] enabled: {args.judge_model} via {args.judge_base}")
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         for mode in args.modes:
             for rerank_name in args.rerank:
@@ -184,11 +299,13 @@ async def main() -> None:
                     results[key] = await run_mode(
                         client, args.base, args.token, args.kb_id,
                         dataset, mode, rcfg,
+                        judge_cfg=judge_cfg,
                     )
                 except Exception as e:
                     print(f"[fail] {key}: {e}")
                     results[key] = {
                         "hit@5": float("nan"), "MRR": float("nan"),
+                        "judge_avg": float("nan"),
                         "n": 0, "skipped": 0,
                     }
 
@@ -200,13 +317,24 @@ async def main() -> None:
         f"- kb_id: `{args.kb_id}`",
         f"- queries: {len(dataset['queries'])}",
         "",
-        "| mode+rerank | n | hit@5 | MRR | skipped |",
-        "|-------------|----|-------|------|---------|",
+        ("| mode+rerank | n | hit@5 | MRR | judge_avg | skipped |"
+         if judge_cfg else
+         "| mode+rerank | n | hit@5 | MRR | skipped |"),
+        ("|-------------|----|-------|------|-----------|---------|"
+         if judge_cfg else
+         "|-------------|----|-------|------|---------|"),
     ]
     for k, v in results.items():
-        lines.append(
-            f"| {k} | {int(v['n'])} | {v['hit@5']:.3f} | {v['MRR']:.3f} | {int(v['skipped'])} |"
-        )
+        if judge_cfg:
+            ja = v.get("judge_avg", float("nan"))
+            ja_str = f"{ja:.2f}" if not (ja != ja) else "nan"  # NaN check
+            lines.append(
+                f"| {k} | {int(v['n'])} | {v['hit@5']:.3f} | {v['MRR']:.3f} | {ja_str} | {int(v['skipped'])} |"
+            )
+        else:
+            lines.append(
+                f"| {k} | {int(v['n'])} | {v['hit@5']:.3f} | {v['MRR']:.3f} | {int(v['skipped'])} |"
+            )
     out = "\n".join(lines) + "\n"
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     Path(args.output).write_text(out, encoding="utf-8")
