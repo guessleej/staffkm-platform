@@ -35,6 +35,13 @@ log = structlog.get_logger()
 async def lifespan(app: FastAPI):
     setup_otel(service_name="staffkm-agent")
     init_db(settings.DB_URL)
+    # v3.7 P4: slow query trace (>SLOW_QUERY_THRESHOLD_MS ms → log + OTel span tag)
+    try:
+        from app.core.slow_query import install_slow_query_listener
+        if _db._engine is not None:
+            install_slow_query_listener(_db._engine)
+    except Exception as _e:
+        log.warning("slow_query_install_failed", error=str(_e))
     await run_bootstrap_ddl()
     await run_alembic_upgrade()
     # v3.2 P1：seed 已知 model 的 USD/1k token 定價（idempotent，只補 NULL）
