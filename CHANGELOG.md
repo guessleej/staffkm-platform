@@ -2,6 +2,66 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.1.0] — 2026-05-18
+
+> **Technical debt cleanup** milestone — 收 v3.0 留下的 3 條尾巴。
+> 重點：純收尾，無新功能。Alembic 落地 + Audit log 真實接線 + Legacy URL bridge 預設 410。
+
+### Highlights
+- 🗄️ **Alembic baseline** — 4 service（auth / agent / knowledge / chat）schema 演化改走 alembic + `pg_advisory_lock` 多 instance 安全
+- 📜 **Audit log 真實接線** — 14 個寫操作埋點（applications / templates / api_keys / kb / users）
+- 🌉 **LegacyURLBridge default 翻 410** — gateway proxy + frontend axios 自動注入 `X-Workspace-ID`，bridge 變 backstop only
+
+### Added — Alembic baseline (v3.1-P1, PR #181)
+- 每個 service：`alembic.ini` + `alembic/env.py` + `alembic/versions/0001_baseline.py`（no-op stamp）+ `app/utils/migrate.py`
+- env.py：async URL → sync URL；online 用 `pg_advisory_lock(hashtext('staffkm_migrate_{svc}'))` 包 upgrade
+- lifespan 加 `await run_alembic_upgrade()`，在 `init_db()` + bootstrap_ddl 之後
+- 既有 `bootstrap_ddl.py` / `_*_BOOTSTRAP_DDL` 標 `[DEPRECATED in v3.1]`，新 schema 改動請走 `alembic revision`
+- requirements 補 `psycopg2-binary==2.9.10`（alembic 需 sync driver）
+- Dockerfile COPY `alembic/` + `alembic.ini`
+- **integration service 跳過**：尚未接 DB
+
+### Added — Audit log 真實接線 (v3.1-P2, PR #182)
+- 新檔 `packages/python/staffkm-core/staffkm_core/audit.py`：把 `_record` 搬到 shared package、重命名 `record_audit`
+- `services/agent/app/api/audit.py` 改 re-export 保留 `_record` 名稱（向後相容）
+- 14 處寫操作埋點：
+
+| Service | 檔 | 埋點數 | Actions |
+|---|---|---|---|
+| agent | applications.py | 3 | create / update / delete |
+| agent | app_templates.py | 4 | install_from_marketplace / create / update / delete |
+| agent | api_keys.py | 3 | create / revoke / toggle |
+| knowledge | knowledge_bases.py | 2 | create / delete |
+| auth | users.py | 2 | create / status_change |
+
+- 失敗安全：`_safe_audit()` 包 try/except，audit 寫不進去不會中斷原 endpoint
+- 敏感資料保護：api_key create detail 不含 raw key
+
+### Changed — Legacy URL sunset phase 1 (v3.1-P3, PR #183)
+- `services/gateway/app/routers/_generic_proxy.py`：`make_proxy_router` 從 `X-Workspace-ID` request header 注入 workspace_id 進 target URL
+- `apps/web/src/api/index.ts`：axios request interceptor 自動帶 `X-Workspace-ID`（從 `useWorkspaceStore().currentId`）
+- `services/agent/app/middleware/legacy_bridge.py`：**default `LEGACY_URL_MODE` 從 `rewrite` 翻成 `410`**
+- `infra/docker-compose.yml`：加註解版 `LEGACY_URL_MODE=rewrite`（operator 想暫緩可開）
+
+### Breaking Changes
+- ⚠️ **`LEGACY_URL_MODE` 預設 `410`**：未帶 `X-Workspace-ID` header 的舊 SDK / custom client 打 `/api/v1/{prefix}` 會拿到 410 Gone（含 `Link: <new_url>; rel="successor-version"` 指路）
+  - 影響：自寫 API client、curl 測試、第三方 SDK 整合
+  - 升級方式：URL 改成 `/api/v1/workspace/{workspace_id}/{prefix}/...`、或在 request header 加 `X-Workspace-ID: {ws_uuid}`
+  - 回滾：compose 設 `LEGACY_URL_MODE=rewrite` + restart agent
+  - v4.0 預計拔除 bridge
+
+### Migration（從 v3.0 升 v3.1）
+1. **DB**：什麼都不用做。Alembic baseline 是 no-op；現有 `bootstrap_ddl` 依然跑、schema 不變。新 schema 改動才走 alembic。
+2. **Audit log**：升完後執行任一寫操作 → 進 `/admin/audit-logs` 看得到 row（v3.0 是空表）
+3. **舊 API client**：見上方 Breaking Changes
+4. **Frontend / Gateway**：不需動作，已自動帶 workspace header
+5. **監控**：升級後 1 週留意 log `legacy_url_blocked_410`，定位未遷移 caller
+
+### PR refs
+#180（roadmap）/ #181（alembic）/ #182（audit wiring）/ #183（legacy sunset）
+
+---
+
 ## [3.0.0] — 2026-05-18
 
 > **Production Hardening** milestone — 第一個 major release。
