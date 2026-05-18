@@ -21,6 +21,8 @@ from app.core.quota_alert_worker import alert_worker_loop
 from app.core.resume_worker import resume_worker_loop
 from app.core.webhook_outbox import webhook_dispatcher_loop
 from app.core.trial_expiry_worker import trial_expiry_loop  # v4.1 A
+from app.core.usage_report_worker import usage_report_loop  # v4.8 H
+from app.api import billing_stripe  # v4.7 G
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 from staffkm_core.utils import database as _db
@@ -74,7 +76,12 @@ async def lifespan(app: FastAPI):
         trial_task = asyncio.create_task(
             trial_expiry_loop(lambda: _db._session_factory, interval_sec=3600),
         )
-        _bg_tasks = (worker_task, dispatcher_task, alert_task, resume_task, webhook_task, trial_task)
+        # v4.8 H：usage report worker（每 6 小時 aggregate → Stripe metered usage）
+        usage_report_task = asyncio.create_task(
+            usage_report_loop(lambda: _db._session_factory, interval_sec=3600 * 6),
+        )
+        _bg_tasks = (worker_task, dispatcher_task, alert_task, resume_task,
+                     webhook_task, trial_task, usage_report_task)
         log.info("worker_backend_inprocess_active")
     else:
         # v4.0 P3：arq backend → worker 跑在獨立 container（python -m arq …）
@@ -205,6 +212,10 @@ app.include_router(quota_alerts.router,       prefix=f"{_PREFIX}/quota-alerts", 
 app.include_router(approvals.router,          prefix=f"{_PREFIX}/approvals",        tags=["Workflow Approvals (v3.5)"])
 # v3.7 P1：per-conversation cost attribution
 app.include_router(conv_cost.router,          prefix=f"{_PREFIX}/conversations",    tags=["Conversation Cost (v3.7)"])
+# v4.7 G: Stripe billing — workspace-scoped
+app.include_router(billing_stripe.router,     prefix=f"{_PREFIX}/billing",          tags=["Billing (v4.7)"])
+# v4.7 G: Stripe webhook — public path（gateway PUBLIC_PREFIXES `/api/v1/public/`）
+app.include_router(billing_stripe.router,     prefix="/api/v1/public/billing",      tags=["Billing Webhook (v4.7)"])
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])
