@@ -17,7 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.application_agent import ApplicationAgent
 from app.core.base_agent import AgentContext
+from app.core.metering import meter_llm_call
+from app.core.token_count import count_messages, count_text
+from app.core.usage import QuotaExceeded
 from staffkm_core.schemas.response import ApiResponse
+from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import get_session
 
 router = APIRouter()
@@ -92,15 +96,53 @@ async def public_chat(
         roles=[],
     )
 
+    model_hint = agent._model or "gpt-4o-mini"
+    prompt_tokens_est = count_messages(body.messages, model=model_hint)
+
     async def event_generator():
-        try:
+        out_buffer: list[str] = []
+        sess_factory = _db._session_factory
+        # 公開存取 — 沒 workspace_id 就無法 meter，退化為純 streaming
+        if sess_factory is None or not app_workspace_id_str:
             async for token in agent.stream_response(ctx):
                 if await request.is_disconnected():
                     break
                 yield {"event": "token", "data": token}
             yield {"event": "citations", "data": json.dumps(ctx.citations, ensure_ascii=False)}
             yield {"event": "done", "data": "[DONE]"}
-        except Exception as e:
-            yield {"event": "error", "data": str(e)}
+            return
+
+        async with sess_factory() as us_session:
+            try:
+                async with meter_llm_call(
+                    us_session,
+                    workspace_id=app_workspace_id_str,
+                    user_id=None,  # 公開存取無 user
+                    application_id=str(app_id),
+                    provider_type=agent._provider_type,
+                    model=agent._model,
+                ) as meter:
+                    try:
+                        async for token in agent.stream_response(ctx):
+                            if await request.is_disconnected():
+                                break
+                            out_buffer.append(token or "")
+                            yield {"event": "token", "data": token}
+                        yield {"event": "citations", "data": json.dumps(ctx.citations, ensure_ascii=False)}
+                        yield {"event": "done", "data": "[DONE]"}
+                    except Exception as e:
+                        yield {"event": "error", "data": str(e)}
+                        raise
+                    finally:
+                        meter.record(
+                            prompt_tokens=prompt_tokens_est,
+                            completion_tokens=count_text(
+                                "".join(out_buffer), model=model_hint,
+                            ),
+                        )
+            except QuotaExceeded as qe:
+                yield {"event": "error", "data": f"quota_exceeded: {qe}"}
+            except Exception:
+                pass
 
     return EventSourceResponse(event_generator())

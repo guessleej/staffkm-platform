@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
 from app.core.token_count import count_messages, count_text
-from app.core.usage import QuotaExceeded, UsageRecord, check_quota, record_usage
+from app.core.metering import meter_llm_call
+from app.core.usage import QuotaExceeded
 from staffkm_core.utils import database as _db
 from app.scenarios import SCENARIO_REGISTRY
 from staffkm_core.utils.database import get_session
@@ -118,12 +119,6 @@ async def chat_with_application(
         elif app_dict.get(field) is None:
             app_dict[field] = [] if field != "config" else {}
 
-    # M3 收尾：呼叫前先檢查 workspace quota
-    try:
-        await check_quota(session, str(ctx_t.workspace_id))
-    except QuotaExceeded as e:
-        raise HTTPException(status_code=429, detail=str(e))
-
     agent = await ApplicationAgent.create(app_dict, session=session)
 
     ctx = AgentContext(
@@ -140,53 +135,60 @@ async def chat_with_application(
     prompt_tokens_est = count_messages(body.messages, model=model_hint)
 
     async def event_generator():
-        import time
-        start = time.monotonic()
         out_buffer: list[str] = []
-        status = "ok"
-        err: str | None = None
-        try:
+        # 用獨立 session 給 metering（避免請求 session 在 SSE 結束前已關閉）；
+        # quota pre-check 也在 context manager 進入時跑，超額 raise QuotaExceeded
+        # → 由 main.py 的 exception handler 轉 429。
+        sess_factory = _db._session_factory
+        if sess_factory is None:
+            # 沒 DB 設定時退化為純 streaming（理論上不該發生）
             async for token in agent.stream_response(ctx):
                 if await request.is_disconnected():
-                    status = "client_disconnect"
                     break
-                out_buffer.append(token or "")
                 yield {"event": "token", "data": token}
-
-            yield {
-                "event": "citations",
-                "data": json.dumps(ctx.citations, ensure_ascii=False),
-            }
+            yield {"event": "citations", "data": json.dumps(ctx.citations, ensure_ascii=False)}
             yield {"event": "done", "data": "[DONE]"}
+            return
 
-        except Exception as e:
-            status, err = "error", str(e)
-            yield {"event": "error", "data": str(e)}
+        async with sess_factory() as us_session:
+            try:
+                async with meter_llm_call(
+                    us_session,
+                    workspace_id=str(ctx_t.workspace_id),
+                    user_id=str(ctx_t.user_id),
+                    application_id=str(app_id),
+                    provider_type=agent._provider_type,
+                    model=agent._model,
+                ) as meter:
+                    try:
+                        async for token in agent.stream_response(ctx):
+                            if await request.is_disconnected():
+                                break
+                            out_buffer.append(token or "")
+                            yield {"event": "token", "data": token}
 
-        # M3 收尾：寫一筆 usage log（用獨立 session，避免請求 session 已關閉）
-        try:
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-            # Round 8-4：對輸出字串做精算（而非用 char/4 對「x" * out_chars」）
-            completion_tokens_est = count_text("".join(out_buffer), model=model_hint)
-            sess_factory = _db._session_factory
-            if sess_factory is not None:
-                async with sess_factory() as us_session:
-                    await record_usage(us_session, UsageRecord(
-                        workspace_id=str(ctx_t.workspace_id),
-                        user_id=str(ctx_t.user_id),
-                        application_id=str(app_id),
-                        provider_type=agent._provider_type,
-                        model=agent._model,
-                        prompt_tokens=prompt_tokens_est,
-                        completion_tokens=completion_tokens_est,
-                        total_tokens=prompt_tokens_est + completion_tokens_est,
-                        latency_ms=elapsed_ms,
-                        status=status,
-                        error=err,
-                    ))
-                    await us_session.commit()
-        except Exception as log_err:
-            # 計帳失敗不影響使用者體驗
-            yield {"event": "usage_log_error", "data": str(log_err)}
+                        yield {
+                            "event": "citations",
+                            "data": json.dumps(ctx.citations, ensure_ascii=False),
+                        }
+                        yield {"event": "done", "data": "[DONE]"}
+                    except Exception as e:
+                        yield {"event": "error", "data": str(e)}
+                        raise
+                    finally:
+                        # Round 8-4：對輸出字串做精算
+                        completion_tokens_est = count_text(
+                            "".join(out_buffer), model=model_hint,
+                        )
+                        meter.record(
+                            prompt_tokens=prompt_tokens_est,
+                            completion_tokens=completion_tokens_est,
+                        )
+            except QuotaExceeded as qe:
+                # quota 超額：pre-check 階段就 raise；SSE 已開，回一個 error event
+                yield {"event": "error", "data": f"quota_exceeded: {qe}"}
+            except Exception:
+                # 已在內層 yield error；這裡 swallow 避免 SSE 異常傳出 ASGI
+                pass
 
     return EventSourceResponse(event_generator())

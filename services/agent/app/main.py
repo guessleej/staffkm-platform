@@ -4,9 +4,12 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core.usage import QuotaExceeded
 
 import asyncio
 
@@ -76,6 +79,16 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+# ── Exception handlers ───────────────────────────────────────────────
+@app.exception_handler(QuotaExceeded)
+async def _quota_exceeded_handler(request: Request, exc: QuotaExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"error": "quota_exceeded", "detail": str(exc)},
+        headers={"Retry-After": "86400"},  # 1 day
+    )
+
 
 # ── Middleware（starlette 規則：後加 = 外層 = 先跑）──────────────────
 # 期望執行順序（request 進來時）：
