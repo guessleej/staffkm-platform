@@ -66,9 +66,11 @@ async def meter_llm_call(
 ):
     """Pre: check_quota（超額 raise）；post: record_usage（自動算 cost、commit）。"""
     ws = str(workspace_id)
+    uid = str(user_id) if user_id else None
     # Pre-check：超額直接 raise，caller / FastAPI exception handler 接
+    # v3.3 D1：傳 user_id 進去做 user-level cap 檢查
     try:
-        await check_quota(session, ws)
+        await check_quota(session, ws, user_id=uid)
     except QuotaExceeded:
         raise
 

@@ -43,6 +43,8 @@ _LEGACY_PREFIXES = (
     "/api/v1/media-providers",
     "/api/v1/app-templates",
     "/api/v1/admin/audit-logs",
+    "/api/v1/user-quotas",
+    "/api/v1/quota-alerts",
 )
 
 _EXCLUDE_PREFIXES = (
