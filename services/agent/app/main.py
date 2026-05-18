@@ -13,7 +13,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -178,6 +178,8 @@ app.include_router(audit.router,             prefix=f"{_PREFIX}/admin/audit-logs
 app.include_router(user_quotas.router,        prefix=f"{_PREFIX}/user-quotas",      tags=["User Quota (v3.3)"])
 app.include_router(quota_alerts.router,       prefix=f"{_PREFIX}/quota-alerts",     tags=["Quota Alerts (v3.3)"])
 app.include_router(approvals.router,          prefix=f"{_PREFIX}/approvals",        tags=["Workflow Approvals (v3.5)"])
+# v3.7 P1：per-conversation cost attribution
+app.include_router(conv_cost.router,          prefix=f"{_PREFIX}/conversations",    tags=["Conversation Cost (v3.7)"])
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])

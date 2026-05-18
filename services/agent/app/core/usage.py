@@ -42,6 +42,9 @@ class UsageRecord:
     # v3.4 P1: non-LLM unit-based metering（image / second / char / call）
     unit_type:         str | None       = None
     unit_count:        float            = 0.0
+    # v3.7 P1: per-conversation / per-message cost attribution
+    conversation_id:   str | None       = None
+    message_id:        str | None       = None
 
 
 async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
@@ -55,13 +58,15 @@ async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
                     provider_type, model,
                     prompt_tokens, completion_tokens, total_tokens,
                     cost_usd, latency_ms, status, error,
-                    unit_type, unit_count
+                    unit_type, unit_count,
+                    conversation_id, message_id
                 ) VALUES (
                     :id, :ws, :uid, :app_id,
                     :ptype, :model,
                     :pt, :ct, :tt,
                     :cost, :latency, :status, :error,
-                    :unit_type, :unit_count
+                    :unit_type, :unit_count,
+                    :conv_id, :msg_id
                 )
                 """
             ),
@@ -81,6 +86,8 @@ async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
                 "error":   rec.error,
                 "unit_type":  rec.unit_type,
                 "unit_count": rec.unit_count,
+                "conv_id":    rec.conversation_id,
+                "msg_id":     rec.message_id,
             },
         )
     except Exception as e:

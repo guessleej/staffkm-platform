@@ -57,10 +57,15 @@
              :style="{ background: appGradient(appId) }">
           {{ application?.icon || appEmoji(application?.name || '') }}
         </div>
-        <div>
+        <div class="flex-1">
           <h2 class="text-sm font-semibold text-fg">{{ application?.name || '載入中…' }}</h2>
           <p class="text-xs text-fg-tertiary">{{ application?.description }}</p>
         </div>
+        <!-- v3.7 P1：對話 cost 徽章（lazy 拉 /conversations/{id}/cost） -->
+        <ConversationCostBadge
+          v-if="convStore.currentConversation"
+          :conversation-id="convStore.currentConversation?.id ?? convStore.currentConversation?.conversation_id"
+        />
       </div>
 
       <!-- 歡迎畫面（無選中對話） -->
@@ -169,6 +174,7 @@ import { useRoute } from 'vue-router'
 import { useConversationStore } from '../../stores/conversation'
 import { applicationApi, type Application } from '../../api/application'
 import { SIcon } from '@staffkm/ui-kit'
+import ConversationCostBadge from '../../components/chat/ConversationCostBadge.vue'
 
 const route = useRoute()
 const convStore = useConversationStore()
@@ -241,6 +247,8 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         session_id: convStore.currentConversation?.id ?? convStore.currentConversation?.conversation_id,
+        // v3.7 P1：明確傳 conversation_id 用於 cost 歸因
+        conversation_id: convStore.currentConversation?.id ?? convStore.currentConversation?.conversation_id,
         messages: convStore.messages
           .filter(m => !m.streaming)
           .map(m => ({ role: m.role, content: m.content })),

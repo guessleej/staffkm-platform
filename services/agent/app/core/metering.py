@@ -64,8 +64,13 @@ async def meter_llm_call(
     application_id: str | uuid.UUID | None = None,
     provider_type: str | None = None,
     model: str | None = None,
+    conversation_id: str | uuid.UUID | None = None,
+    message_id: str | uuid.UUID | None = None,
 ):
-    """Pre: check_quota（超額 raise）；post: record_usage（自動算 cost、commit）。"""
+    """Pre: check_quota（超額 raise）；post: record_usage（自動算 cost、commit）。
+
+    v3.7 P1：新增 conversation_id / message_id 做 per-conversation cost 歸因。
+    """
     ws = str(workspace_id)
     uid = str(user_id) if user_id else None
     # Pre-check：超額直接 raise，caller / FastAPI exception handler 接
@@ -106,6 +111,8 @@ async def meter_llm_call(
                 latency_ms=latency_ms,
                 status=status,
                 error=meter.error,
+                conversation_id=str(conversation_id) if conversation_id else None,
+                message_id=str(message_id) if message_id else None,
             ))
             await session.commit()
         except Exception as e:
@@ -134,6 +141,8 @@ async def meter_media_call(
     provider_type: str | None = None,
     model: str | None = None,
     unit_type: str,  # 'image' | 'second' | 'char' | 'call'
+    conversation_id: str | uuid.UUID | None = None,
+    message_id: str | uuid.UUID | None = None,
 ):
     """Pre: check_quota；post: record_usage 用 unit-based pricing。
 
@@ -176,6 +185,8 @@ async def meter_media_call(
                 error=meter.error,
                 unit_type=unit_type,
                 unit_count=meter.count,
+                conversation_id=str(conversation_id) if conversation_id else None,
+                message_id=str(message_id) if message_id else None,
             ))
             await session.commit()
         except Exception as e:
