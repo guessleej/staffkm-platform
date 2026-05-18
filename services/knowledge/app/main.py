@@ -23,92 +23,6 @@ from staffkm_tenant import TenantContextMiddleware
 log = structlog.get_logger()
 
 
-# [DEPRECATED in v3.1] 新 schema 改動請走 alembic revision
-# （services/knowledge/alembic/versions/），不要再加進這個 list。
-# 此清單保留純為老 deploy 的 idempotent backstop，v4.0 計畫移除。
-# Idempotent DDL — 啟動時補丁式遷移；asyncpg 一次只執行單一 statement，故拆成清單
-_BOOTSTRAP_STATEMENTS: list[str] = [
-    # 1. Hybrid Search 預計算 tsvector 欄位
-    "ALTER TABLE paragraphs ADD COLUMN IF NOT EXISTS search_vector tsvector",
-    "CREATE INDEX IF NOT EXISTS idx_paragraphs_search_vector "
-    "ON paragraphs USING gin(search_vector)",
-    # 2. paragraph_embeddings 的 UNIQUE(paragraph_id) — upsert 必要
-    "DO $$ BEGIN "
-    "  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uniq_para_embed') THEN "
-    "    ALTER TABLE paragraph_embeddings ADD CONSTRAINT uniq_para_embed UNIQUE (paragraph_id); "
-    "  END IF; "
-    "END $$",
-    # 3. 既有段落回填 search_vector（CJK 字符前後加空格再 tsvector）
-    "UPDATE paragraphs "
-    "SET search_vector = to_tsvector('simple', "
-    "  regexp_replace(content, '([一-鿿㐀-䶿豈-﫿぀-ゟ゠-ヿ])', ' \\1 ', 'g')) "
-    "WHERE search_vector IS NULL",
-
-    # 4. RFC-006 Phase C-3：Folder 階層
-    """
-    CREATE TABLE IF NOT EXISTS kb_folders (
-        id              UUID PRIMARY KEY,
-        workspace_id    UUID NOT NULL,
-        parent_id       UUID,
-        name            VARCHAR(128) NOT NULL,
-        sort_order      INTEGER NOT NULL DEFAULT 0,
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-        created_by      UUID
-    )
-    """,
-    "CREATE INDEX IF NOT EXISTS idx_kb_folders_workspace ON kb_folders(workspace_id)",
-    "CREATE INDEX IF NOT EXISTS idx_kb_folders_parent ON kb_folders(parent_id)",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS folder_id UUID",
-    "CREATE INDEX IF NOT EXISTS idx_kb_folder ON knowledge_bases(folder_id)",
-
-    # 5. RFC-006 切片技術升級：per-KB 切片策略
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_strategy VARCHAR(16) NOT NULL DEFAULT 'auto'",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_size INTEGER NOT NULL DEFAULT 512",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS chunk_overlap INTEGER NOT NULL DEFAULT 64",
-
-    # 6. Round 10-1：文檔操作擴充（標籤 / 命中策略 / 啟用狀態）
-    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb",
-    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS hit_strategy VARCHAR(16) NOT NULL DEFAULT 'rag'",
-    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT TRUE",
-    "CREATE INDEX IF NOT EXISTS idx_documents_tags_gin ON documents USING gin (tags)",
-    "CREATE INDEX IF NOT EXISTS idx_documents_kb_enabled ON documents (knowledge_base_id, is_enabled)",
-
-    # 7. Round 10-2：Q&A 生成
-    "ALTER TABLE paragraphs ADD COLUMN IF NOT EXISTS qa_pairs JSONB NOT NULL DEFAULT '[]'::jsonb",
-    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS questions JSONB NOT NULL DEFAULT '[]'::jsonb",
-
-    # 9. Round 10-5 / RFC-013：Workflow KB
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_type VARCHAR(16) NOT NULL DEFAULT 'manual'",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_workflow_id UUID",
-    "CREATE INDEX IF NOT EXISTS idx_kb_source_workflow ON knowledge_bases(source_workflow_id) WHERE source_workflow_id IS NOT NULL",
-
-    # 9b. Sprint 16：Web KB 同步 — source_url + crawl meta
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS source_url TEXT",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS sync_status VARCHAR(16)",
-    "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS sync_error TEXT",
-
-    # 8. Round 10-4：KB 資源授權（per-KB ACL；workspace 內針對特定 user / role 限制存取）
-    """
-    CREATE TABLE IF NOT EXISTS kb_grants (
-        id              UUID PRIMARY KEY,
-        workspace_id    UUID NOT NULL,
-        kb_id           UUID NOT NULL,
-        principal_type  VARCHAR(16) NOT NULL,    -- 'user' | 'role' | 'workspace'
-        principal_id    VARCHAR(128) NOT NULL,   -- user_id 或 role 名（owner/admin/editor/viewer）
-        access          VARCHAR(16) NOT NULL DEFAULT 'read',  -- read | edit | manage
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-        created_by      UUID,
-        UNIQUE (kb_id, principal_type, principal_id)
-    )
-    """,
-    "CREATE INDEX IF NOT EXISTS idx_kb_grants_kb        ON kb_grants(kb_id)",
-    "CREATE INDEX IF NOT EXISTS idx_kb_grants_ws        ON kb_grants(workspace_id)",
-    "CREATE INDEX IF NOT EXISTS idx_kb_grants_principal ON kb_grants(principal_type, principal_id)",
-]
-
-
 async def _ensure_embedding_dimension(engine):
     """偵測並對齊 paragraph_embeddings.embedding 的維度，需與 settings.EMBEDDING_DIMENSION 一致。
     若有資料則跳過（避免破壞），請手動處理；若無資料則自動重建欄位與索引。"""
@@ -147,21 +61,14 @@ async def _ensure_embedding_dimension(engine):
         log.info("embedding_dimension_rebuilt", dim=target_dim)
 
 
-async def _run_bootstrap_ddl():
+async def _run_embedding_dimension_check():
+    """v4.0：runtime safety — 對齊 settings.EMBEDDING_DIMENSION 跟實際 column 維度。
+    不屬 schema 變更（取決 runtime config），故不放 alembic。"""
     engine = create_async_engine(settings.DB_URL, pool_size=1, max_overflow=0)
     try:
-        for i, stmt in enumerate(_BOOTSTRAP_STATEMENTS, 1):
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute(text(stmt))
-                log.info("bootstrap_ddl_step_ok", step=i)
-            except Exception as e:
-                log.warning("bootstrap_ddl_step_failed", step=i, error=str(e))
-        try:
-            await _ensure_embedding_dimension(engine)
-        except Exception as e:
-            log.warning("ensure_embedding_dimension_failed", error=str(e))
-        log.info("bootstrap_ddl_done")
+        await _ensure_embedding_dimension(engine)
+    except Exception as e:
+        log.warning("ensure_embedding_dimension_failed", error=str(e))
     finally:
         await engine.dispose()
 
@@ -170,8 +77,8 @@ async def _run_bootstrap_ddl():
 async def lifespan(app: FastAPI):
     setup_otel(service_name="staffkm-knowledge")
     init_db(settings.DB_URL)
-    await _run_bootstrap_ddl()
     await run_alembic_upgrade()
+    await _run_embedding_dimension_check()
     log.info("knowledge_service_ready")
     yield
 

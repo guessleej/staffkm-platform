@@ -28,39 +28,10 @@ class GatewayHeadersMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# [DEPRECATED in v3.1] 新 schema 改動請走 alembic revision（services/auth/alembic/versions/），
-# 不要再加進這個 list。此清單保留純為老 deploy 的 idempotent backstop，v4.0 計畫移除。
-_AUTH_BOOTSTRAP_DDL = [
-    # v3.0：OIDC SSO 正規欄位（idempotent；既有 deploy 自動補）
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS oidc_sub VARCHAR(256)",
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS oidc_issuer VARCHAR(256)",
-    "CREATE INDEX IF NOT EXISTS idx_users_oidc_sub ON users(oidc_sub) WHERE oidc_sub IS NOT NULL",
-    # 遷移：把 v2.x 借用 ldap_dn 存的 oidc:{sub} 搬到 oidc_sub
-    "UPDATE users SET oidc_sub = SUBSTRING(ldap_dn FROM 6) WHERE ldap_dn LIKE 'oidc:%' AND oidc_sub IS NULL",
-]
-
-
-async def _run_auth_bootstrap_ddl():
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import create_async_engine
-    engine = create_async_engine(settings.DB_URL, pool_size=1, max_overflow=0)
-    try:
-        for i, stmt in enumerate(_AUTH_BOOTSTRAP_DDL, 1):
-            try:
-                async with engine.begin() as conn:
-                    await conn.execute(text(stmt))
-                log.info("auth_bootstrap_ddl_ok", step=i)
-            except Exception as e:
-                log.warning("auth_bootstrap_ddl_failed", step=i, error=str(e))
-    finally:
-        await engine.dispose()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_otel(service_name="staffkm-auth")
     init_db(settings.DB_URL)
-    await _run_auth_bootstrap_ddl()
     await run_alembic_upgrade()
     log.info("auth_service_ready", ldap_enabled=settings.LDAP_ENABLED, oidc_enabled=settings.OIDC_ENABLED)
     yield

@@ -19,7 +19,6 @@ from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
 from app.core.resume_worker import resume_worker_loop
 from app.core.webhook_outbox import webhook_dispatcher_loop
-from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 from app.middleware.legacy_bridge import LegacyURLBridge
@@ -42,7 +41,6 @@ async def lifespan(app: FastAPI):
             install_slow_query_listener(_db._engine)
     except Exception as _e:
         log.warning("slow_query_install_failed", error=str(_e))
-    await run_bootstrap_ddl()
     await run_alembic_upgrade()
     # v3.2 P1：seed 已知 model 的 USD/1k token 定價（idempotent，只補 NULL）
     from app.core.pricing_seed import seed_model_pricing
