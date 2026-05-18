@@ -58,6 +58,8 @@
           <!-- v3.3 D3：user-level quota + alert -->
           <NavIconLink to="/admin/user-quotas"  label="使用者 Quota" icon="user" />
           <NavIconLink to="/admin/quota-alerts" label="配額告警"     icon="alert-circle" />
+          <!-- v3.5 P2：workflow human approval -->
+          <NavIconLink to="/admin/approvals"    label="人工核可"     icon="check-circle" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>
