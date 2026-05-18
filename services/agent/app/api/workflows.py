@@ -51,6 +51,7 @@ class WorkflowSave(BaseModel):
 class WorkflowChatRequest(BaseModel):
     user_input: str
     session_id: str = ""
+    conversation_id: str | None = None  # v3.8 P1: optional, for cost attribution
 
 
 async def _ensure_app_in_workspace(
@@ -272,6 +273,7 @@ async def run_workflow(
         roles=[ctx.role.value],
         workflow_manager=workflow_manager,
         application_id=str(app_id),  # v3.3：metering 歸帳到 application
+        conversation_id=body.conversation_id,  # v3.8 P1: 對話歸因（trigger 走 None）
     )
 
     async def event_generator():

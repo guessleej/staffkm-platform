@@ -48,6 +48,7 @@ class WorkflowExecutor:
         run_id: _uuid.UUID | str | None = None,  # v3.5 P1：寫 workflow_run_steps 用
         resume_from_node: str | None = None,  # v3.5 P2：resume worker 用，從此 node 的下一個 node 開始跑
         depth: int = 0,  # v3.5 P3：sub_workflow 巢狀深度，>3 raise 防無窮遞迴
+        conversation_id: str | None = None,  # v3.8 P1：embedded workflow 跟 chat 對話歸因
     ):
         # M2-2：執行策略
         if workflow_manager not in _VALID_MANAGERS:
@@ -69,6 +70,8 @@ class WorkflowExecutor:
         self._step_idx: int = 0
         # v3.5 P2：resume worker 帶入；若設了，main loop 會從 resume_from_node 的下一個 node 開始
         self.resume_from_node = resume_from_node
+        # v3.8 P1：conversation_id 給 meter call site 帶（chat-embedded workflow 才有意義；trigger-fired = None）
+        self.conversation_id = conversation_id
         # v3.5 P3：sub_workflow 巢狀深度
         if depth > 3:
             raise RuntimeError(f"sub_workflow depth exceeded (>3): {depth}")
@@ -767,6 +770,7 @@ class WorkflowExecutor:
                     provider_type="openai_compat",
                     model=model,
                     feature="workflow",
+                    conversation_id=self.conversation_id,
                 ) as meter:
                     try:
                         async for delta in provider.chat_stream(req):
@@ -814,6 +818,7 @@ class WorkflowExecutor:
                 provider_type="openai_compat",
                 model=req.model,
                 feature="workflow",
+                conversation_id=self.conversation_id,
             ) as meter:
                 resp = await provider.chat(req)
                 # 優先用 provider 回的真實 token；否則用 fallback 估算
@@ -1098,6 +1103,7 @@ class WorkflowExecutor:
                     provider_type="openai_compat",
                     model=model,
                     feature="workflow",
+                    conversation_id=self.conversation_id,
                 ) as meter:
                     try:
                         async for delta in provider.chat_stream(req):
@@ -1181,6 +1187,7 @@ class WorkflowExecutor:
                     model=model,
                     unit_type="image",
                     feature="image",
+                    conversation_id=self.conversation_id,
                 ) as meter:
                     try:
                         await _do_generate()
@@ -1263,6 +1270,7 @@ class WorkflowExecutor:
                     model=model,
                     unit_type="second",
                     feature="stt",
+                    conversation_id=self.conversation_id,
                 ) as meter:
                     duration = 0.0
                     try:
@@ -1335,6 +1343,7 @@ class WorkflowExecutor:
                     model=model,
                     unit_type="char",
                     feature="tts",
+                    conversation_id=self.conversation_id,
                 ) as meter:
                     try:
                         await _do_tts()
@@ -1429,6 +1438,7 @@ class WorkflowExecutor:
                     model=model,
                     unit_type="call",
                     feature="rerank",
+                    conversation_id=self.conversation_id,
                 ) as meter:
                     try:
                         reranked = await _do_rerank()
@@ -2128,6 +2138,7 @@ class WorkflowExecutor:
                 application_id=sub_app_id,
                 run_id=None,         # 不寫 step（避免污染外層 run_id）；sub 的 step 在巢狀 metering 可後續加
                 depth=self.depth + 1,
+                conversation_id=self.conversation_id,  # v3.8 P1: 繼承外層 conv 歸因
             )
         except RuntimeError as e:
             yield {"event": "error", "data": json.dumps({"error": str(e)})}
