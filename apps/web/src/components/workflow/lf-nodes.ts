@@ -56,6 +56,9 @@ export const NODE_META: Record<string, NodeMeta> = {
 
   // ── v3.5 P2：human approval ────────────────────────────────────────
   human_approval:      { color: '#a855f7', bg: '#faf5ff', icon: '人', label: '人工核可', w: 190, h: 72 },
+
+  // ── v3.5 P3：sub workflow ──────────────────────────────────────────
+  sub_workflow:        { color: '#0891b2', bg: '#ecfeff', icon: 'Sub', label: '子工作流', w: 190, h: 72 },
 }
 
 // ─── 預設 config ───────────────────────────────────────────────────────────────
@@ -107,6 +110,9 @@ export function getDefaultConfig(nodeType: string): Record<string, any> {
 
     // ── v3.5 P2：human_approval ──────────────────────────────────
     human_approval:      { approver_role: 'admin', payload_template: '{{user_input}}' },
+
+    // ── v3.5 P3：sub_workflow ────────────────────────────────────
+    sub_workflow:        { sub_application_id: '', input_template: '{{user_input}}', output_variable: 'sub_result' },
   }
   return defaults[nodeType] ?? {}
 }
@@ -147,10 +153,14 @@ export const PALETTE_GROUPS = [
     label: '知識庫',
     items: ['kb_writer'] as const,
   },
-  // ── v3.5 P2 ──────────────────────────────────────────────────
+  // ── v3.5 P2 + P3 ─────────────────────────────────────────────
   {
     label: '人工流程',
     items: ['human_approval'] as const,
+  },
+  {
+    label: '組合',
+    items: ['sub_workflow'] as const,
   },
 ]
 
