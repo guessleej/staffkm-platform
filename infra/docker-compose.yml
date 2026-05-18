@@ -404,6 +404,8 @@ services:
     image: staffkm/agent:${TAG:-latest}
     container_name: staffkm-agent
     restart: unless-stopped
+    # v3.6 P4: graceful shutdown — 等 in-flight workflow runs 收尾才強制終止
+    stop_grace_period: 60s
     expose:
       - "8002"
     environment:
