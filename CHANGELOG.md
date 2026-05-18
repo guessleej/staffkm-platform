@@ -2,6 +2,85 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.8.0] — 2026-05-18
+
+> **v3.7 留尾收口** milestone — workflow conv_id / per-user billing / multi-judge / query plan analyzer。
+> **v3.x 系列收尾完成**。
+
+### Highlights
+- 🧵 **Workflow conv_id** — WorkflowExecutor 接收 conversation_id，sub_workflow 繼承
+- 💵 **Admin billing UI** — 跨 ws per-user 報表（list / detail / CSV 匯出）
+- 🧑‍⚖️ **Multi-judge consensus** — `rag_eval` 支援多個 judge，consensus + stdev 反映分歧度
+- 🔬 **Query plan analyzer** — slow query → 自動 EXPLAIN → admin 看完整 plan
+
+### Added — Workflow conv_id (v3.8-P1, PR #224)
+- `WorkflowExecutor.__init__` 加 `conversation_id` keyword-only
+- 7 meter call site 全部帶 `conversation_id=self.conversation_id`（LLM × 3 + media × 4）
+- `workflows.py /chat`：`WorkflowChatRequest` 加 `conversation_id` 欄
+- `sub_workflow` 繼承外層 conv_id（巢狀傳遞）
+- trigger_dispatcher / resume_worker 維持 None（無 chat context）
+
+### Added — Per-user billing UI (v3.8-P2, PR #225)
+- `services/agent/app/api/admin_billing.py`：
+  - `/users` — 當月所有 user 總覽（join users + workspaces，計算 cost / tokens / calls / conversations）
+  - `/users/{id}` — 單一 user 詳情（by_feature / top_conversations / daily timeseries）
+  - `/users.csv` — 匯出 CSV
+- 三層 routing（agent mount + gateway proxy GET-only）；admin role gate
+- 前端 `BillingView.vue`：月份 select + summary card + table + 點 row 抽屜詳情
+- DashboardLayout nav SIcon `file-text`
+
+### Added — Multi-judge averaging (v3.8-P3, PR #226)
+- `rag_eval.py`：
+  - 新 `--judge-models` 參數（plural，多個 judge）；保留 `--judge-model` 相容
+  - Spec format: `model@base@key`（@ 分隔可缺、預設 fallback）
+  - `run_mode()` 收 `judge_cfgs: list[dict]`，每 query 對每個 judge 評一次
+- Output：
+  - `judge_consensus` = mean of per-judge means
+  - `judge_stdev` = stdev of means（分歧度）
+  - Per-judge breakdown table
+- 文件補解讀指引（stdev < 0.5 一致 / 0.5-1.0 中度 / > 1.0 高度分歧）
+
+### Added — Query plan analyzer (v3.8-P4, PR #227)
+- alembic `0014_slow_query_explains`：JSONB plan + sql_hash dedup
+- `core/slow_query.py` 擴展：
+  - 偵測 slow → `asyncio.create_task` 跑 `_capture_explain`（不阻塞原 query）
+  - SELECT 用 `EXPLAIN (ANALYZE, FORMAT JSON)`；非 SELECT 只用 `EXPLAIN (FORMAT JSON)` 避免 INSERT/UPDATE/DELETE 被重執行
+  - 含 bind params 的 query skip（不能安全 inline）
+  - 5 min dedup by sql_hash 避免風暴
+  - EXPLAIN 自己加 guard 防遞迴
+- `/admin/slow-queries` API：
+  - list（24h, by duration）
+  - `{id}` 拿完整 plan
+  - `top-by-hash` aggregate（occurrences / max / avg）
+- 三層 routing（agent mount + gateway proxy）
+- 前端 `SlowQueriesView.vue`：tab 切換 + 抽屜 pre-print plan
+- SIcon `database`
+
+### Breaking Changes
+- ⚠️ **alembic 0014** auto-migrate
+- ⚠️ Slow query 多一個 async task per slow event（資源 overhead 微小）
+
+### v3.x 系列收尾
+v3.7 列的 4 條 known limitations 全收完：
+- ✅ workflow executor conv_id（v3.8-P1）
+- ✅ Per-user billing UI（v3.8-P2）
+- ✅ Multi-judge averaging（v3.8-P3）
+- ✅ Query plan analyzer（v3.8-P4）
+
+**下一個 milestone = v4.0 大改**（拔 LegacyURLBridge、bootstrap_ddl、distributed task queue、multi-region）。
+
+### Migration（從 v3.7 升 v3.8）
+1. **DB**：alembic 自動跑 `0014`（1 CREATE TABLE）
+2. **Workflow**：既有 workflow run 行為不變；想對 chat-embedded workflow 歸帳 conv，前端傳 `body.conversation_id`
+3. **Billing UI**：admin 進 `/admin/billing` 看每位 user 當月用量；CSV button 匯出
+4. **rag_eval**：`--judge-models gpt-4o-mini claude-3-haiku@https://api.anthropic.com/v1@...` 多 judge
+5. **Slow query**：v3.7 已有 listener，v3.8 自動加 EXPLAIN capture；不想要可設 `SLOW_QUERY_CAPTURE_EXPLAIN=false`
+
+### PR refs
+#223（roadmap）/ #224（workflow conv_id）/ #225（billing UI）/ #226（multi-judge）/ #227（query plan）
+
+---
+
 ## [3.7.0] — 2026-05-18
 
 > **Cost attribution + LLM-as-judge + Slow query trace** milestone — 從 quota 拓展到 per-conversation cost、評估從 hit@5 升級到 LLM 評分、observability 補慢 query 追蹤。
