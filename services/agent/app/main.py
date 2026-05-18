@@ -21,7 +21,6 @@ from app.core.resume_worker import resume_worker_loop
 from app.core.webhook_outbox import webhook_dispatcher_loop
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
-from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
@@ -139,7 +138,8 @@ async def _quota_exceeded_handler(request: Request, exc: QuotaExceeded):
 
 # ── Middleware（starlette 規則：後加 = 外層 = 先跑）──────────────────
 # 期望執行順序（request 進來時）：
-#   LegacyURLBridge → GatewayHeaders → TenantContext → endpoint
+#   Idempotency → GatewayHeaders → TenantContext → endpoint
+# v4.0 P2: LegacyURLBridge 已移除（v3.1 sunset → v3.6 default 410 → v4.0 拔）
 # Prometheus /metrics — v2.2
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
@@ -150,11 +150,9 @@ app.add_middleware(
     user_id_getter=_user_id_from_request,
 )
 app.add_middleware(GatewayHeadersMiddleware)
-# v3.6 P3: Idempotency-Key — 放在 LegacyURLBridge 內側，
-# 確保 key 用 rewritten path（一致 endpoint），但仍在 TenantContext 外（自己讀 X-Workspace-ID）
+# v3.6 P3: Idempotency-Key — 不依賴 TenantContext，自己讀 X-Workspace-ID
 from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 app.add_middleware(IdempotencyMiddleware)
-app.add_middleware(LegacyURLBridge)
 
 # ── Routes（v2：workspace-scoped）─────────────────────────────────────
 _PREFIX = "/api/v1/workspace/{workspace_id}"

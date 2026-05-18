@@ -437,7 +437,7 @@ services:
       SMTP_USE_TLS:  ${SMTP_USE_TLS:-true}
       # v3.7 P4: slow query threshold (ms); log + OTel span tag 觸發
       SLOW_QUERY_THRESHOLD_MS: ${SLOW_QUERY_THRESHOLD_MS:-500}
-      # LEGACY_URL_MODE: rewrite   # v3.1+ 預設 410；如有舊 client 暫無法遷移可開回 rewrite
+      # v4.0 P2: LEGACY_URL_MODE 已移除 (LegacyURLBridge 拔除)
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
