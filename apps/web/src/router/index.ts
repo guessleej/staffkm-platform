@@ -258,6 +258,19 @@ const router = createRouter({
       component: () => import('../views/application/PublicChatView.vue'),
       meta: { public: true },
     },
+    // v4.10 J: 跨 org public workflow marketplace
+    {
+      path: '/marketplace',
+      name: 'marketplace',
+      component: () => import('../views/marketplace/MarketplaceHomeView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/marketplace/:id',
+      name: 'marketplace-detail',
+      component: () => import('../views/marketplace/MarketplaceDetailView.vue'),
+      meta: { public: true },
+    },
     {
       path: '/:pathMatch(.*)*',
       redirect: '/',

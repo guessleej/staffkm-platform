@@ -85,6 +85,27 @@ def _make_public_billing_router() -> APIRouter:
 public_billing_router = _make_public_billing_router()
 
 
+# v4.10 J：跨 org public workflow marketplace — 不需 JWT、不需 workspace header
+def _make_public_marketplace_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET"])
+    @router.api_route("/", methods=["GET"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/public/marketplace")
+
+    @router.api_route("/{path:path}", methods=["GET", "POST"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/public/marketplace{suffix}")
+
+    return router
+
+
+public_marketplace_router = _make_public_marketplace_router()
+
+
 # v3.2 P3：admin 跨 workspace quota — 非 workspace-scoped，直接 proxy 到 agent
 # /api/v1/admin/quotas/...（agent 那邊用 X-User-Roles 判 admin）
 def _make_admin_quotas_router() -> APIRouter:

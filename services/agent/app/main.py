@@ -14,7 +14,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -220,6 +220,8 @@ app.include_router(billing_stripe.router,     prefix="/api/v1/public/billing",  
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])
+# v4.10 J: 跨 org public workflow marketplace
+app.include_router(marketplace.router,        prefix="/api/v1/public/marketplace",  tags=["Public Marketplace (v4.10)"])
 app.include_router(api_keys.public_router,    prefix="/api/v1/api-keys",            tags=["API Key 驗證"])
 
 # ── 全域唯讀 Registry（workspace-agnostic；任何登入者可讀）─────────────
