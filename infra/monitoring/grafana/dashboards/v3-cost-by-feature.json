@@ -1,0 +1,66 @@
+{
+  "title": "staffKM v3.7 — Cost by feature",
+  "uid": "staffkm-v3-cost-by-feature",
+  "tags": ["staffkm", "v3.7", "cost"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-30d", "to": "now" },
+  "refresh": "5m",
+  "panels": [
+    {
+      "type": "text",
+      "title": "說明",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Cost by feature (v3.7 P2)** — 從 `model_usage_logs.feature` 分流 chat / workflow / image / stt / tts / rerank。NULL feature 視為 'unknown' (歷史資料)。"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "本月 cost by feature (USD)",
+      "gridPos": { "x": 0, "y": 3, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT COALESCE(feature, 'unknown') AS feature, SUM(cost_usd)::float AS cost FROM model_usage_logs WHERE created_at >= date_trunc('month', now()) GROUP BY 1 ORDER BY cost DESC",
+        "format": "table"
+      }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Daily cost by feature (last 30d)",
+      "gridPos": { "x": 12, "y": 3, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT date_trunc('day', created_at) AS time, COALESCE(feature, 'unknown') AS feature, SUM(cost_usd)::float AS cost FROM model_usage_logs WHERE created_at >= now() - INTERVAL '30 days' GROUP BY 1, 2 ORDER BY 1",
+        "format": "time_series"
+      }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "type": "table",
+      "title": "Top 20 conversations by cost (本月)",
+      "gridPos": { "x": 0, "y": 11, "w": 12, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT conversation_id, SUM(cost_usd)::float AS cost, SUM(total_tokens) AS tokens, COUNT(*) AS calls FROM model_usage_logs WHERE created_at >= date_trunc('month', now()) AND conversation_id IS NOT NULL GROUP BY 1 ORDER BY cost DESC LIMIT 20",
+        "format": "table"
+      }]
+    },
+    {
+      "type": "table",
+      "title": "Top 20 users by cost (本月)",
+      "gridPos": { "x": 12, "y": 11, "w": 12, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT u.username, u.email, SUM(m.cost_usd)::float AS cost, SUM(m.total_tokens) AS tokens FROM model_usage_logs m JOIN users u ON u.id = m.user_id WHERE m.created_at >= date_trunc('month', now()) AND m.user_id IS NOT NULL GROUP BY u.username, u.email ORDER BY cost DESC LIMIT 20",
+        "format": "table"
+      }]
+    }
+  ]
+}

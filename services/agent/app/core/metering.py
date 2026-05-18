@@ -66,10 +66,12 @@ async def meter_llm_call(
     model: str | None = None,
     conversation_id: str | uuid.UUID | None = None,
     message_id: str | uuid.UUID | None = None,
+    feature: str | None = None,  # v3.7 P2: 'chat' | 'workflow' | 'hit_test' | 'embed' ...
 ):
     """Pre: check_quota（超額 raise）；post: record_usage（自動算 cost、commit）。
 
     v3.7 P1：新增 conversation_id / message_id 做 per-conversation cost 歸因。
+    v3.7 P2：feature 標籤讓 dashboard 分流。
     """
     ws = str(workspace_id)
     uid = str(user_id) if user_id else None
@@ -113,6 +115,7 @@ async def meter_llm_call(
                 error=meter.error,
                 conversation_id=str(conversation_id) if conversation_id else None,
                 message_id=str(message_id) if message_id else None,
+                feature=feature,
             ))
             await session.commit()
         except Exception as e:
@@ -143,6 +146,7 @@ async def meter_media_call(
     unit_type: str,  # 'image' | 'second' | 'char' | 'call'
     conversation_id: str | uuid.UUID | None = None,
     message_id: str | uuid.UUID | None = None,
+    feature: str | None = None,  # v3.7 P2: 'image' | 'stt' | 'tts' | 'rerank'
 ):
     """Pre: check_quota；post: record_usage 用 unit-based pricing。
 
@@ -187,6 +191,7 @@ async def meter_media_call(
                 unit_count=meter.count,
                 conversation_id=str(conversation_id) if conversation_id else None,
                 message_id=str(message_id) if message_id else None,
+                feature=feature,
             ))
             await session.commit()
         except Exception as e:

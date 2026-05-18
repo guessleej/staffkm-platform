@@ -766,6 +766,7 @@ class WorkflowExecutor:
                     application_id=self.application_id,
                     provider_type="openai_compat",
                     model=model,
+                    feature="workflow",
                 ) as meter:
                     try:
                         async for delta in provider.chat_stream(req):
@@ -812,6 +813,7 @@ class WorkflowExecutor:
                 application_id=self.application_id,
                 provider_type="openai_compat",
                 model=req.model,
+                feature="workflow",
             ) as meter:
                 resp = await provider.chat(req)
                 # 優先用 provider 回的真實 token；否則用 fallback 估算
@@ -1095,6 +1097,7 @@ class WorkflowExecutor:
                     application_id=self.application_id,
                     provider_type="openai_compat",
                     model=model,
+                    feature="workflow",
                 ) as meter:
                     try:
                         async for delta in provider.chat_stream(req):
@@ -1177,6 +1180,7 @@ class WorkflowExecutor:
                     provider_type="openai",
                     model=model,
                     unit_type="image",
+                    feature="image",
                 ) as meter:
                     try:
                         await _do_generate()
@@ -1258,6 +1262,7 @@ class WorkflowExecutor:
                     provider_type="openai",
                     model=model,
                     unit_type="second",
+                    feature="stt",
                 ) as meter:
                     duration = 0.0
                     try:
@@ -1329,6 +1334,7 @@ class WorkflowExecutor:
                     provider_type="openai",
                     model=model,
                     unit_type="char",
+                    feature="tts",
                 ) as meter:
                     try:
                         await _do_tts()
@@ -1422,6 +1428,7 @@ class WorkflowExecutor:
                     provider_type=provider,
                     model=model,
                     unit_type="call",
+                    feature="rerank",
                 ) as meter:
                     try:
                         reranked = await _do_rerank()

@@ -136,6 +136,7 @@ async def public_chat(
                     model=agent._model,
                     conversation_id=_coerce_conv_id(body),
                     message_id=body.message_id,
+                    feature="chat",
                 ) as meter:
                     try:
                         async for token in agent.stream_response(ctx):
