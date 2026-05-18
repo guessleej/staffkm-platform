@@ -68,6 +68,8 @@
           <NavIconLink to="/admin/heartbeats" label="Worker Heartbeats" icon="loader" />
           <!-- v3.8 P2：per-user billing 報表 -->
           <NavIconLink to="/admin/billing" label="Per-User Billing" icon="file-text" />
+          <!-- v4.7 G：Stripe billing (subscription + topup + invoices) -->
+          <NavIconLink to="/admin/billing/stripe" label="Stripe Billing" icon="key" />
           <!-- v3.8 P4：slow query plan analyzer -->
           <NavIconLink to="/admin/slow-queries" label="Slow Query Analyzer" icon="database" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">

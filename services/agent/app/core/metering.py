@@ -118,6 +118,11 @@ async def meter_llm_call(
                 feature=feature,
             ))
             await session.commit()
+            # v4.7 G TODO: 若 billing_accounts.plan in ('topup', 'trial') 且 cost > 0
+            #   → 從 credits_balance 扣 cost（add_credits delta=-cost, reason='consume_usage'）
+            #   subscription plan ('starter'/'pro') 由訂閱 cover，不從 credits 扣
+            #   metered 'usage' plan 由 usage_report_worker 報 Stripe，亦不扣 credits
+            #   balance < 0 只 log warning（不做 hard stop，避免 break demo）
         except Exception as e:
             log.warning("meter_record_failed", workspace=ws, error=str(e))
 

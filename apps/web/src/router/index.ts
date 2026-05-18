@@ -226,6 +226,13 @@ const router = createRouter({
           meta: { title: 'Per-User Billing', roles: ['admin'] },
         },
         {
+          // v4.7 G: Stripe billing — subscription + topup + invoices
+          path: 'admin/billing/stripe',
+          name: 'admin-billing-stripe',
+          component: () => import('../views/admin/BillingStripeView.vue'),
+          meta: { title: 'Stripe Billing', roles: ['admin'] },
+        },
+        {
           path: 'admin/slow-queries',
           name: 'admin-slow-queries',
           component: () => import('../views/admin/SlowQueriesView.vue'),

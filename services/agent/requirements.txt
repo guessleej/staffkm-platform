@@ -29,3 +29,6 @@ aiosmtplib==3.0.2
 
 # v4.0 P3: arq distributed worker queue
 arq==0.26.1
+
+# v4.7 G: Stripe billing SDK
+stripe==11.4.0

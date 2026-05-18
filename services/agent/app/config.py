@@ -39,5 +39,14 @@ class Settings(BaseSettings):
     SMTP_FROM:     str = "noreply@staffkm.local"
     SMTP_USE_TLS:  bool = True
 
+    # ── v4.7+v4.8 G+H: Stripe billing ──────────────────────────
+    # 不設 STRIPE_SECRET_KEY → billing 端點 503，其他功能不受影響
+    STRIPE_SECRET_KEY:     str = ""  # sk_test_... or sk_live_...
+    STRIPE_WEBHOOK_SECRET: str = ""  # whsec_...
+    STRIPE_PRICE_STARTER:  str = ""  # price_xxx (monthly $29)
+    STRIPE_PRICE_PRO:      str = ""  # price_xxx (monthly $199)
+    STRIPE_PRICE_USAGE:    str = ""  # price_xxx (metered, $0.001/1k tokens 之類)
+    BILLING_PUBLIC_URL:    str = "http://localhost"  # for success/cancel redirects
+
 
 settings = Settings()

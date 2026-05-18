@@ -20,6 +20,8 @@ from app.routers._generic_proxy import (
     user_quotas_router, quota_alerts_router,
     approvals_router,
     conversations_router,
+    billing_router,
+    public_billing_router,
     admin_webhook_outbox_router,
     admin_heartbeats_router,
     admin_billing_router,
@@ -107,6 +109,10 @@ app.include_router(quota_alerts_router,  prefix="/api/v1/quota-alerts",       ta
 app.include_router(approvals_router,     prefix="/api/v1/approvals",          tags=["Workflow Approvals (v3.5)"])
 # v3.7 P1：per-conversation cost attribution
 app.include_router(conversations_router, prefix="/api/v1/conversations",      tags=["Conversation Cost (v3.7)"])
+# v4.7 G：Stripe billing — workspace-scoped (/billing/me, /checkout, /portal, /invoices, /credits/ledger)
+app.include_router(billing_router,       prefix="/api/v1/billing",            tags=["Billing (v4.7)"])
+# v4.7 G：Stripe webhook 公開路徑（PUBLIC_PREFIXES 已含 `/api/v1/public/`）
+app.include_router(public_billing_router, prefix="/api/v1/public/billing",     tags=["Billing Webhook (v4.7)"])
 # v3.6 P1：admin webhook outbox monitor
 app.include_router(admin_webhook_outbox_router, prefix="/api/v1/admin/webhook-outbox", tags=["Admin Webhook Outbox (v3.6)"])
 # v3.6 P2：admin worker heartbeats freshness
