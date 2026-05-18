@@ -22,6 +22,7 @@ from app.routers._generic_proxy import (
     conversations_router,
     billing_router,
     public_billing_router,
+    public_marketplace_router,
     admin_webhook_outbox_router,
     admin_heartbeats_router,
     admin_billing_router,
@@ -114,6 +115,8 @@ app.include_router(conversations_router, prefix="/api/v1/conversations",      ta
 app.include_router(billing_router,       prefix="/api/v1/billing",            tags=["Billing (v4.7)"])
 # v4.7 G：Stripe webhook 公開路徑（PUBLIC_PREFIXES 已含 `/api/v1/public/`）
 app.include_router(public_billing_router, prefix="/api/v1/public/billing",     tags=["Billing Webhook (v4.7)"])
+# v4.10 J：跨 org public workflow marketplace（PUBLIC_PREFIXES `/api/v1/public/` 已含）
+app.include_router(public_marketplace_router, prefix="/api/v1/public/marketplace", tags=["Public Marketplace (v4.10)"])
 # v3.6 P1：admin webhook outbox monitor
 app.include_router(admin_webhook_outbox_router, prefix="/api/v1/admin/webhook-outbox", tags=["Admin Webhook Outbox (v3.6)"])
 # v3.6 P2：admin worker heartbeats freshness

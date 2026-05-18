@@ -309,6 +309,12 @@
             申請 14 天免費試用
           </router-link>
         </p>
+        <!-- v4.10 J: public marketplace -->
+        <p class="text-center text-[12px] text-fg-tertiary leading-relaxed mt-2">
+          <router-link to="/marketplace" class="text-indigo-600 font-medium hover:underline">
+            探索 Workflow Marketplace →
+          </router-link>
+        </p>
 
       </div>
     </div>
