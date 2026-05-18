@@ -9,16 +9,18 @@ API：
   GET /admin/audit-logs?actor=&action=&resource=&since=&page=&page_size=
 
 寫入呼叫 _record() helper（其他 endpoint 內部用）。
+v3 起 _record 實作已搬到 staffkm_core.audit.record_audit；本檔保留 _record
+別名讓既有 agent service 內部 import 不用改。
 """
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from staffkm_core.audit import record_audit as _record  # noqa: F401  re-export
 from staffkm_core.schemas.response import PagedResponse, PageMeta
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_admin
@@ -82,45 +84,4 @@ async def list_audit_logs(
     )
 
 
-async def _record(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID | None,
-    actor_user_id: str | None,
-    actor_username: str | None,
-    action: str,
-    entity_type: str,
-    entity_id: str | None = None,
-    entity_label: str | None = None,
-    detail: dict | None = None,
-    ip_address: str | None = None,
-    user_agent: str | None = None,
-) -> None:
-    """寫一筆 audit log — 給其他 endpoint 內部呼叫。"""
-    import json as _json
-    await session.execute(
-        text("""
-            INSERT INTO audit_logs (
-                id, workspace_id, user_id, actor_username,
-                action, resource, resource_id, entity_label,
-                payload, ip_address, user_agent, created_at
-            ) VALUES (
-                gen_random_uuid(), :ws, :actor, :uname,
-                :action, :etype, :eid, :elabel,
-                CAST(:detail AS jsonb),
-                CAST(NULLIF(:ip, '') AS inet), :ua, now()
-            )
-        """),
-        {
-            "ws": str(workspace_id) if workspace_id else None,
-            "actor": str(actor_user_id) if actor_user_id else None,
-            "uname": actor_username,
-            "action": action,
-            "etype": entity_type,
-            "eid": str(entity_id) if entity_id else None,
-            "elabel": entity_label,
-            "detail": _json.dumps(detail or {}, ensure_ascii=False),
-            "ip": ip_address or "",
-            "ua": user_agent,
-        },
-    )
+# _record 實作已搬到 staffkm_core.audit.record_audit（檔頭 re-export）

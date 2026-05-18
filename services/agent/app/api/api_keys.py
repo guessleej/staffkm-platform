@@ -12,17 +12,28 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.audit import _record
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_admin
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 public_router = APIRouter()  # 不掛 workspace 前綴；僅供 /verify
+
+
+async def _safe_audit(session: AsyncSession, **kwargs) -> None:
+    try:
+        await _record(session, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit record failed: %s", exc)
 
 
 # ── Pydantic Schemas ────────────────────────────────────────────────────────
@@ -110,6 +121,7 @@ async def list_api_keys(
 )
 async def create_api_key(
     body: ApiKeyCreate,
+    request: Request,
     ctx: TenantContext = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
@@ -170,6 +182,21 @@ async def create_api_key(
         raise HTTPException(status_code=500, detail="API Key 建立失敗")
 
     out = _row_to_out(key_row)
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="create",
+        entity_type="api_key",
+        entity_id=str(new_id),
+        entity_label=body.name,
+        detail={"application_id": str(body.application_id),
+                "expires_days": body.expires_days},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(
         data=ApiKeyCreatedOut(**out.model_dump(), full_key=full_key),
         message="API Key 建立成功，請妥善保存，之後不再顯示完整金鑰",
@@ -182,20 +209,35 @@ async def create_api_key(
 @router.delete("/{key_id}", response_model=ApiResponse, summary="刪除 API Key")
 async def delete_api_key(
     key_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     check = await session.execute(
-        text("SELECT id FROM api_keys WHERE id = :id AND workspace_id = :ws"),
+        text("SELECT id, name FROM api_keys WHERE id = :id AND workspace_id = :ws"),
         {"id": str(key_id), "ws": str(ctx.workspace_id)},
     )
-    if not check.fetchone():
+    existing = check.fetchone()
+    if not existing:
         raise HTTPException(status_code=404, detail="API Key 不存在")
 
     await session.execute(
         text("DELETE FROM api_keys WHERE id = :id AND workspace_id = :ws"),
         {"id": str(key_id), "ws": str(ctx.workspace_id)},
     )
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="revoke",
+        entity_type="api_key",
+        entity_id=str(key_id),
+        entity_label=existing._mapping.get("name"),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(message="API Key 已刪除")
 
 
@@ -205,11 +247,12 @@ async def delete_api_key(
 @router.patch("/{key_id}/toggle", response_model=ApiResponse[ApiKeyOut], summary="切換 API Key 啟用狀態")
 async def toggle_api_key(
     key_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     row = await session.execute(
-        text("SELECT id, status FROM api_keys WHERE id = :id AND workspace_id = :ws"),
+        text("SELECT id, name, status FROM api_keys WHERE id = :id AND workspace_id = :ws"),
         {"id": str(key_id), "ws": str(ctx.workspace_id)},
     )
     key_row = row.fetchone()
@@ -234,6 +277,20 @@ async def toggle_api_key(
         ),
         {"id": str(key_id)},
     )
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="update",
+        entity_type="api_key",
+        entity_id=str(key_id),
+        entity_label=key_row._mapping.get("name"),
+        detail={"enabled": new_status == "active"},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(
         data=_row_to_out(updated.fetchone()),
         message=f"API Key 已{'啟用' if new_status == 'active' else '停用'}",

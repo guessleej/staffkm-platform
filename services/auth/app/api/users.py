@@ -1,17 +1,27 @@
 """使用者管理 API（管理員用）"""
+import logging
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.context import CryptContext
 
 from app.models.user import User, UserStatus
+from staffkm_core.audit import record_audit
 from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
 from staffkm_core.utils.database import get_session
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def _safe_audit(session: AsyncSession, **kwargs) -> None:
+    try:
+        await record_audit(session, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit record failed: %s", exc)
 
 
 class UserCreate(BaseModel):
@@ -47,7 +57,11 @@ async def list_users(page: int = 1, page_size: int = 20, session: AsyncSession =
 
 
 @router.post("", response_model=ApiResponse[UserOut])
-async def create_user(body: UserCreate, session: AsyncSession = Depends(get_session)):
+async def create_user(
+    body: UserCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
     user = User(
         username=body.username,
         email=body.email,
@@ -59,6 +73,21 @@ async def create_user(body: UserCreate, session: AsyncSession = Depends(get_sess
     )
     session.add(user)
     await session.flush()
+    actor_user_id = getattr(request.state, "user_id", None)
+    await _safe_audit(
+        session,
+        workspace_id=None,
+        actor_user_id=actor_user_id,
+        actor_username=None,
+        action="create",
+        entity_type="user",
+        entity_id=str(user.id),
+        entity_label=user.username,
+        detail={"roles": body.roles, "department": body.department},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(data=UserOut.model_validate(user), message="使用者建立成功")
 
 
@@ -66,10 +95,28 @@ async def create_user(body: UserCreate, session: AsyncSession = Depends(get_sess
 async def update_user_status(
     user_id: uuid.UUID,
     status: UserStatus,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
     user = await session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="使用者不存在")
+    old_status = user.status.value if hasattr(user.status, "value") else str(user.status)
     user.status = status
+    actor_user_id = getattr(request.state, "user_id", None)
+    new_status = status.value if hasattr(status, "value") else str(status)
+    await _safe_audit(
+        session,
+        workspace_id=None,
+        actor_user_id=actor_user_id,
+        actor_username=None,
+        action="update",
+        entity_type="user",
+        entity_id=str(user_id),
+        entity_label=user.username,
+        detail={"status": {"old": old_status, "new": new_status}},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(message="使用者狀態已更新")

@@ -14,16 +14,27 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.audit import _record
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_member, require_writer
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _safe_audit(session: AsyncSession, **kwargs) -> None:
+    try:
+        await _record(session, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit record failed: %s", exc)
 
 
 class TemplateCreate(BaseModel):
@@ -129,6 +140,7 @@ async def list_marketplace(
 @router.post("/marketplace/{template_id}/install", response_model=ApiResponse, summary="v2.5-C：安裝 marketplace 模板到自己 workspace")
 async def install_marketplace_template(
     template_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
@@ -136,7 +148,7 @@ async def install_marketplace_template(
     src = await session.execute(
         text("""
             SELECT name, emoji, description, system_prompt, welcome_message,
-                   suggested_questions, requires_kb
+                   suggested_questions, requires_kb, workspace_id
             FROM workspace_app_templates
             WHERE id = :id AND is_public = true
         """),
@@ -185,12 +197,29 @@ async def install_marketplace_template(
         {"id": str(template_id)},
     )
 
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="install_from_marketplace",
+        entity_type="template",
+        entity_id=str(template_id),
+        entity_label=m.get('name'),
+        detail={"source_workspace": str(m.get('workspace_id')) if m.get('workspace_id') else None,
+                "installed_as": str(new_id)},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+
     return ApiResponse(data={"id": str(new_id)}, message="已安裝到你的 workspace 模板庫")
 
 
 @router.post("", response_model=ApiResponse, summary="新增自訂模板")
 async def create_template(
     body: TemplateCreate,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
@@ -220,6 +249,20 @@ async def create_template(
             "by": str(ctx.user_id) if ctx.user_id else None,
         },
     )
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="create",
+        entity_type="template",
+        entity_id=str(new_id),
+        entity_label=body.name,
+        detail={"is_public": body.is_public},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(data={"id": str(new_id)}, message="模板已新增")
 
 
@@ -227,6 +270,7 @@ async def create_template(
 async def update_template(
     template_id: uuid.UUID,
     body: TemplateUpdate,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
@@ -257,19 +301,52 @@ async def update_template(
     res = await session.execute(text(sql), params)
     if res.rowcount == 0:
         raise HTTPException(status_code=404, detail="模板不存在")
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="update",
+        entity_type="template",
+        entity_id=str(template_id),
+        entity_label=data.get("name"),
+        detail={"fields": sorted(data.keys())},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(message="模板已更新")
 
 
 @router.delete("/{template_id}", response_model=ApiResponse, summary="刪除自訂模板")
 async def delete_template(
     template_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
+    name_row = await session.execute(
+        text("SELECT name FROM workspace_app_templates WHERE id = :id AND workspace_id = :ws"),
+        {"id": str(template_id), "ws": str(ctx.workspace_id)},
+    )
+    name_existing = name_row.fetchone()
     res = await session.execute(
         text("DELETE FROM workspace_app_templates WHERE id = :id AND workspace_id = :ws"),
         {"id": str(template_id), "ws": str(ctx.workspace_id)},
     )
     if res.rowcount == 0:
         raise HTTPException(status_code=404, detail="模板不存在")
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="delete",
+        entity_type="template",
+        entity_id=str(template_id),
+        entity_label=name_existing._mapping.get("name") if name_existing else None,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(message="模板已刪除")

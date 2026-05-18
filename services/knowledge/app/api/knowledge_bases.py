@@ -1,13 +1,15 @@
 """知識庫 CRUD API（RFC-001 Stage 2 — workspace-scoped）"""
+import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_base import KnowledgeBase, KBStatus
+from staffkm_core.audit import record_audit
 from staffkm_core.schemas.response import ApiResponse, PageMeta, PagedResponse
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import (
@@ -15,7 +17,15 @@ from staffkm_tenant import (
     require_member, require_writer, require_admin,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _safe_audit(session: AsyncSession, **kwargs) -> None:
+    try:
+        await record_audit(session, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit record failed: %s", exc)
 
 
 class KBCreate(BaseModel):
@@ -83,12 +93,27 @@ async def list_knowledge_bases(
 @router.post("", response_model=ApiResponse[KBOut], status_code=status.HTTP_201_CREATED)
 async def create_knowledge_base(
     body: KBCreate,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
     kb = KnowledgeBase(workspace_id=ctx.workspace_id, **body.model_dump())
     session.add(kb)
     await session.flush()
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="create",
+        entity_type="kb",
+        entity_id=str(kb.id),
+        entity_label=kb.name,
+        detail={"embedding_model": body.embedding_model, "is_public": body.is_public},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(data=KBOut.model_validate(kb), message="知識庫建立成功")
 
 
@@ -124,6 +149,7 @@ async def update_knowledge_base(
 @router.delete("/{kb_id}", response_model=ApiResponse)
 async def delete_knowledge_base(
     kb_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
@@ -131,7 +157,21 @@ async def delete_knowledge_base(
     kb = (await session.execute(q)).scalar_one_or_none()
     if not kb:
         raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+    kb_name = kb.name
     await session.delete(kb)
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="delete",
+        entity_type="kb",
+        entity_id=str(kb_id),
+        entity_label=kb_name,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(message="知識庫已刪除")
 
 
