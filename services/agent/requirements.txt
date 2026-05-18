@@ -25,3 +25,4 @@ opentelemetry-instrumentation-fastapi==0.49b2
 opentelemetry-instrumentation-httpx==0.49b2
 opentelemetry-instrumentation-asyncpg==0.49b2
 opentelemetry-instrumentation-logging==0.49b2
+aiosmtplib==3.0.2
