@@ -121,6 +121,10 @@ app.add_middleware(
     user_id_getter=_user_id_from_request,
 )
 app.add_middleware(GatewayHeadersMiddleware)
+# v3.6 P3: Idempotency-Key — 放在 LegacyURLBridge 內側，
+# 確保 key 用 rewritten path（一致 endpoint），但仍在 TenantContext 外（自己讀 X-Workspace-ID）
+from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
+app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(LegacyURLBridge)
 
 # ── Routes（v2：workspace-scoped）─────────────────────────────────────
