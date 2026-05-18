@@ -270,11 +270,37 @@
           </button>
         </form>
 
+        <!-- v4.6 F: self-service OAuth (Google / GitHub) -->
+        <div v-if="oauthAvailable.google || oauthAvailable.github" class="space-y-2 pt-2">
+          <div class="flex items-center gap-3 text-[11px] text-slate-400 pb-1">
+            <div class="flex-1 h-px bg-slate-200"></div>
+            <span>或使用社群帳號</span>
+            <div class="flex-1 h-px bg-slate-200"></div>
+          </div>
+          <button
+            v-if="oauthAvailable.google"
+            type="button" @click="startOAuth('google')" :disabled="oauthLoading"
+            class="w-full h-11 rounded-xl text-sm font-semibold text-fg bg-white border border-neutral-300 hover:bg-neutral-50 transition flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <span class="text-[15px]">G</span> Continue with Google
+          </button>
+          <button
+            v-if="oauthAvailable.github"
+            type="button" @click="startOAuth('github')" :disabled="oauthLoading"
+            class="w-full h-11 rounded-xl text-sm font-semibold text-white bg-neutral-900 hover:bg-neutral-800 transition flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <span class="text-[15px] font-mono">GH</span> Continue with GitHub
+          </button>
+        </div>
+
         <!-- 底部說明 -->
         <p class="text-center text-[12px] text-fg-tertiary leading-relaxed">
-          忘記密碼或帳號異常，請聯繫
+          <router-link to="/forgot-password" class="text-indigo-600 font-medium hover:underline">
+            忘記密碼？
+          </router-link>
+          <span class="mx-2 text-fg-tertiary">·</span>
+          帳號異常請聯繫
           <span class="text-indigo-600 font-medium cursor-default">資訊管理部門</span>
-          協助重置
         </p>
         <!-- v4.1 A: trial signup CTA -->
         <p class="text-center text-[12px] text-fg-tertiary leading-relaxed mt-2">
@@ -346,6 +372,23 @@ onMounted(async () => {
 function gotoSSO() {
   const next = (route.query.next as string) || '/'
   location.href = _authApi.oidcLoginUrl(next)
+}
+
+// v4.6 F: self-service OAuth (Google / GitHub)
+// 不打 API 探測 provider 是否啟用（簡化：兩顆都常駐顯示）。
+// 後續 v4.x 可加 /auth/oauth/providers 列表 endpoint 動態 hide。
+const oauthAvailable = ref({ google: true, github: true })
+const oauthLoading = ref(false)
+async function startOAuth(provider: 'google' | 'github') {
+  oauthLoading.value = true
+  try {
+    const { authorize_url, state } = await _authApi.oauthAuthorize(provider)
+    sessionStorage.setItem(`oauth_state:${provider}`, state)
+    location.href = authorize_url
+  } catch (e: any) {
+    errorMsg.value = e?.response?.data?.detail || `${provider} 未啟用`
+    oauthLoading.value = false
+  }
 }
 const captcha = ref<Captcha | null>(null)
 const captchaAnswer = ref('')

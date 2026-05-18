@@ -45,4 +45,35 @@ export const authApi = {
       next_step: string
     }
   },
+
+  // ── v4.6 F: account self-service ──────────────────────────────
+  async sendVerifyEmail(email: string) {
+    const { data } = await http.post('/auth/verify-email/send', { email })
+    return data
+  },
+  async confirmVerifyEmail(token: string) {
+    const { data } = await http.post('/auth/verify-email/confirm', { token })
+    return data.data as { email: string }
+  },
+  async forgotPassword(email: string) {
+    const { data } = await http.post('/auth/forgot-password', { email })
+    return data
+  },
+  async resetPassword(token: string, newPassword: string) {
+    const { data } = await http.post('/auth/reset-password', {
+      token,
+      new_password: newPassword,
+    })
+    return data
+  },
+
+  // ── v4.6 F: self-service OAuth (Google / GitHub) ──────────────
+  async oauthAuthorize(provider: 'google' | 'github') {
+    const requestUrl = window.location.origin
+    const { data } = await http.get(
+      `/auth/oauth/${provider}/authorize`,
+      { params: { request_url: requestUrl } },
+    )
+    return data.data as { authorize_url: string; state: string; redirect_uri: string }
+  },
 }

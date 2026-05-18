@@ -588,6 +588,19 @@ services:
       LDAP_BIND_DN: ${LDAP_BIND_DN:-}
       LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # v4.6 F: SMTP for email verify / forgot-password / trial welcome
+      SMTP_HOST:     ${SMTP_HOST:-}
+      SMTP_PORT:     ${SMTP_PORT:-587}
+      SMTP_USER:     ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM:     ${SMTP_FROM:-noreply@staffkm.local}
+      SMTP_USE_TLS:  ${SMTP_USE_TLS:-true}
+      # v4.6 F: self-service OAuth (Google / GitHub)
+      GOOGLE_OAUTH_CLIENT_ID:     ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GITHUB_OAUTH_CLIENT_ID:     ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      PUBLIC_WEB_BASE_URL:        ${PUBLIC_WEB_BASE_URL:-http://localhost}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]

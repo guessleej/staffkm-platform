@@ -50,6 +50,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('refresh_token', data.refresh_token)
   }
 
+  // v4.6 F: 給 OAuth callback 等「非帳密 login 流程」用。
+  async function setTokens(access: string, refresh: string, u: UserInfo) {
+    accessToken.value = access
+    user.value = u
+    localStorage.setItem('access_token', access)
+    localStorage.setItem('refresh_token', refresh)
+  }
+
   function logout() {
     user.value = null
     accessToken.value = null
@@ -57,5 +65,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refresh_token')
   }
 
-  return { user, accessToken, isAuthenticated, hasRole, init, login, logout }
+  return { user, accessToken, isAuthenticated, hasRole, init, login, setTokens, logout }
 })

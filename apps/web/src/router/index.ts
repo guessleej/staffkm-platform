@@ -17,6 +17,31 @@ const router = createRouter({
       component: () => import('../views/login/SignupView.vue'),
       meta: { public: true },
     },
+    // v4.6 F: account self-service flows
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('../views/login/VerifyEmailView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../views/login/ForgotPasswordView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('../views/login/ResetPasswordView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/oauth/callback/:provider',
+      name: 'oauth-callback',
+      component: () => import('../views/login/OAuthCallbackView.vue'),
+      meta: { public: true },
+    },
     // ── 對話為中心的 layout（claude.ai 風格），獨立路徑避免與 /
     //    被 DashboardLayout 的 children 互蓋（Vue Router 只認第一個 / parent）
     {
