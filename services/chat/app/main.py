@@ -7,6 +7,7 @@ import structlog
 
 from app.api.conversations import router as conv_router
 from staffkm_core.utils.database import init_db
+from staffkm_core.observability import setup_otel, instrument_fastapi
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 
@@ -15,6 +16,7 @@ log = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_otel(service_name="staffkm-chat")
     init_db(settings.DB_URL)
     await run_alembic_upgrade()
     log.info("chat_service_ready")
@@ -22,6 +24,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="StaffKM Chat Service", version="1.0.0", lifespan=lifespan)
+instrument_fastapi(app, service_name="staffkm-chat")
 # Prometheus /metrics — v2.2
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

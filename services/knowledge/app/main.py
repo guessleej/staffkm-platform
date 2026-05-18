@@ -17,6 +17,7 @@ from app.api import documents, knowledge_bases, paragraphs, search, hit_test, ta
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
+from staffkm_core.observability import setup_otel, instrument_fastapi
 from staffkm_tenant import TenantContextMiddleware
 
 log = structlog.get_logger()
@@ -167,6 +168,7 @@ async def _run_bootstrap_ddl():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_otel(service_name="staffkm-knowledge")
     init_db(settings.DB_URL)
     await _run_bootstrap_ddl()
     await run_alembic_upgrade()
@@ -198,6 +200,7 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+instrument_fastapi(app, service_name="staffkm-knowledge")
 
 # ── Middleware（starlette 規則：後加 = 外層 = 先跑）──────────────────
 # 期望執行順序（request 進來時）：

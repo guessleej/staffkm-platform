@@ -12,6 +12,7 @@ from app.api.users import router as users_router
 from app.api.models import router as models_router
 from app.api.workspaces import router as workspaces_router
 from staffkm_core.utils.database import init_db
+from staffkm_core.observability import setup_otel, instrument_fastapi
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 
@@ -57,6 +58,7 @@ async def _run_auth_bootstrap_ddl():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_otel(service_name="staffkm-auth")
     init_db(settings.DB_URL)
     await _run_auth_bootstrap_ddl()
     await run_alembic_upgrade()
@@ -65,6 +67,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="StaffKM Auth Service", version="1.0.0", lifespan=lifespan)
+instrument_fastapi(app, service_name="staffkm-auth")
 # Prometheus /metrics — v2.2
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
