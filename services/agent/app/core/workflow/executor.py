@@ -7,6 +7,11 @@ import structlog
 from typing import AsyncIterator, Any
 from openai import AsyncOpenAI
 from app.config import settings
+# v3.3：workflow LLM 節點接 metering（quota check + usage record + cost calc）
+from app.core.metering import meter_llm_call
+from app.core.providers.base import BaseProvider, ChatRequest
+from app.core.providers.openai_compat import OpenAICompatProvider
+from staffkm_core.utils import database as _db
 
 log = structlog.get_logger()
 
@@ -24,6 +29,7 @@ class WorkflowExecutor:
         user_id: str | None = None,
         roles: list[str] | None = None,
         workflow_manager: str = "simple",  # M2-2: simple/parallel/retry/batch/sandbox
+        application_id: str | None = None,  # v3.3：metering 歸帳到 application
     ):
         # M2-2：執行策略
         if workflow_manager not in _VALID_MANAGERS:
@@ -38,6 +44,8 @@ class WorkflowExecutor:
         self.workspace_id = workspace_id
         self.user_id = user_id
         self.roles = roles or []
+        # v3.3：給 metering 用；caller (workflows.py / trigger_dispatcher) 應傳入
+        self.application_id = application_id
         # 建立有向圖（key -> [key, ...]）
         self.children: dict[str, list[str]] = {n: [] for n in self.nodes}
         self.edge_conditions: dict[tuple, Any] = {}
@@ -472,6 +480,49 @@ class WorkflowExecutor:
 
         return AsyncOpenAI(api_key=api_key, base_url=base_url), model
 
+    def _build_llm_provider(self, config: dict) -> tuple[BaseProvider, str]:
+        """v3.3：回傳 BaseProvider 取代 raw AsyncOpenAI；同樣鎖系統 model（RFC-005）。
+
+        executor 一律走 openai_compat — 對 OpenAI / Ollama / Together / Groq /
+        DeepSeek / Moonshot / 自架 vLLM 都通。其他真正 native protocol（Anthropic /
+        Bedrock / Gemini / VertexAI）後續 v3.4 再走它們的 adapter。
+        """
+        base_url = settings.LLM_BASE_URL
+        api_key = settings.LLM_API_KEY or "dummy"
+        model = settings.LLM_MODEL
+        node_model = config.get("model")
+        if node_model and node_model != model:
+            log.warning(
+                "llm_model_override_blocked",
+                requested=node_model, enforced=model,
+                reason="RFC-005 onprem-llm-first 政策：僅允許單一系統 LLM 模型",
+            )
+        return OpenAICompatProvider(api_key=api_key, base_url=base_url), model
+
+    @staticmethod
+    def _estimate_tokens_text(text: str) -> int:
+        """粗估 token 數。中英混合常見 ratio: 1 token ≈ 4 chars。
+        精準度不必高 — 用於 quota / 計費估算的下限。
+        """
+        if not text:
+            return 0
+        return max(1, len(text) // 4)
+
+    def _estimate_tokens_messages(self, messages: list[dict]) -> int:
+        """粗估 messages 總 token：把每則 content 串起來估，加上每則 ~4 token overhead。"""
+        total = 0
+        for m in messages or []:
+            c = m.get("content", "")
+            if isinstance(c, str):
+                total += self._estimate_tokens_text(c)
+            elif isinstance(c, list):
+                # vision/multimodal: 只算 text part；image 部分由 provider 計
+                for part in c:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        total += self._estimate_tokens_text(part.get("text", ""))
+            total += 4  # role + delimiter overhead
+        return total
+
     async def _exec_llm(self, config: dict, context: dict) -> AsyncIterator[str]:
         prompt = self._render_template(
             config.get("prompt_template", "{{user_input}}"), context
@@ -487,28 +538,102 @@ class WorkflowExecutor:
                 **self._audit_fields(context),
             )
 
-        llm, model = self._build_llm_client(config)
+        # v3.3：改走 BaseProvider + meter_llm_call（quota check + usage record）
+        provider, model = self._build_llm_provider(config)
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ]
+        req = ChatRequest(
+            model=model,
+            messages=messages,
+            stream=True,
+            temperature=float(config.get("temperature", settings.LLM_TEMPERATURE)),
+            max_tokens=int(config.get("max_tokens", settings.LLM_MAX_TOKENS)),
+        )
+        prompt_tokens_est = self._estimate_tokens_messages(messages)
         full_response = ""
-        try:
-            stream = await llm.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
-                ],
-                stream=True,
-                temperature=float(config.get("temperature", settings.LLM_TEMPERATURE)),
-                max_tokens=int(config.get("max_tokens", settings.LLM_MAX_TOKENS)),
-            )
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    full_response += delta
-                    yield delta
-        except Exception as e:
-            log.error("workflow_llm_failed", error=str(e), **self._audit_fields(context))
-            yield f"\n\n錯誤：LLM 呼叫失敗：{e}"
+
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            # 沒 DB / 無 workspace 上下文：退化為純串流（不計費）
+            try:
+                async for delta in provider.chat_stream(req):
+                    if delta:
+                        full_response += delta
+                        yield delta
+            except Exception as e:
+                log.error("workflow_llm_failed", error=str(e), **self._audit_fields(context))
+                yield f"\n\n錯誤：LLM 呼叫失敗：{e}"
+            context["llm_response"] = full_response
+            return
+
+        async with sess_factory() as meter_session:
+            try:
+                async with meter_llm_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="openai_compat",
+                    model=model,
+                ) as meter:
+                    try:
+                        async for delta in provider.chat_stream(req):
+                            if delta:
+                                full_response += delta
+                                yield delta
+                    finally:
+                        meter.record(
+                            prompt_tokens=prompt_tokens_est,
+                            completion_tokens=self._estimate_tokens_text(full_response),
+                        )
+            except Exception as e:
+                # QuotaExceeded 也在此被攔；交由 caller (workflows.py / dispatcher) 處理
+                from app.core.usage import QuotaExceeded
+                if isinstance(e, QuotaExceeded):
+                    raise
+                log.error("workflow_llm_failed", error=str(e), **self._audit_fields(context))
+                yield f"\n\n錯誤：LLM 呼叫失敗：{e}"
         context["llm_response"] = full_response
+
+    async def _chat_with_meter(
+        self, req: ChatRequest, context: dict, *, fallback_prompt_tokens: int = 0
+    ) -> str:
+        """v3.3 non-streaming chat helper：自動接 meter_llm_call。
+
+        - 有 DB + workspace 上下文 → quota check + usage record
+        - 沒有 → 直接呼叫 provider.chat()
+        - QuotaExceeded 不吞 — 由 caller 處理
+        """
+        provider = OpenAICompatProvider(
+            api_key=settings.LLM_API_KEY or "dummy",
+            base_url=settings.LLM_BASE_URL,
+        )
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            resp = await provider.chat(req)
+            return resp.text
+
+        async with sess_factory() as meter_session:
+            async with meter_llm_call(
+                meter_session,
+                workspace_id=self.workspace_id,
+                user_id=context.get("_user_id") or self.user_id,
+                application_id=self.application_id,
+                provider_type="openai_compat",
+                model=req.model,
+            ) as meter:
+                resp = await provider.chat(req)
+                # 優先用 provider 回的真實 token；否則用 fallback 估算
+                meter.record(
+                    prompt_tokens=resp.prompt_tokens or fallback_prompt_tokens,
+                    completion_tokens=(
+                        resp.completion_tokens
+                        or self._estimate_tokens_text(resp.text)
+                    ),
+                )
+                return resp.text
 
     def _eval_condition(self, config: dict, context: dict) -> bool:
         variable = config.get("variable", "")
@@ -742,38 +867,71 @@ class WorkflowExecutor:
             else f"data:image/jpeg;base64,{image_input}"
         )
 
-        client_kwargs: dict = {"api_key": api_key}
-        if config.get("base_url"):
-            client_kwargs["base_url"] = config["base_url"].rstrip("/")
-
-        llm = AsyncOpenAI(**client_kwargs)
+        # v3.3：vision 走 openai_compat provider + metering（text portion 計費）
+        base_url = (config.get("base_url") or "").rstrip("/") or None
+        provider = OpenAICompatProvider(api_key=api_key, base_url=base_url)
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": image_url}},
+                {"type": "text", "text": prompt},
+            ]},
+        ]
+        req = ChatRequest(
+            model=model, messages=messages, stream=True,
+            temperature=temperature, max_tokens=max_tokens,
+        )
+        prompt_tokens_est = self._estimate_tokens_messages(messages)
         full_response = ""
-        try:
-            stream = await llm.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": image_url}},
-                        {"type": "text", "text": prompt},
-                    ]},
-                ],
-                stream=True,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    full_response += delta
-                    yield delta
-        except Exception as e:
-            log.error("image_understand_failed", error=str(e), **self._audit_fields(context))
-            yield f"\n\n錯誤：圖像分析失敗：{e}"
+
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                async for delta in provider.chat_stream(req):
+                    if delta:
+                        full_response += delta
+                        yield delta
+            except Exception as e:
+                log.error("image_understand_failed", error=str(e), **self._audit_fields(context))
+                yield f"\n\n錯誤：圖像分析失敗：{e}"
+            context[output_var] = full_response
+            return
+
+        async with sess_factory() as meter_session:
+            try:
+                async with meter_llm_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="openai_compat",
+                    model=model,
+                ) as meter:
+                    try:
+                        async for delta in provider.chat_stream(req):
+                            if delta:
+                                full_response += delta
+                                yield delta
+                    finally:
+                        meter.record(
+                            prompt_tokens=prompt_tokens_est,
+                            completion_tokens=self._estimate_tokens_text(full_response),
+                        )
+            except Exception as e:
+                from app.core.usage import QuotaExceeded
+                if isinstance(e, QuotaExceeded):
+                    raise
+                log.error("image_understand_failed", error=str(e), **self._audit_fields(context))
+                yield f"\n\n錯誤：圖像分析失敗：{e}"
         context[output_var] = full_response
 
     async def _exec_image_generate(self, config: dict, context: dict) -> None:
-        """圖像生成：呼叫 DALL-E 相容 API，將圖片 URL 或 Base64 存入 context。"""
+        """圖像生成：呼叫 DALL-E 相容 API，將圖片 URL 或 Base64 存入 context。
+
+        TODO v3.4: separate metering — image generation 走 per-image pricing，
+        不適合套 meter_llm_call（token-based）。需單獨 record_usage with
+        provider_type='image_gen' + units=image_count。
+        """
         output_var = config.get("output_variable", "generated_image_url")
         output_type = config.get("output_type", "url")   # "url" | "base64"
         prompt = self._render_template(
@@ -816,7 +974,10 @@ class WorkflowExecutor:
             log.error("image_generate_failed", error=str(e), **self._audit_fields(context))
 
     async def _exec_stt(self, config: dict, context: dict) -> None:
-        """Speech-to-Text：呼叫 Whisper 相容 API，轉錄音訊後寫入 context。"""
+        """Speech-to-Text：呼叫 Whisper 相容 API，轉錄音訊後寫入 context.
+
+        TODO v3.4: separate metering — STT 走 per-second pricing。
+        """
         input_var = config.get("input_variable", "audio_url")
         output_var = config.get("output_variable", "transcription")
         input_type = config.get("input_type", "url")   # "url" | "base64"
@@ -862,7 +1023,10 @@ class WorkflowExecutor:
             context[output_var] = ""
 
     async def _exec_tts(self, config: dict, context: dict) -> None:
-        """Text-to-Speech：呼叫 OpenAI TTS 相容 API，將文字轉為 base64 音訊後寫入 context。"""
+        """Text-to-Speech：呼叫 OpenAI TTS 相容 API，將文字轉為 base64 音訊後寫入 context.
+
+        TODO v3.4: separate metering — TTS 走 per-character pricing。
+        """
         input_var = config.get("input_variable", "llm_response")
         output_var = config.get("output_variable", "audio_base64")
         text = str(context.get(input_var, ""))
@@ -899,6 +1063,7 @@ class WorkflowExecutor:
         except Exception as e:
             log.warning("tts_failed", error=str(e), **self._audit_fields(context))
 
+    # TODO v3.4: separate metering — reranker 走 per-document pricing，不同 token model。
     async def _exec_reranker(self, config: dict, context: dict) -> None:
         """對 knowledge_results（或任意 docs 變數）重新排序，結果寫回 output_variable。"""
         query_var = config.get("query_variable", "user_input")
@@ -1011,23 +1176,25 @@ class WorkflowExecutor:
                 f"直接回傳 JSON，格式範例：{example}\n若無法提取某參數，使用預設值。"
             )
             try:
-                llm, model = self._build_llm_client(config)
-                resp = await llm.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": prompt},
-                    ],
-                    stream=False,
-                    temperature=0.0,
-                    max_tokens=512,
+                # v3.3：改走 BaseProvider + meter_llm_call
+                provider, model = self._build_llm_provider(config)
+                messages = [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ]
+                req = ChatRequest(
+                    model=model, messages=messages, stream=False,
+                    temperature=0.0, max_tokens=512,
                 )
-                raw = resp.choices[0].message.content.strip()
+                raw = await self._chat_with_meter(req, context, fallback_prompt_tokens=self._estimate_tokens_messages(messages))
                 # strip markdown code fences if the model wraps the JSON
                 raw = re.sub(r"^```\w*\n?", "", raw)
                 raw = re.sub(r"\n?```$", "", raw.strip())
                 extracted = json.loads(raw)
             except Exception as e:
+                from app.core.usage import QuotaExceeded
+                if isinstance(e, QuotaExceeded):
+                    raise
                 log.warning("parameter_extraction_llm_failed", error=str(e), **self._audit_fields(context))
                 extracted = {p["name"]: str(p.get("default", "")) for p in parameters if p.get("name")}
 
@@ -1087,15 +1254,20 @@ class WorkflowExecutor:
         )
         prompt = f"使用者輸入：{text}\n\n意圖清單：\n{intent_lines}\n\n請回傳最符合的意圖編號（數字）："
         try:
-            llm, model = self._build_llm_client(config)
-            resp = await llm.chat.completions.create(
-                model=model,
-                messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-                stream=False,
-                temperature=0.0,
-                max_tokens=10,
+            # v3.3：改走 BaseProvider + meter_llm_call
+            provider, model = self._build_llm_provider(config)
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ]
+            req = ChatRequest(
+                model=model, messages=messages, stream=False,
+                temperature=0.0, max_tokens=10,
             )
-            raw = resp.choices[0].message.content.strip()
+            raw = (await self._chat_with_meter(
+                req, context,
+                fallback_prompt_tokens=self._estimate_tokens_messages(messages),
+            )).strip()
             digits = "".join(c for c in raw if c.isdigit())
             idx = int(digits) - 1 if digits else -1
             if 0 <= idx < len(intents):
@@ -1105,6 +1277,9 @@ class WorkflowExecutor:
                     self._resolve_next_node_key(matched.get("next_node_key")),
                 )
         except Exception as e:
+            from app.core.usage import QuotaExceeded
+            if isinstance(e, QuotaExceeded):
+                raise
             log.warning("intent_llm_failed", error=str(e), **self._audit_fields(context))
         return "default", default_key
 
