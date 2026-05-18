@@ -1,4 +1,5 @@
 """Agent Service — 多場景行政 AI 代理人服務（RFC-001 Stage 2: workspace-scoped）"""
+import os as _os
 import uuid
 from contextlib import asynccontextmanager
 
@@ -13,7 +14,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -44,26 +45,35 @@ async def lifespan(app: FastAPI):
     # v3.2 P1：seed 已知 model 的 USD/1k token 定價（idempotent，只補 NULL）
     from app.core.pricing_seed import seed_model_pricing
     await seed_model_pricing(_db._session_factory)
-    # M4：背景啟動 trigger worker（每 60s 掃 due triggers 寫 queued run）
-    worker_task = asyncio.create_task(
-        trigger_worker_loop(lambda: _db._session_factory, interval_sec=60),
-    )
-    # v2.1 12-4：背景啟動 dispatcher（每 10s 從 queued runs 真實執行 workflow）
-    dispatcher_task = asyncio.create_task(
-        trigger_dispatcher_loop(lambda: _db._session_factory, interval_sec=10),
-    )
-    # v3.3 D2：背景啟動 quota alert worker（每 10 分鐘評估 + 派發）
-    alert_task = asyncio.create_task(
-        alert_worker_loop(lambda: _db._session_factory, interval_sec=600),
-    )
-    # v3.5 P2：背景啟動 resume worker（每 30s 掃 approved/rejected approvals 續跑 paused run）
-    resume_task = asyncio.create_task(
-        resume_worker_loop(lambda: _db._session_factory, interval_sec=30),
-    )
-    # v3.6 P1：webhook outbox dispatcher（每 30s 派發 pending webhooks，含 backoff retry）
-    webhook_task = asyncio.create_task(
-        webhook_dispatcher_loop(lambda: _db._session_factory, interval_sec=30),
-    )
+    # v4.0 P3 feature flag：WORKER_BACKEND = inprocess (預設、v3.x 行為) | arq
+    _worker_backend = _os.environ.get("WORKER_BACKEND", "inprocess").strip().lower()
+    if _worker_backend == "inprocess":
+        # M4：背景啟動 trigger worker（每 60s 掃 due triggers 寫 queued run）
+        worker_task = asyncio.create_task(
+            trigger_worker_loop(lambda: _db._session_factory, interval_sec=60),
+        )
+        # v2.1 12-4：背景啟動 dispatcher（每 10s 從 queued runs 真實執行 workflow）
+        dispatcher_task = asyncio.create_task(
+            trigger_dispatcher_loop(lambda: _db._session_factory, interval_sec=10),
+        )
+        # v3.3 D2：背景啟動 quota alert worker（每 10 分鐘評估 + 派發）
+        alert_task = asyncio.create_task(
+            alert_worker_loop(lambda: _db._session_factory, interval_sec=600),
+        )
+        # v3.5 P2：背景啟動 resume worker（每 30s 掃 approved/rejected approvals 續跑 paused run）
+        resume_task = asyncio.create_task(
+            resume_worker_loop(lambda: _db._session_factory, interval_sec=30),
+        )
+        # v3.6 P1：webhook outbox dispatcher（每 30s 派發 pending webhooks，含 backoff retry）
+        webhook_task = asyncio.create_task(
+            webhook_dispatcher_loop(lambda: _db._session_factory, interval_sec=30),
+        )
+        _bg_tasks = (worker_task, dispatcher_task, alert_task, resume_task, webhook_task)
+        log.info("worker_backend_inprocess_active")
+    else:
+        # v4.0 P3：arq backend → worker 跑在獨立 container（python -m arq …）
+        _bg_tasks = ()
+        log.info("worker_backend_arq_inprocess_disabled", backend=_worker_backend)
     log.info("agent_service_ready")
     try:
         yield
@@ -91,8 +101,8 @@ async def lifespan(app: FastAPI):
                 log.warning("graceful_shutdown_timeout_30s")
         except Exception as e:
             log.warning("graceful_shutdown_check_failed", error=str(e))
-        # 取消所有背景 worker
-        for t in (worker_task, dispatcher_task, alert_task, resume_task, webhook_task):
+        # 取消所有背景 worker（arq mode 下 _bg_tasks 為空 tuple → no-op）
+        for t in _bg_tasks:
             t.cancel()
             try:
                 await t
@@ -206,6 +216,9 @@ app.include_router(admin_billing.router,     prefix="/api/v1/admin/billing", tag
 
 # ── v3.8 P4：admin slow query plan analyzer（自動捕獲 EXPLAIN ANALYZE）─
 app.include_router(slow_queries.router,      prefix="/api/v1/admin/slow-queries", tags=["Admin Slow Queries (v3.8)"])
+
+# ── v4.0 P3/P4：admin worker backend 狀態（inprocess vs arq + queue depth）─
+app.include_router(admin_workers.router,     prefix="/api/v1/admin/workers", tags=["Admin Workers (v4.0)"])
 
 
 @app.get("/health")

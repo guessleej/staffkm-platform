@@ -24,6 +24,7 @@ from app.routers._generic_proxy import (
     admin_heartbeats_router,
     admin_billing_router,
     admin_slow_queries_router,
+    admin_workers_router,
 )
 
 log = structlog.get_logger()
@@ -112,3 +113,5 @@ app.include_router(admin_heartbeats_router, prefix="/api/v1/admin/heartbeats", t
 app.include_router(admin_billing_router, prefix="/api/v1/admin/billing", tags=["Admin Billing (v3.8)"])
 # v3.8 P4：admin slow query plan analyzer
 app.include_router(admin_slow_queries_router, prefix="/api/v1/admin/slow-queries", tags=["Admin Slow Queries (v3.8)"])
+# v4.0 P3/P4：admin worker backend status (inprocess|arq + queue depth)
+app.include_router(admin_workers_router, prefix="/api/v1/admin/workers", tags=["Admin Workers (v4.0)"])

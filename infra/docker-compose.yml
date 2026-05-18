@@ -438,6 +438,8 @@ services:
       # v3.7 P4: slow query threshold (ms); log + OTel span tag 觸發
       SLOW_QUERY_THRESHOLD_MS: ${SLOW_QUERY_THRESHOLD_MS:-500}
       # v4.0 P2: LEGACY_URL_MODE 已移除 (LegacyURLBridge 拔除)
+      # v4.0 P3: worker backend 切換 — inprocess (預設、v3.x 行為) | arq
+      WORKER_BACKEND: ${WORKER_BACKEND:-inprocess}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
@@ -453,6 +455,59 @@ services:
           cpus: "1.0"
         reservations:
           memory: 256m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
+  #  Agent Worker（v4.0 P3：arq distributed worker — opt-in）
+  #  ── 啟用方式：在 .env 設 WORKER_BACKEND=arq，並 `docker compose
+  #     --profile arq-worker up -d worker` 起這個 container。
+  #  ── 同時必須 redeploy agent，讓 agent service 的 in-process loop 關掉
+  #     （不然兩邊會 race 對 event_trigger_runs/approvals/webhook_outbox claim）。
+  #  ── 用 staffkm/agent image 重跑（共用 codebase），entry 改成 arq。
+  # ══════════════════════════════════════════════════════════════
+  worker:
+    image: staffkm/agent:${TAG:-latest}
+    container_name: staffkm-worker
+    profiles: ["arq-worker"]
+    restart: unless-stopped
+    command: ["python", "-m", "arq", "app.workers.arq_settings.WorkerSettings"]
+    environment:
+      <<: *db-env
+      REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8001
+      # ── LLM（部分 job 會走 workflow 執行需要）─────────
+      LLM_PROVIDER:    ${LLM_PROVIDER:-ollama}
+      LLM_MODEL:       ${LLM_MODEL:-gemma4:e4b}
+      LLM_BASE_URL:    ${LLM_BASE_URL:-http://embedder:11434/v1}
+      LLM_API_KEY:     ${LLM_API_KEY:-dummy}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      LLM_MAX_TOKENS:  ${LLM_MAX_TOKENS:-2048}
+      OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY:    ${GOOGLE_API_KEY:-}
+      # ── SMTP（quota alert email channel）──────────────
+      SMTP_HOST:     ${SMTP_HOST:-}
+      SMTP_PORT:     ${SMTP_PORT:-587}
+      SMTP_USER:     ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM:     ${SMTP_FROM:-noreply@staffkm.local}
+      SMTP_USE_TLS:  ${SMTP_USE_TLS:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      SLOW_QUERY_THRESHOLD_MS: ${SLOW_QUERY_THRESHOLD_MS:-500}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+        reservations:
+          memory: 128m
     logging: *default-logging
     networks:
       - backend

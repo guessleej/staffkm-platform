@@ -26,3 +26,6 @@ opentelemetry-instrumentation-httpx==0.49b2
 opentelemetry-instrumentation-asyncpg==0.49b2
 opentelemetry-instrumentation-logging==0.49b2
 aiosmtplib==3.0.2
+
+# v4.0 P3: arq distributed worker queue
+arq==0.26.1
