@@ -2,6 +2,96 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [4.0.0] — 2026-05-18
+
+> **Major release** — 拔技術債 + distributed task queue + multi-region readiness。
+> **Breaking changes**：升級前**必讀** [`docs/upgrade/v3-to-v4.md`](./docs/upgrade/v3-to-v4.md)。
+
+### Highlights
+- 🗑️ **拔 bootstrap_ddl** — schema 變更唯一管道走 alembic
+- 🌉 **拔 LegacyURLBridge** — workspace-scoped URL 為唯一支援
+- 🚀 **Distributed task queue (arq)** — opt-in worker container 取代 in-process worker
+- 🌍 **Multi-region readiness** — PG streaming replica + read routing + MinIO secondary（active-passive）
+
+### Breaking Changes
+- ⚠️ **v3.1 以下 deploy 不能直升 v4.0** — 必須先升 v3.1+ 跑過至少一次 lifespan
+- ⚠️ **舊 v1 URL 從 410 變 404** — 必須改打 workspace-scoped URL 或帶 `X-Workspace-ID` header
+- ⚠️ **alembic chain 多 2 個 revision** — `auth/0002_auth_schema_promoted` + `knowledge/0002_knowledge_schema_promoted`（IF NOT EXISTS，已升過 deploy no-op）
+
+### Removed
+- `services/agent/app/bootstrap_ddl.py`
+- `services/agent/app/middleware/legacy_bridge.py`
+- Auth service `_AUTH_BOOTSTRAP_DDL` + `_run_auth_bootstrap_ddl()`
+- Knowledge service `_BOOTSTRAP_STATEMENTS` + `_run_bootstrap_ddl()`
+- compose `LEGACY_URL_MODE` env
+
+### Added — Drop technical debt (PR #230, #231)
+- **bootstrap_ddl 移除**（PR #230）：
+  - 各 service main.py lifespan 只剩 `await run_alembic_upgrade()`
+  - `auth/alembic/0002_auth_schema_promoted`：4 條（oidc_sub / oidc_issuer + index + ldap_dn 遷移）
+  - `knowledge/alembic/0002_knowledge_schema_promoted`：28 條 SQL / 9 邏輯群組
+  - 文件 `docs/dev/alembic.md`
+- **LegacyURLBridge 移除**（PR #231）：
+  - 134 LOC 中介層拔除
+  - middleware order: `Idempotency → GatewayHeaders → TenantContext → endpoint`
+
+### Added — Distributed task queue (PR #232, #233)
+- **arq + Redis backend**（PR #232）：
+  - 新檔 `staffkm-core/utils/arq_settings.py`：共用 REDIS_SETTINGS
+  - 新檔 `services/agent/app/workers/arq_settings.py`：`WorkerSettings` + 5 cron jobs
+    - `trigger_scan_job`（每 60s）
+    - `trigger_dispatch_job`（每 10s）
+    - `resume_check_job`（每 30s）
+    - `quota_alert_job`（每 10min）
+    - `webhook_dispatch_job`（每 30s）
+  - agent lifespan `WORKER_BACKEND` env flag（default `inprocess` = v3.x 行為 / `arq` = 不啟 in-process）
+  - compose `worker` service（profile `arq-worker`，重用 agent image）
+  - `/admin/workers/backend` + `/admin/workers/queue` API
+  - 文件 `docs/dev/distributed-workers.md`
+- **Helm + Grafana**（PR #233）：
+  - `infra/helm/staffkm/templates/worker-deploy.yaml`（gated by `worker.enabled`）
+  - values.yaml: `replicaCount.worker`, `worker.enabled`, `resources.worker`
+  - Grafana `v4-arq-workers.json` dashboard：heartbeats table + workflow / webhook / quota_alert stats
+
+### Added — Multi-region readiness (PR #234)
+- **PG streaming replication**：
+  - compose `postgres-replica` service（profile `multi-region`，port 5433）
+  - Helm `postgres-replica.yaml` StatefulSet（gated by `postgres.replica.enabled`）
+  - replica-init.sh demo（production 建議 patroni / managed PG）
+- **Read replica routing**：
+  - `staffkm-core/utils/database.py`：`init_db(db_url, read_url=None)` + `get_read_session()`
+  - `DB_READ_URL` env（不設 → fallback 主 pool）
+  - `admin_billing` 3 endpoint 示範用 read pool（其他 endpoint 文件交代換 Depends）
+- **MinIO secondary**：
+  - compose `minio-secondary` service（profile `multi-region`，port 9100/9101）
+  - 文件補 bucket replication rule 設定
+- 新文件 `docs/deploy/multi-region.md`（~190 行）
+- 更新 `docs/deploy/dr-drill.md` 場景 2：加 v4.0 PG promote 流程
+
+### Migration（從 v3.x 升 v4.0）
+**詳見 [docs/upgrade/v3-to-v4.md](./docs/upgrade/v3-to-v4.md)**。摘要：
+
+1. **Pre-flight**：確認 v3.1+、0 legacy URL caller、DB backup、staging 跑過 v4.0-rc1 1 週
+2. **Standard upgrade**：`docker compose pull && docker compose up -d` — alembic 自動跑 promoted revisions
+3. **Opt-in arq**：`echo "WORKER_BACKEND=arq" >> .env && docker compose --profile arq-worker up -d`
+4. **Opt-in multi-region**：`docker compose --profile multi-region up -d` + 設 `DB_READ_URL`
+
+### Rollback
+- v4.0 → v3.8：可行（schema 兼容）
+- v4.0 → v3.7 或更早：不可行（手動 SQL revert `alembic_version`）
+
+### Not in v4.0（→ v4.x）
+- AI-generated workflow → v4.1
+- Stripe billing integration → v4.2
+- Workflow marketplace → v4.3
+- Active-active multi-region（CRDT）→ v5.0
+- Automated PG failover (patroni / pg_auto_failover) → v5.0+
+
+### PR refs
+#229（roadmap）/ #230（drop bootstrap_ddl）/ #231（drop LegacyURLBridge）/ #232（arq workers）/ #233（worker helm + Grafana）/ #234（multi-region）
+
+---
+
 ## [3.8.0] — 2026-05-18
 
 > **v3.7 留尾收口** milestone — workflow conv_id / per-user billing / multi-judge / query plan analyzer。
