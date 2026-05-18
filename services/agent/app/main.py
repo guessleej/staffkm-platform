@@ -14,7 +14,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace, admin_regions
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -184,6 +184,12 @@ app.add_middleware(GatewayHeadersMiddleware)
 from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 app.add_middleware(IdempotencyMiddleware)
 
+# ── v5.0 K: Region router middleware（active-active scaffolding；預設 disabled）
+import os as _os  # noqa: E402
+if _os.environ.get("MULTI_REGION_ENABLED", "false").lower() == "true":
+    from app.middleware.region_router import RegionRouterMiddleware  # noqa: E402
+    app.add_middleware(RegionRouterMiddleware)
+
 # ── Routes（v2：workspace-scoped）─────────────────────────────────────
 _PREFIX = "/api/v1/workspace/{workspace_id}"
 
@@ -254,6 +260,9 @@ app.include_router(plugins_api.router,       prefix="/api/v1/admin/plugins", tag
 
 # ── v4.9 I：AI-generated workflow（自然語言 → workflow JSON）─
 app.include_router(workflow_gen.router,       prefix=f"{_PREFIX}/workflow-gen", tags=["AI Workflow Gen (v4.9)"])
+
+# ── v5.0 K：active-active multi-region admin（regions / conflicts / ws-bind）─
+app.include_router(admin_regions.router,      prefix="/api/v1/admin",          tags=["Admin Multi-Region (v5.0)"])
 
 
 @app.get("/health")

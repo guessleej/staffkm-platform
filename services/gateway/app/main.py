@@ -31,6 +31,9 @@ from app.routers._generic_proxy import (
     admin_starter_pack_router,
     admin_plugins_router,
     workflow_gen_router,
+    admin_regions_router,
+    admin_conflicts_router,
+    admin_workspaces_router,
 )
 
 log = structlog.get_logger()
@@ -132,3 +135,8 @@ app.include_router(admin_starter_pack_router, prefix="/api/v1/admin/starter-pack
 app.include_router(admin_plugins_router, prefix="/api/v1/admin/plugins", tags=["Admin Plugins (v4.3)"])
 # v4.9 I：AI-generated workflow（自然語言 → workflow JSON）
 app.include_router(workflow_gen_router, prefix="/api/v1/workflow-gen", tags=["AI Workflow Gen (v4.9)"])
+
+# ── v5.0 K：active-active multi-region admin（scaffolding，預設 disabled）─
+app.include_router(admin_regions_router,    prefix="/api/v1/admin/regions",    tags=["Admin Regions (v5.0)"])
+app.include_router(admin_conflicts_router,  prefix="/api/v1/admin/conflicts",  tags=["Admin Conflicts (v5.0)"])
+app.include_router(admin_workspaces_router, prefix="/api/v1/admin/workspaces", tags=["Admin Workspace Region Bind (v5.0)"])

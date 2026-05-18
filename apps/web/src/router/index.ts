@@ -245,6 +245,12 @@ const router = createRouter({
           meta: { title: '當月用量' },
         },
         {
+          path: 'admin/regions',
+          name: 'admin-regions',
+          component: () => import('../views/admin/RegionsView.vue'),
+          meta: { title: 'Multi-Region (v5.0)', roles: ['admin'] },
+        },
+        {
           path: 'admin/system',
           name: 'admin-system',
           component: () => import('../views/admin/SystemView.vue'),

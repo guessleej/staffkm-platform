@@ -490,6 +490,9 @@ services:
       WORKER_BACKEND: ${WORKER_BACKEND:-inprocess}
       # v4.0 P6: optional read replica DSN；空字串 = 用 DB_URL（單 pool）
       DB_READ_URL: ${DB_READ_URL:-}
+      # v5.0 K: active-active multi-region（預設 disabled — 行為等同 v4.x）
+      MULTI_REGION_ENABLED: ${MULTI_REGION_ENABLED:-false}
+      REGION_ID: ${REGION_ID:-default}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
