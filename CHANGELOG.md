@@ -2,6 +2,74 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.2.0] — 2026-05-18
+
+> **Cost / Quota governance** milestone — 把 LLM 成本與 workspace 額度真正管起來。
+> 重點：production multi-tenant 出血控制。
+
+### Highlights
+- 💰 **Pricing registry** — `ai_models` 加 `price_per_1k_*_usd`，17 個主流 model seed（OpenAI / Anthropic / Google / Ollama）
+- 📊 **真實 metering** — `meter_llm_call` async context manager 包 3 個 chat 入口，pre check_quota + post record_usage + cost auto-calc
+- 🛡️ **Quota enforcement** — 超額自動 429 + `Retry-After`，SSE 入口 yield error event
+- 🎨 **Admin Quota UI** — `/admin/quotas` 跨 workspace 列用量 + 設 cap
+- 📈 **Cost dashboard 接真資料** — Grafana `v3-llm-usage` 從壞 placeholder（指向不存在的 `usage_log` 表）改成 4 panel 真實查詢
+
+### Added — Pricing registry (v3.2-P1, PR #186)
+- alembic `0002_ai_models_pricing`：加 `price_per_1k_input_usd` / `price_per_1k_output_usd`（NUMERIC(10,6)）— v3.1 baseline 之後**首個真正 migration**，驗證 alembic chain
+- `services/agent/app/data/model_pricing.py`：17 個主流 model 的 USD/1k token 定價快照（2026-05）
+- `services/agent/app/core/pricing_seed.py`：lifespan UPSERT，COALESCE 只補 NULL → **不覆蓋使用者手動設定的價格**
+- `services/agent/app/core/usage.py`：新增 `calc_cost(session, *, model, prompt_tokens, completion_tokens) -> float` helper
+- Auth `models.py` API：`ModelOut` 帶 pricing 欄位、4 處 SELECT 全部 include
+
+### Added — LLM call metering (v3.2-P2, PR #187)
+- 新檔 `services/agent/app/core/metering.py`：`meter_llm_call` async context manager
+  - pre：`check_quota`（超額 raise `QuotaExceeded`）
+  - yield：呼叫者跑 `provider.chat()`，邊串邊餵 `meter.record(prompt_tokens=..., completion_tokens=...)`
+  - finally：`calc_cost` + `record_usage` + 獨立 session commit（避免 SSE 結束時 request session 已 close）
+- 接 3 個 SSE chat 入口：
+  - `/agents/applications/{id}/chat`（取代原 manual record_usage）
+  - `/applications/{id}/chat`（原本沒接！）
+  - `/public/applications/{id}/chat`（原本沒接！）
+- 全域 exception handler：`QuotaExceeded` → 429 + `Retry-After: 86400`
+- SSE 入口因 header 已 flush，改 yield error event 含 `quota_exceeded:` 前綴
+
+### Added — Admin Quota UI + Cost dashboard (v3.2-P3, PR #188)
+- **後端**：
+  - 新 `/api/v1/admin/quotas` (GET list / PUT 設 cap)，跨 workspace、admin only（讀 `X-User-Roles` header）
+  - `/usage/summary` 擴充 `by_day` / `by_model` aggregation
+  - Gateway 手寫 admin proxy（不走 `make_proxy_router`，因為 admin 非 workspace-scoped）
+- **前端**：
+  - `apps/web/src/views/admin/QuotaView.vue` — table + progress bar（70% 黃 / 90% 紅）+ modal 設 cap
+  - `apps/web/src/views/usage/UsageView.vue` — 4 stat card + by_day div bar chart + by_model table
+  - DashboardLayout 加 nav：`/admin/quotas`（admin 限定）+ `/usage`（member）
+- **Grafana**：
+  - 修 `v3-llm-usage.json` 引用的壞表名 `usage_log` → `model_usage_logs`
+  - 新 `datasources/postgres.yml` provisioning（uid `staffkm-postgres`）
+  - compose 加 `POSTGRES_PASSWORD` 注入 grafana 容器
+  - 4 個 panel：24h timeseries / top-10 workspaces / top-10 models / cap utilization gauge
+
+### Breaking Changes
+- ⚠️ **Workspace quota 預設仍 NULL（無上限）**：升級後不主動執行 quota，但所有 LLM call 都會 metering 寫 `model_usage_logs`
+  - operator 想啟用 quota：admin 進 `/admin/quotas` 設各 workspace cap
+  - 設了 cap 的 workspace 用滿就會 429
+- ⚠️ **chat endpoint 可能回 429**：existing client 要處理 429 + `Retry-After` header（之前不會出現）
+
+### Known limitations / 留 v3.3
+- **workflow executor 沒接 metering** — `_exec_llm` 直接用 raw `AsyncOpenAI` 不走 BaseProvider；要先重構 executor 接 session_factory + 遷移到 BaseProvider，wider refactor
+- `/preview/chat` 故意不接（原檔註解：「preview 不寫 usage log」）
+
+### Migration（從 v3.1 升 v3.2）
+1. **DB**：alembic 自動跑 `0002_ai_models_pricing` → 加 2 欄位、不破壞既有資料
+2. **Pricing seed**：lifespan 自動 UPSERT 17 個 model 定價；手動改過的不會被覆蓋
+3. **Quota**：升完後行為不變（沒人設 cap）；admin 想啟用就到 `/admin/quotas` 設
+4. **Grafana**：`docker compose --profile monitoring up` 重啟 grafana 容器，新 datasource + 修好的 dashboard 自動上
+5. **Frontend**：admin 看得到 `/admin/quotas` nav、所有 member 看得到 `/usage` nav
+
+### PR refs
+#185（roadmap）/ #186（pricing）/ #187（metering）/ #188（UI + dashboard）
+
+---
+
 ## [3.1.0] — 2026-05-18
 
 > **Technical debt cleanup** milestone — 收 v3.0 留下的 3 條尾巴。
