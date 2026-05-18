@@ -83,6 +83,22 @@
       "targets": [
         { "refId": "A", "queryType": "serviceMap" }
       ]
+    },
+    {
+      "type": "logs",
+      "title": "Slow SQL queries (v3.7 P4, >500ms)",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "staffkm-loki" },
+      "targets": [{
+        "refId": "A",
+        "expr": "{container=~\"staffkm-.*\"} |= \"slow_query\" | json | line_format \"{{.duration_ms}}ms · {{.sql}}\"",
+        "queryType": "range"
+      }],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      }
     }
   ]
 }
