@@ -97,8 +97,8 @@ docker exec staffkm-postgres psql -U staffkm -d staffkm -c "\dt"
 apps/
   web/           # Vue 3 SPA — vite + vue-router + pinia + tailwind
   docs/          # docs.staffkm site（待）
-  marketing/     # 行銷頁（待）
-  admin-cli/     # `staffkm-cli` python CLI
+  marketing/     # 行銷站 Vue SPA — v4.2（landing/pricing/cases/about）
+  admin-cli/     # `staffkm-cli` — v4.4 進階到 8 個 command group
 services/
   gateway/       # API gateway + JWT auth middleware + reverse proxy
   auth/          # /auth/{login,refresh,me,oidc/*}
@@ -111,10 +111,13 @@ packages/
   ts/
     design-tokens/   # HSL CSS vars + Tailwind preset
     ui-kit/          # 34 Vue 3 components + 44 SIcon names + Storybook
+  ts/
+    staffkm-sdk/     # `@staffkm/sdk` — v4.5 TypeScript SDK
   python/
-    staffkm-core/    # 共用 schemas / response / database
+    staffkm-core/    # 共用 schemas / response / database / observability / audit / arq
     staffkm-tenant/  # TenantContext middleware + workspace RBAC
-    staffkm-sdk/     # `pip install staffkm-sdk`
+    staffkm-sdk/     # `pip install staffkm` — v4.5 完整 SDK + 既有 staffkm_sdk legacy
+    staffkm-plugin-sdk/  # v4.3 plugin authoring SDK (BaseNode/Provider/Hook)
 infra/
   docker-compose.yml              # 主 compose
   docker-compose.override.yml     # dev override（auto-applied）
@@ -126,13 +129,40 @@ infra/
 tools/
   scripts/safe-redeploy.sh        # 解 502 共業 + autoheal
   backup/                         # PG + MinIO backup/restore
+  starter-pack/                   # v4.1: 5 個預建 application JSON
+  sales-demo/                     # v4.1: seed_demo.py + 10min demo-script.md
+  plugin-marketplace/             # v4.3: index.json registry
+  eval/                           # v3.3-C5: RAG eval harness + dataset
+  terraform-provider-staffkm/     # v4.4: TF provider scaffold (Go)
+  sdk-go/                         # v4.5: Go SDK
+  seed-marketplace.py             # v4.10: marketplace seed placeholder
 docs/
   user-guide/                     # 給最終使用者
-  deploy/                         # 給部署 / DR
-  plans/                          # 計畫文件
+  deploy/                         # 給部署 / DR / multi-region / active-active
+  plans/                          # 計畫文件（v2.x ~ v5.0 roadmap 全在）
   qa/                             # checklist
   rfc/                            # 14 篇歷史 RFC
+  dev/                            # 開發者：observability / alembic / plugins / cli / sdks / reranker / idempotency / ai-workflow-gen / workflow-marketplace
+  perf/                           # v3.3-C5: RAG bench history
+  upgrade/                        # v3→v4 / v4→v5 upgrade guides
 ```
+
+## v3.x+ 新元件速查
+
+| 領域 | 元件 | 引入版本 |
+|---|---|---|
+| Auth | Redis CAPTCHA / OIDC schema | v3.0 |
+| Schema | alembic 0001-0019（共 19 個 revision） | v3.1+ |
+| Cost | `meter_llm_call` / `meter_media_call` + `model_usage_logs.feature` | v3.2 / v3.4 / v3.7 |
+| Quota | `workspace_quotas` / `user_quotas` / `quota_alerts` + alert worker | v3.2 / v3.3-D |
+| Observability | OTel auto-instrument + Loki + slow query trace | v3.3-B / v3.7-P4 |
+| Workflow | run_step persistence / human_approval / sub_workflow / arq workers | v3.5 / v4.0-P3 |
+| Resilience | webhook_outbox / Idempotency-Key middleware / graceful shutdown | v3.6 |
+| Billing | Stripe 4 表 / nightly usage report | v4.7 / v4.8 |
+| Self-service | trial signup / email verify / OAuth (Google+GitHub) | v4.1 / v4.6 |
+| Multi-region | PG read replica + active-active scaffolding | v4.0 / v5.0 |
+| Ecosystem | Plugin SDK / TF provider / Python+TS+Go SDK | v4.3 / v4.4 / v4.5 |
+| AI features | LLM-as-judge eval / AI workflow gen / Workflow marketplace | v3.7-P3 / v4.9 / v4.10 |
 
 ## 跑過的踩雷集（不要再踩）
 
@@ -157,6 +187,7 @@ docs/
 
 ## 重要 PR / Tag 對照
 
+### v2.x — GA + B2B
 | Tag | 範圍 | 重點 |
 |---|---|---|
 | v2.0.0 | 105+ PRs | GA — 完整功能 + 30+ workflow nodes + 25+ provider + Helm |
@@ -164,7 +195,41 @@ docs/
 | v2.2.0 | #165-#168 | Production-ready: metrics + Caddy auto-TLS + backup SOP |
 | v2.3.0 | #169-#170 | Demo polish: onboarding wizard + citation chip UI |
 | v2.4.0 | #171-#172 | B2B: embed widget + OIDC SSO + 8 user docs |
-| v2.5.0 | TBD | 開發夥伴: CLAUDE.md + API ref + template marketplace |
+| v2.5.0 | #173-#174 | 開發夥伴: CLAUDE.md + API ref + template marketplace |
+
+### v3.x — Production hardening
+| Tag | 範圍 | 重點 |
+|---|---|---|
+| v3.0.0 | #175-#179 | Auth/CAPTCHA Redis + OIDC schema + Audit log + Grafana + Playwright E2E |
+| v3.1.0 | #180-#184 | Technical debt cleanup: alembic baseline + audit wiring + LegacyURLBridge default 410 |
+| v3.2.0 | #185-#189 | Cost/Quota governance: ai_models pricing + meter_llm_call + admin Quota UI |
+| v3.3.0 | #190-#198 | A+D+B+C mega: workflow metering / user quota / OTel+Loki / RAG reranker+eval |
+| v3.4.0 | #199-#204 | v3.3 留尾: 4 non-LLM node metering + SMTP + cross-encoder reranker + CI bench |
+| v3.5.0 | #205-#210 | Workflow expansion: run step persistence + human_approval + sub_workflow + history UI |
+| v3.6.0 | #211-#216 | Async resilience: webhook outbox + task heartbeats + Idempotency-Key + graceful shutdown |
+| v3.7.0 | #217-#222 | Cost attribution: per-conversation cost + feature label + LLM-as-judge + slow query trace |
+| v3.8.0 | #223-#228 | v3.7 留尾: workflow conv_id + admin billing UI + multi-judge + query plan analyzer |
+
+### v4.x — Major + Business + SaaS
+| Tag | 範圍 | 重點 |
+|---|---|---|
+| v4.0.0 | #229-#235 | 拔 bootstrap_ddl + LegacyURLBridge + arq workers + active-passive multi-region |
+| v4.1.0 | #236-#237 | A: trial signup + 5 starter packs + sales demo |
+| v4.2.0 | #238 | B: marketing SPA (landing/pricing/cases) |
+| v4.3.0 | #239 | C: Plugin SDK (BaseNode/Provider/Hook) + marketplace registry |
+| v4.4.0 | #240 | D: staffkm-cli 8 groups + Terraform provider scaffold |
+| v4.5.0 | #241 | E: API SDK Python/TS/Go (24 endpoints each, streaming chat) |
+| v4.6.0 | #242 | F: email verify + forgot password + Google/GitHub OAuth |
+| v4.7.0 | #243 | G: Stripe billing (subscription + topup + portal + webhook) |
+| v4.8.0 | #243 | H: usage-based metered billing (nightly aggregation worker) |
+| v4.9.0 | #244 | I: AI-generated workflow (自然語言 → workflow JSON + LogicFlow apply) |
+| v4.10.0 | #245 | J: workflow marketplace (跨 org public gallery + ratings) |
+
+### v5.x — Active-active multi-region
+| Tag | 範圍 | 重點 |
+|---|---|---|
+| v5.0.0 | #246 | K: scaffolding (region middleware + CRDT helper + admin UI + conflict log) — disabled by default |
+| v5.1+ | future | region steering / 真 CRDT / conflict UI / failover automation |
 
 ## 跟使用者溝通
 
