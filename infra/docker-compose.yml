@@ -395,6 +395,7 @@ services:
       # legacy（v1 相容、後續移除）
       OPENAI_MODEL:    ${OPENAI_MODEL:-gemma4:e4b}
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
+      # LEGACY_URL_MODE: rewrite   # v3.1+ 預設 410；如有舊 client 暫無法遷移可開回 rewrite
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]

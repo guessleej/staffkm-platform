@@ -1,5 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
+import { useWorkspaceStore } from '@/stores/workspace'
+
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 60_000,
@@ -8,6 +10,21 @@ export const http = axios.create({
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  // v3.1：自動帶 workspace header → gateway proxy 會據此把 path 注成
+  // /api/v1/workspace/{ws}/... 直接命中 workspace-scoped router，
+  // 不再走 LegacyURLBridge（v3.1 起預設 410）。
+  // try/catch 包是因為 login 前 Pinia 未 init 會炸。
+  try {
+    const ws = useWorkspaceStore().currentId
+    if (ws) {
+      config.headers = config.headers || {}
+      config.headers['X-Workspace-ID'] = ws
+    }
+  } catch {
+    // Pinia 未 init（login 前 / app bootstrap 早期）→ 略過
+  }
+
   return config
 })
 
