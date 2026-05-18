@@ -3,84 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>staffKM — 內部知識管理 · AI 協作平台</title>
-  <meta name="description" content="讓組織知識被找得到、用得上、留得下。多租戶 / 25+ Model Providers / 30+ Workflow Nodes / 地端 LLM 預設。" />
+  <title>staffKM — 把公司知識變成員工的 AI 助理</title>
+  <meta name="description" content="staffKM 是企業 AI 知識管理平台。RAG 知識庫、Workflow 編輯器、多模型切換、多租戶配額、on-prem 部署。" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
-  <header class="nav">
-    <a class="brand" href="/">
-      <span class="brand-mark">S</span>
-      <span class="brand-text">staffKM</span>
-    </a>
-    <nav class="nav-links">
-      <a href="#features">特色</a>
-      <a href="#why">為何 staffKM</a>
-      <a href="#pricing">價格</a>
-      <a href="https://docs.staffkm.dev">文件</a>
-      <a class="btn btn-ghost" href="https://github.com/guessleej/staffkm-platform">GitHub</a>
-      <a class="btn btn-primary" href="https://docs.staffkm.dev/admin/installation">立即部署</a>
-    </nav>
-  </header>
-
-  <section class="hero">
-    <h1>讓組織知識<br/>被找得到、用得上、留得下</h1>
-    <p class="lead">
-      內部行政人員的 AI 知識協作平台。<br/>
-      地端 LLM 預設、多租戶、25+ Model Provider、完整 Workflow Engine。
-    </p>
-    <div class="cta">
-      <a class="btn btn-primary btn-lg" href="https://docs.staffkm.dev/user/getting-started">5 分鐘上手</a>
-      <a class="btn btn-ghost btn-lg" href="https://github.com/guessleej/staffkm-platform">看原始碼</a>
-    </div>
-    <p class="hero-meta">
-      Apache-2.0 · 100+ PRs · 14 RFCs · v2.0 GA
-    </p>
-  </section>
-
-  <section id="features" class="features">
-    <h2>產品能力</h2>
-    <div class="grid">
-      <article><h3>🏢 多租戶 + RBAC</h3><p>workspace + 4 階角色；三層隔離（Path / RBAC / SQL）。一個 instance 服務多部門。</p></article>
-      <article><h3>🤖 30+ Workflow Nodes</h3><p>LLM / RAG / 條件 / 並行 / 批次 / Sandbox / Webhook / Map-Reduce…拖拉建立。</p></article>
-      <article><h3>🔌 25+ Model Providers</h3><p>地端 Ollama 預設；Anthropic / Gemini / Cohere / Bedrock / DeepSeek 等切換。</p></article>
-      <article><h3>💰 Token 計帳 + Quota</h3><p>tiktoken 精算；月度 token / 成本上限；超額直接 429。</p></article>
-      <article><h3>🔐 Sandbox + KMS</h3><p>Shell 走 subprocess + rlimit；API key Fernet 加密。</p></article>
-      <article><h3>📈 完整 Observability</h3><p>OTel + Prometheus + Grafana + Jaeger；6 條 alert + 明文 SLO。</p></article>
-    </div>
-  </section>
-
-  <section id="why" class="why">
-    <h2>為什麼選 staffKM？</h2>
-    <div class="why-grid">
-      <div>
-        <h3>不被 vendor 鎖</h3>
-        <p>25+ provider 抽象介面；可同時跑地端 + 外部備援。換 model 不用改 application。</p>
-      </div>
-      <div>
-        <h3>不是 demo，是 production-ready</h3>
-        <p>14 份 RFC、105+ PR、完整 backup/DR runbook、Helm chart、Brand guideline。</p>
-      </div>
-      <div>
-        <h3>對話為中心，行政人員秒上手</h3>
-        <p>對標 claude.ai 體驗；不需要學 dashboard。⌘K 全域指令面板。</p>
-      </div>
-      <div>
-        <h3>地端優先，資料不出園區</h3>
-        <p>預設 Ollama；硬鎖 gemma4:e4b；可選擇加掛雲端 model 作為備援或進階能力。</p>
-      </div>
-    </div>
-  </section>
-
-  <section id="pricing" class="pricing">
-    <h2>授權</h2>
-    <p class="pricing-headline">Apache-2.0 — 商業 / 內部使用免費。</p>
-    <p>需要企業支援、客製化、私部署協助？聯絡：<a href="mailto:hi@staffkm.dev">hi@staffkm.dev</a></p>
-  </section>
-
-  <footer>
-    <p>© 2026 staffKM · <a href="https://github.com/guessleej/staffkm-platform">GitHub</a> · <a href="https://docs.staffkm.dev">Docs</a></p>
-  </footer>
+<body class="font-sans antialiased text-ink-900">
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
