@@ -164,6 +164,12 @@ const router = createRouter({
           meta: { title: '配額告警', roles: ['admin'] },
         },
         {
+          path: 'admin/approvals',
+          name: 'admin-approvals',
+          component: () => import('../views/admin/ApprovalsView.vue'),
+          meta: { title: '人工核可', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),

@@ -140,8 +140,12 @@ async def _run_workflow(rec: dict[str, Any], session) -> tuple[str, str]:
     except Exception as e:
         # v3.3：quota 超額 → 標 quota_exceeded（free-text status，schema 是 VARCHAR(16)）
         from app.core.usage import QuotaExceeded
+        from app.core.workflow.executor import WorkflowPaused
         if isinstance(e, QuotaExceeded):
             return "quota_exceeded", f"quota_exceeded: {e}"
+        if isinstance(e, WorkflowPaused):
+            # v3.5 P2：暫停而非錯誤；caller 寫 status='paused' + resume_node
+            return "paused", f"paused_at_node: {e.node_key}, approval_id: {e.approval_id}"
         return "error", f"executor_raised: {e}"
 
     summary = "\n".join(events)[:4000]
@@ -163,6 +167,32 @@ async def _process_one(session_factory) -> bool:
         except Exception as e:
             status, summary = "error", f"dispatcher_raised: {e}"
         try:
+            # v3.5 P2：paused 不是終態 → 不寫 finished_at，記 paused_at + resume_node
+            if status == "paused":
+                resume_node = None
+                if "paused_at_node: " in summary:
+                    try:
+                        resume_node = summary.split("paused_at_node: ", 1)[1].split(",", 1)[0].strip()
+                    except Exception:
+                        resume_node = None
+                await session.execute(
+                    text("""
+                        UPDATE event_trigger_runs
+                        SET status='paused', paused_at=now(),
+                            output_summary=:o, resume_node=:rn
+                        WHERE id=:id
+                    """),
+                    {"o": summary, "rn": resume_node, "id": str(rec["run_id"])},
+                )
+                await session.execute(
+                    text("UPDATE event_triggers SET last_status='paused', last_error=NULL WHERE id=:id"),
+                    {"id": str(rec["trigger_id"])},
+                )
+                await session.commit()
+                log.info("dispatcher_run_paused", run=str(rec["run_id"]),
+                         trigger=str(rec["trigger_id"]), resume_node=resume_node)
+                return True
+
             # v3.3 A4：聚合本 run 期間的 LLM usage（在 fired_at 之後寫入、且同 ws/app）
             agg = await session.execute(
                 text("""

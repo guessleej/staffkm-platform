@@ -22,6 +22,17 @@ log = structlog.get_logger()
 _VALID_MANAGERS = ("simple", "parallel", "retry", "batch", "sandbox")
 
 
+class WorkflowPaused(Exception):
+    """v3.5 P2：workflow 因 human_approval 暫停。
+
+    dispatcher / resume worker 應捕捉本例外，將 run 標 'paused' 並寫 resume_node。
+    """
+    def __init__(self, node_key: str, approval_id: str):
+        self.node_key = node_key
+        self.approval_id = approval_id
+        super().__init__(f"workflow paused at {node_key}, approval={approval_id}")
+
+
 class WorkflowExecutor:
     def __init__(
         self,
@@ -35,6 +46,7 @@ class WorkflowExecutor:
         application_id: str | None = None,  # v3.3：metering 歸帳到 application
         *,
         run_id: _uuid.UUID | str | None = None,  # v3.5 P1：寫 workflow_run_steps 用
+        resume_from_node: str | None = None,  # v3.5 P2：resume worker 用，從此 node 的下一個 node 開始跑
     ):
         # M2-2：執行策略
         if workflow_manager not in _VALID_MANAGERS:
@@ -54,6 +66,8 @@ class WorkflowExecutor:
         # v3.5 P1：run-level id（trigger dispatcher 帶入）+ step index 累計
         self.run_id = run_id
         self._step_idx: int = 0
+        # v3.5 P2：resume worker 帶入；若設了，main loop 會從 resume_from_node 的下一個 node 開始
+        self.resume_from_node = resume_from_node
         # 建立有向圖（key -> [key, ...]）
         self.children: dict[str, list[str]] = {n: [] for n in self.nodes}
         self.edge_conditions: dict[tuple, Any] = {}
@@ -117,6 +131,52 @@ class WorkflowExecutor:
         except Exception as e:
             log.warning("step_record_failed", run=str(self.run_id), node=node_key, error=str(e))
 
+    async def _exec_human_approval(self, config: dict, context: dict, current_key: str) -> None:
+        """v3.5 P2：寫一筆 workflow_approvals (pending) 並 raise WorkflowPaused。
+
+        config:
+          payload_template: 給 admin 預覽的 context（用 self._render_template 渲染）
+          approver_role:    'admin' / 'manager'（v3.5 只用 admin）
+        """
+        if not self.run_id or not _db._session_factory:
+            # 沒 persistence 環境 → skip approval、直接通過（dev/unit-test 友善）
+            log.warning("human_approval_skipped_no_persistence", node=current_key)
+            return
+
+        payload_template = config.get("payload_template", "") if isinstance(config, dict) else ""
+        try:
+            rendered = self._render_template(payload_template, context) if payload_template else ""
+        except Exception:
+            rendered = payload_template
+
+        payload = {
+            "context_preview": str(rendered)[:2000],
+            "node_config": config,
+        }
+
+        try:
+            async with _db._session_factory() as session:
+                r = await session.execute(text("""
+                    INSERT INTO workflow_approvals (
+                        run_id, workspace_id, node_key, status, payload
+                    ) VALUES (:rid, :ws, :nkey, 'pending', CAST(:pl AS jsonb))
+                    RETURNING id
+                """), {
+                    "rid": str(self.run_id),
+                    "ws": str(self.workspace_id),
+                    "nkey": current_key,
+                    "pl": json.dumps(payload, ensure_ascii=False, default=str),
+                })
+                approval_id = str(r.scalar_one())
+                await session.commit()
+        except Exception as e:
+            log.error("human_approval_insert_failed", node=current_key, error=str(e))
+            raise
+
+        log.info("human_approval_pending", run=str(self.run_id),
+                 node=current_key, approval_id=approval_id)
+        raise WorkflowPaused(node_key=current_key, approval_id=approval_id)
+
     def _find_start_node(self) -> str | None:
         targets = {e["target_node_key"] for e in self.edges}
         # 先找 type == start 的節點
@@ -140,7 +200,19 @@ class WorkflowExecutor:
             "_user_id": user_id or self.user_id,
             "_roles": self.roles,
         }
-        current_key = self._find_start_node()
+        # v3.5 P2：若 resume_from_node 有設，從該 node 的下一個（edges 中 source==resume_from_node）開始
+        if self.resume_from_node:
+            current_key = next(
+                (e["target_node_key"] for e in self.edges
+                 if e.get("source_node_key") == self.resume_from_node),
+                None,
+            )
+            if not current_key:
+                log.warning("resume_node_no_next", node=self.resume_from_node)
+                yield {"event": "done", "data": "[DONE]"}
+                return
+        else:
+            current_key = self._find_start_node()
         visited = set()
         # M2-2：每個 node 的累計嘗試次數（retry manager 用）
         _node_attempts: dict[str, int] = {}
@@ -291,6 +363,21 @@ class WorkflowExecutor:
                     async for ev in self._exec_kb_writer(config, context):
                         yield ev
 
+                # ── v3.5 P2：human_approval — 寫 pending row + raise WorkflowPaused ──
+                elif node_type == "human_approval":
+                    await self._exec_human_approval(config, context, current_key)
+
+            except WorkflowPaused:
+                # v3.5 P2：暫停而非錯誤；寫一筆 paused step 後 re-raise，caller 處理 run.status
+                await self._record_step(
+                    node_key=current_key, node_type=node_type,
+                    input_data=config, output_data=None,
+                    status="paused", error=None,
+                    attempts=1,
+                    latency_ms=int((time.monotonic() - _step_started) * 1000),
+                )
+                yield {"event": "paused", "data": json.dumps({"node_key": current_key})}
+                raise
             except Exception as e:
                 _step_status = "error"
                 _step_error = str(e)

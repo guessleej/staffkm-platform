@@ -18,6 +18,7 @@ from app.routers._generic_proxy import (
     usage_router, triggers_router, mcp_router, memories_router,
     app_templates_router, audit_logs_router, admin_quotas_router,
     user_quotas_router, quota_alerts_router,
+    approvals_router,
 )
 
 log = structlog.get_logger()
@@ -94,3 +95,5 @@ app.include_router(admin_quotas_router,  prefix="/api/v1/admin/quotas",       ta
 # v3.3 D1/D2：user-level quota + quota alerts
 app.include_router(user_quotas_router,   prefix="/api/v1/user-quotas",        tags=["User Quota (v3.3)"])
 app.include_router(quota_alerts_router,  prefix="/api/v1/quota-alerts",       tags=["Quota Alerts (v3.3)"])
+# v3.5 P2：workflow human approvals
+app.include_router(approvals_router,     prefix="/api/v1/approvals",          tags=["Workflow Approvals (v3.5)"])

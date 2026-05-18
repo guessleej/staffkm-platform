@@ -13,10 +13,11 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
+from app.core.resume_worker import resume_worker_loop
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
@@ -50,11 +51,15 @@ async def lifespan(app: FastAPI):
     alert_task = asyncio.create_task(
         alert_worker_loop(lambda: _db._session_factory, interval_sec=600),
     )
+    # v3.5 P2：背景啟動 resume worker（每 30s 掃 approved/rejected approvals 續跑 paused run）
+    resume_task = asyncio.create_task(
+        resume_worker_loop(lambda: _db._session_factory, interval_sec=30),
+    )
     log.info("agent_service_ready")
     try:
         yield
     finally:
-        for t in (worker_task, dispatcher_task, alert_task):
+        for t in (worker_task, dispatcher_task, alert_task, resume_task):
             t.cancel()
             try:
                 await t
@@ -139,6 +144,7 @@ app.include_router(app_templates.router,     prefix=f"{_PREFIX}/app-templates",t
 app.include_router(audit.router,             prefix=f"{_PREFIX}/admin/audit-logs", tags=["Audit Log (v3.0)"])
 app.include_router(user_quotas.router,        prefix=f"{_PREFIX}/user-quotas",      tags=["User Quota (v3.3)"])
 app.include_router(quota_alerts.router,       prefix=f"{_PREFIX}/quota-alerts",     tags=["Quota Alerts (v3.3)"])
+app.include_router(approvals.router,          prefix=f"{_PREFIX}/approvals",        tags=["Workflow Approvals (v3.5)"])
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])

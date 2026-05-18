@@ -59,6 +59,8 @@ audit_logs_router = make_proxy_router("admin/audit-logs")
 # v3.3 D1/D2：user-level quota + quota alerts
 user_quotas_router  = make_proxy_router("user-quotas")
 quota_alerts_router = make_proxy_router("quota-alerts")
+# v3.5 P2：workflow human-approval
+approvals_router    = make_proxy_router("approvals")
 
 
 # v3.2 P3：admin 跨 workspace quota — 非 workspace-scoped，直接 proxy 到 agent

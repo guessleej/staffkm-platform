@@ -53,6 +53,9 @@ export const NODE_META: Record<string, NodeMeta> = {
 
   // ── v2.1：寫入 workflow KB（RFC-013）──────────────────────────────
   kb_writer:           { color: '#0d9488', bg: '#f0fdfa', icon: 'KW', label: '寫入知識庫', w: 200, h: 72 },
+
+  // ── v3.5 P2：human approval ────────────────────────────────────────
+  human_approval:      { color: '#a855f7', bg: '#faf5ff', icon: '人', label: '人工核可', w: 190, h: 72 },
 }
 
 // ─── 預設 config ───────────────────────────────────────────────────────────────
@@ -101,6 +104,9 @@ export function getDefaultConfig(nodeType: string): Record<string, any> {
       upsert_key: '',
       output_variable: 'kb_write_result',
     },
+
+    // ── v3.5 P2：human_approval ──────────────────────────────────
+    human_approval:      { approver_role: 'admin', payload_template: '{{user_input}}' },
   }
   return defaults[nodeType] ?? {}
 }
@@ -140,6 +146,11 @@ export const PALETTE_GROUPS = [
   {
     label: '知識庫',
     items: ['kb_writer'] as const,
+  },
+  // ── v3.5 P2 ──────────────────────────────────────────────────
+  {
+    label: '人工流程',
+    items: ['human_approval'] as const,
   },
 ]
 
