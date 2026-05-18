@@ -149,8 +149,13 @@ async def _dispatch(alert: dict, pct: float, *, scope_label: str = "workspace") 
             async with httpx.AsyncClient(timeout=10) as c:
                 await c.post(alert["target"], json={"text": msg})
         elif alert["channel"] == "email":
-            # TODO v3.3 D2 內留 TODO：未來接 SMTP；現階段只 log
-            log.info("quota_alert_email_pending", to=alert["target"], msg=msg)
+            # v3.4 P2: 真接 SMTP（SMTP_HOST 未設則 send_email 內部 log skip）
+            from app.core.email import send_email
+            await send_email(
+                to=alert["target"],
+                subject=f"[staffKM] 配額告警 {pct:.0f}% ({scope_label})",
+                body=msg,
+            )
     except Exception as e:
         log.warning("quota_alert_dispatch_failed", channel=alert["channel"], error=str(e))
 

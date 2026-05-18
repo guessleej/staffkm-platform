@@ -28,5 +28,14 @@ class Settings(BaseSettings):
 
     MAX_CONTEXT_MESSAGES: int = 20
 
+    # ── v3.4 P2: SMTP for quota alert email channel ─────────────
+    # 沒設 SMTP_HOST 時 email dispatch 仍 log-only（dev 友善）
+    SMTP_HOST:     str = ""
+    SMTP_PORT:     int = 587
+    SMTP_USER:     str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM:     str = "noreply@staffkm.local"
+    SMTP_USE_TLS:  bool = True
+
 
 settings = Settings()

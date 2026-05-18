@@ -398,6 +398,13 @@ services:
       OPENAI_MODEL:    ${OPENAI_MODEL:-gemma4:e4b}
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # v3.4 P2: SMTP for quota_alert email channel
+      SMTP_HOST:     ${SMTP_HOST:-}
+      SMTP_PORT:     ${SMTP_PORT:-587}
+      SMTP_USER:     ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM:     ${SMTP_FROM:-noreply@staffkm.local}
+      SMTP_USE_TLS:  ${SMTP_USE_TLS:-true}
       # LEGACY_URL_MODE: rewrite   # v3.1+ 預設 410；如有舊 client 暫無法遷移可開回 rewrite
     healthcheck:
       <<: *api-healthcheck
