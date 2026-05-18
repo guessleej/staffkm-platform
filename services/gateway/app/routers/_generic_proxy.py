@@ -83,3 +83,24 @@ def _make_admin_quotas_router() -> APIRouter:
 
 
 admin_quotas_router = _make_admin_quotas_router()
+
+
+# v3.6 P1：admin webhook outbox — 非 workspace-scoped，跨 ws 系統 webhook 監看
+def _make_admin_webhook_outbox_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET", "POST"])
+    @router.api_route("/", methods=["GET", "POST"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/webhook-outbox")
+
+    @router.api_route("/{path:path}", methods=["GET", "POST", "PATCH", "PUT", "DELETE"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/webhook-outbox{suffix}")
+
+    return router
+
+
+admin_webhook_outbox_router = _make_admin_webhook_outbox_router()

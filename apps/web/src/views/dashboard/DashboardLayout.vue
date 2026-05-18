@@ -62,6 +62,8 @@
           <NavIconLink to="/admin/approvals"    label="人工核可"     icon="check-circle" />
           <!-- v3.5 P4：workflow run history -->
           <NavIconLink to="/admin/run-history"  label="執行紀錄"     icon="play" />
+          <!-- v3.6 P1：webhook outbox monitor -->
+          <NavIconLink to="/admin/webhook-outbox" label="Webhook Outbox" icon="send" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>

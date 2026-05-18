@@ -19,6 +19,7 @@ from app.routers._generic_proxy import (
     app_templates_router, audit_logs_router, admin_quotas_router,
     user_quotas_router, quota_alerts_router,
     approvals_router,
+    admin_webhook_outbox_router,
 )
 
 log = structlog.get_logger()
@@ -97,3 +98,5 @@ app.include_router(user_quotas_router,   prefix="/api/v1/user-quotas",        ta
 app.include_router(quota_alerts_router,  prefix="/api/v1/quota-alerts",       tags=["Quota Alerts (v3.3)"])
 # v3.5 P2：workflow human approvals
 app.include_router(approvals_router,     prefix="/api/v1/approvals",          tags=["Workflow Approvals (v3.5)"])
+# v3.6 P1：admin webhook outbox monitor
+app.include_router(admin_webhook_outbox_router, prefix="/api/v1/admin/webhook-outbox", tags=["Admin Webhook Outbox (v3.6)"])

@@ -58,7 +58,7 @@ async def _evaluate_and_fire(session) -> None:
         )
         if chk.fetchone():
             continue
-        await _dispatch(d, pct, scope_label="workspace")
+        await _dispatch(session, d, pct, scope_label="workspace")
         await session.execute(
             text(
                 "INSERT INTO quota_alert_fires (alert_id, month) "
@@ -113,6 +113,7 @@ async def _evaluate_and_fire(session) -> None:
             fired_in_run.add(alert_id)
             continue
         await _dispatch(
+            session,
             {**d, "id": d["alert_id"], "user_id": d["user_id"]},
             pct,
             scope_label="user",
@@ -129,25 +130,38 @@ async def _evaluate_and_fire(session) -> None:
     await session.commit()
 
 
-async def _dispatch(alert: dict, pct: float, *, scope_label: str = "workspace") -> None:
-    """依 channel 發通知。失敗只 log、不重試（下回合會再來）。"""
+async def _dispatch(session, alert: dict, pct: float, *, scope_label: str = "workspace") -> None:
+    """依 channel 發通知。webhook/slack 走 outbox 重試；email 維持直送 SMTP。"""
     who = f"user {alert.get('user_id')}" if scope_label == "user" else f"workspace {alert.get('workspace_id')}"
     msg = f"[staffKM] {scope_label} 用量 {pct:.0f}% (threshold {alert['threshold_pct']}%) — {who}"
     try:
         if alert["channel"] == "webhook":
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(
-                    alert["target"],
-                    json={
-                        "text": msg,
-                        "alert_id": str(alert["id"]),
-                        "scope": scope_label,
-                        "pct": pct,
-                    },
-                )
+            from app.core.webhook_outbox import enqueue_webhook
+            await enqueue_webhook(
+                session,
+                url=alert["target"],
+                body={
+                    "text": msg,
+                    "alert_id": str(alert["id"]),
+                    "scope": scope_label,
+                    "pct": pct,
+                },
+                workspace_id=alert.get("workspace_id"),
+                source_type="quota_alert",
+                source_id=alert["id"],
+            )
+            await session.commit()
         elif alert["channel"] == "slack":
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(alert["target"], json={"text": msg})
+            from app.core.webhook_outbox import enqueue_webhook
+            await enqueue_webhook(
+                session,
+                url=alert["target"],
+                body={"text": msg},
+                workspace_id=alert.get("workspace_id"),
+                source_type="quota_alert",
+                source_id=alert["id"],
+            )
+            await session.commit()
         elif alert["channel"] == "email":
             # v3.4 P2: 真接 SMTP（SMTP_HOST 未設則 send_email 內部 log skip）
             from app.core.email import send_email
