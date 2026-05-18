@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.workflow.executor import WorkflowExecutor
+from app.core.usage import QuotaExceeded
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_member, require_writer
@@ -270,13 +271,18 @@ async def run_workflow(
         user_id=str(ctx.user_id),
         roles=[ctx.role.value],
         workflow_manager=workflow_manager,
+        application_id=str(app_id),  # v3.3：metering 歸帳到 application
     )
 
     async def event_generator():
-        async for event in executor.execute(
-            user_input=body.user_input,
-            user_id=str(ctx.user_id),
-        ):
-            yield event
+        try:
+            async for event in executor.execute(
+                user_input=body.user_input,
+                user_id=str(ctx.user_id),
+            ):
+                yield event
+        except QuotaExceeded as qe:
+            # v3.3：quota 超額；SSE 已開，回 error event 而非 429
+            yield {"event": "error", "data": f"quota_exceeded: {qe}"}
 
     return EventSourceResponse(event_generator())

@@ -121,6 +121,7 @@ async def _run_workflow(rec: dict[str, Any], session) -> tuple[str, str]:
         user_id=created_by or "trigger-dispatcher",
         roles=["editor"],   # trigger 跑時以 editor 角色執行（最小寫入權）
         workflow_manager=mgr,
+        application_id=str(app_id),  # v3.3：metering 歸帳
     )
 
     events: list[str] = []
@@ -135,6 +136,10 @@ async def _run_workflow(rec: dict[str, Any], session) -> tuple[str, str]:
             if name == "error":
                 final_status = "error"
     except Exception as e:
+        # v3.3：quota 超額 → 標 quota_exceeded（free-text status，schema 是 VARCHAR(16)）
+        from app.core.usage import QuotaExceeded
+        if isinstance(e, QuotaExceeded):
+            return "quota_exceeded", f"quota_exceeded: {e}"
         return "error", f"executor_raised: {e}"
 
     summary = "\n".join(events)[:4000]
