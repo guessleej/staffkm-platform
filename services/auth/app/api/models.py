@@ -103,6 +103,8 @@ class ModelOut(BaseModel):
     config: dict[str, Any] | None
     is_default: bool
     status: str
+    price_per_1k_input_usd: float | None = None
+    price_per_1k_output_usd: float | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -130,6 +132,8 @@ def _row_to_provider_out(row: Any) -> ProviderOut:
 
 
 def _row_to_model_out(row: Any) -> ModelOut:
+    pin = getattr(row, "price_per_1k_input_usd", None)
+    pout = getattr(row, "price_per_1k_output_usd", None)
     return ModelOut(
         id=row.id,
         provider_id=row.provider_id,
@@ -139,6 +143,8 @@ def _row_to_model_out(row: Any) -> ModelOut:
         config=row.config,
         is_default=row.is_default,
         status=row.status,
+        price_per_1k_input_usd=float(pin) if pin is not None else None,
+        price_per_1k_output_usd=float(pout) if pout is not None else None,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -397,7 +403,8 @@ async def list_provider_models(
     rows_result = await session.execute(
         text(
             "SELECT id, provider_id, model_name, model_type, display_name, config, "
-            "is_default, status, created_at, updated_at "
+            "is_default, status, price_per_1k_input_usd, price_per_1k_output_usd, "
+            "created_at, updated_at "
             "FROM ai_models WHERE provider_id = :provider_id "
             "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
         ),
@@ -464,7 +471,8 @@ async def create_model(
     row_result = await session.execute(
         text(
             "SELECT id, provider_id, model_name, model_type, display_name, config, "
-            "is_default, status, created_at, updated_at "
+            "is_default, status, price_per_1k_input_usd, price_per_1k_output_usd, "
+            "created_at, updated_at "
             "FROM ai_models WHERE id = :id"
         ),
         {"id": str(model_id)},
@@ -536,7 +544,8 @@ async def update_model(
     row_result = await session.execute(
         text(
             "SELECT id, provider_id, model_name, model_type, display_name, config, "
-            "is_default, status, created_at, updated_at "
+            "is_default, status, price_per_1k_input_usd, price_per_1k_output_usd, "
+            "created_at, updated_at "
             "FROM ai_models WHERE id = :id"
         ),
         {"id": str(model_id)},

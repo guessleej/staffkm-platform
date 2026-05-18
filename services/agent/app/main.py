@@ -29,6 +29,9 @@ async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await run_bootstrap_ddl()
     await run_alembic_upgrade()
+    # v3.2 P1：seed 已知 model 的 USD/1k token 定價（idempotent，只補 NULL）
+    from app.core.pricing_seed import seed_model_pricing
+    await seed_model_pricing(_db._session_factory)
     # M4：背景啟動 trigger worker（每 60s 掃 due triggers 寫 queued run）
     worker_task = asyncio.create_task(
         trigger_worker_loop(lambda: _db._session_factory, interval_sec=60),
