@@ -2,6 +2,107 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.3.0] — 2026-05-18
+
+> **Comprehensive deepening** mega-milestone — A + D + B + C 一次清。
+> 收 v3.2 workflow metering 留尾、加 user-level quota + alert、上 OpenTelemetry + Loki、補 RAG reranker / eval harness。
+
+### Highlights
+- 🔁 **Theme A — Workflow metering** — workflow executor 4 個 LLM-based node 接 `meter_llm_call`、event_trigger_runs 顯示 tokens/cost
+- 👤 **Theme D — Per-user quota + alert** — user-level cap、quota alert 規則（threshold / channel: email|slack|webhook）+ 背景 worker
+- 🔭 **Theme B — Observability** — OpenTelemetry tracing (Tempo) + Loki log aggregation + trace exemplar + 三向跳轉 demo dashboard
+- 🔍 **Theme C — RAG quality** — hit-test reranker 接線 + UI 3 score chip（vector/RRF/rerank）+ eval harness (hit@5 / MRR)
+
+### Added — Theme A: Workflow metering (PR #191, #192)
+- `core/workflow/executor.py`：4 個 LLM node 從 raw `AsyncOpenAI` 遷移到 `OpenAICompatProvider` (BaseProvider)
+  - `_exec_llm` / `_exec_image_understand` / `_exec_parameter_extraction` / `_exec_intent`
+  - 包 `meter_llm_call` async context manager（pre check_quota + post record_usage + cost auto-calc）
+- 留 v3.4：`_exec_image_generate` / `_exec_stt` / `_exec_tts` / `_exec_reranker`（per-image/second pricing 模型不同）
+- `WorkflowExecutor.__init__` 加 `application_id`（keyword-only, default None）
+- SSE 入口接 `QuotaExceeded` → yield error event 含 `quota_exceeded:` 前綴
+- `trigger_dispatcher.py` catch `QuotaExceeded` → `event_trigger_runs.status='quota_exceeded'`
+- alembic `0003_trigger_run_cost`：`event_trigger_runs` 加 `tokens_used` + `cost_usd`，dispatcher finally 聚合本 run 期間的 `model_usage_logs` 寫回
+- 前端 `TriggersView` 每 run row 顯示 🔤 tokens / 💰 cost chip
+
+### Added — Theme D: Per-user quota + alert (PR #193, #194)
+- alembic `0004_user_quotas`：`user_quotas` 表（PK = workspace_id + user_id）
+- `check_quota(session, ws, user_id=None)` 兩層檢查（先 ws 後 user，任一超額 raise）
+- `meter_llm_call` 把 user_id 傳進 check_quota
+- alembic `0005_quota_alerts`：`quota_alerts` 表（scope/threshold_pct/channel/target/enabled + CHECK constraints）+ `quota_alert_fires`（PK alert_id + month，避免重發）
+- 新檔 `core/quota_alert_worker.py`：每 10 min evaluate workspace + user scope，依 channel dispatch（webhook / slack / email log-only）
+- 新 API：
+  - `/user-quotas` GET list (含當月用量) / PUT {user_id}（require_admin）
+  - `/quota-alerts` 標準 CRUD（require_admin）
+- 三層 routing 全到位：agent mount + legacy_bridge prefix + gateway proxy
+- 前端：
+  - `views/admin/UserQuotaView.vue` — table + edit modal
+  - `views/admin/QuotaAlertView.vue` — CRUD UI
+  - `views/admin/UsageBar.vue` — 共用 progress bar（70%/90% 黃紅閾值）
+  - DashboardLayout nav 加 2 條 admin 路徑（SIcon: `user` / `alert-circle`）
+
+### Added — Theme B: Observability (PR #195, #196)
+- 新 compose profile **`observability`**（預設 disabled）
+- **OpenTelemetry tracing**：
+  - `packages/python/staffkm-core/staffkm_core/observability.py` — `setup_otel()` + `instrument_fastapi()`（OTel endpoint 未設則 noop、失敗不阻 app）
+  - 6 service 接 OTel auto-instrument（FastAPI / httpx / asyncpg / logging）
+  - 加 `tempo:2.6.1` container（OTLP HTTP :4318、7d retention）
+  - Grafana datasource `staffkm-tempo`（含 `tracesToLogsV2` → loki / `tracesToMetrics` → prometheus）
+- **Log aggregation**：
+  - 加 `loki:3.3.1` + `promtail:3.3.1` container
+  - Promtail Docker SD 過濾 `staffkm-*` 容器、JSON pipeline 抽 level / event / trace_id label
+  - Grafana datasource `staffkm-loki`（含 derived field `TraceID` → tempo）
+- **Trace exemplar**：
+  - Prometheus datasource 加 `uid=staffkm-prometheus` + `exemplarTraceIdDestinations`
+  - 新 demo dashboard `v3-observability-demo.json` 展示三向跳轉：Logs (Loki) ↔ p95 latency exemplar (Prometheus) ↔ Service map (Tempo nodeGraph)
+- 文件 `docs/dev/observability.md` — opt-in 步驟 + B3/B4 章節
+
+### Added — Theme C: RAG quality (PR #197)
+> **發現**：v3.3 規劃時以為要做 hybrid search + tsvector，盤點後發現 `core/vectorstore.py` 已實作 CJK tsvector + RRF hybrid search + 3 種 search_mode（hybrid/vector/fts），C1+C2 跳過。
+- **C3 reranker 接 hit-test**：
+  - `HitTestRequest` 加 `reranker` config + `rerank_top_n`
+  - response 每筆加 `rrf_score` / `rerank_score`
+  - `core/reranker.py` 新增 `_rerank_ollama`（雙路徑：先試 `/api/rerank`、fallback embedding cosine）
+- **C4 hit-test UI 增強**：
+  - `HitTestView.vue` 完整重寫（原為 placeholder）
+  - segmented mode toggle (hybrid/vector/fts)
+  - reranker checkbox + 展開 config form
+  - 每段 3 個分數 chip：vector(藍) / rrf(紫) / rerank(橙)
+- **C5 eval harness**：
+  - `tools/eval/rag_eval.py` — argparse runner，hit@5 + MRR，多 mode × 多 rerank preset
+  - `tools/eval/rag_eval_dataset.json` — 10 條 zh-TW HR / policy query 模板（expected_paragraph_ids 待人工標註）
+  - `docs/perf/v3.3-rag-bench.md` — method + baseline placeholder
+
+### Breaking Changes
+- ⚠️ **workflow LLM call 進 quota check**：workflow 跑到 LLM node 時會檢 workspace + user cap，超額 → workflow_run.status=`quota_exceeded`
+- ⚠️ **`opentelemetry-*` 依賴加進 6 service requirements**：image 體積 +~30 MB；不開 observability profile 也會裝（idle 不耗 CPU）
+- ⚠️ **alembic 0003 / 0004 / 0005** auto-migrate；新表預設無資料、不影響既有 workflow
+
+### Known limitations（→ v3.4）
+- workflow `_exec_image_generate` / `_exec_stt` / `_exec_tts` / `_exec_reranker` 仍未接 metering
+- email alert dispatch 只 log（未接 SMTP）
+- Ollama reranker fallback 用 embedding cosine 效果有限，需換 cross-encoder
+- eval dataset 的 expected_paragraph_ids 待人工標註後才能跑
+
+### Migration（從 v3.2 升 v3.3）
+1. **DB**：alembic 自動跑 `0003_trigger_run_cost` → `0004_user_quotas` → `0005_quota_alerts`，3 個 ADD COLUMN / CREATE TABLE 操作，全 IF NOT EXISTS
+2. **Workflow**：升完後所有 workflow LLM call 都會檢 quota；想暫停可把對應 workspace_quotas 的 cap 設 NULL
+3. **Quota alerts**：admin 進 `/admin/quota-alerts` 新增規則；worker 每 10 min 跑、達 threshold 發一次（月內不重發）
+4. **Observability**：opt-in
+   ```bash
+   echo 'OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318' >> .env
+   docker compose --profile monitoring --profile observability up -d
+   ```
+5. **RAG**：hit-test 預設行為不變；想試 reranker 在 UI 開 checkbox 即可
+
+### PR refs
+- roadmap: #190
+- Theme A: #191（workflow metering）/ #192（trigger run cost）
+- Theme D: #193（user_quotas + alerts backend）/ #194（admin UI）
+- Theme B: #195（OTel + Loki）/ #196（exemplar + demo dashboard）
+- Theme C: #197（reranker + hit-test UI + eval）
+
+---
+
 ## [3.2.0] — 2026-05-18
 
 > **Cost / Quota governance** milestone — 把 LLM 成本與 workspace 額度真正管起來。
