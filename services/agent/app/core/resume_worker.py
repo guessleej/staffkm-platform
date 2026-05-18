@@ -145,8 +145,10 @@ async def _resume_or_reject(session_factory, rec: dict) -> None:
 
 async def resume_worker_loop(session_factory_getter, interval_sec: int = 30) -> None:
     """背景循環：每 interval_sec 秒掃 approved/rejected approvals 並 resume / reject 對應 run。"""
+    from app.core.heartbeat import safe_beat
     log.info("resume_worker_started", interval_sec=interval_sec)
     while True:
+        await safe_beat(session_factory_getter, worker_name="resume_worker")
         try:
             sf = session_factory_getter()
             if sf is not None:

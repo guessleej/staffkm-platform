@@ -146,7 +146,9 @@ async def _deliver(session_factory) -> bool:
 
 async def webhook_dispatcher_loop(session_factory_getter, interval_sec: int = 30) -> None:
     """背景常駐：每 interval_sec 跑一輪、把所有 due rows 都處理掉。"""
+    from app.core.heartbeat import safe_beat
     while True:
+        await safe_beat(session_factory_getter, worker_name="webhook_dispatcher")
         try:
             sf = session_factory_getter()
             if sf is not None:

@@ -182,6 +182,12 @@ const router = createRouter({
           meta: { title: 'Webhook Outbox', roles: ['admin'] },
         },
         {
+          path: 'admin/heartbeats',
+          name: 'admin-heartbeats',
+          component: () => import('../views/admin/HeartbeatsView.vue'),
+          meta: { title: 'Worker Heartbeats', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),

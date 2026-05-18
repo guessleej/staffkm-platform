@@ -104,3 +104,24 @@ def _make_admin_webhook_outbox_router() -> APIRouter:
 
 
 admin_webhook_outbox_router = _make_admin_webhook_outbox_router()
+
+
+# v3.6 P2：admin worker heartbeats — 非 workspace-scoped，read-only
+def _make_admin_heartbeats_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET"])
+    @router.api_route("/", methods=["GET"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/heartbeats")
+
+    @router.api_route("/{path:path}", methods=["GET"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/heartbeats{suffix}")
+
+    return router
+
+
+admin_heartbeats_router = _make_admin_heartbeats_router()

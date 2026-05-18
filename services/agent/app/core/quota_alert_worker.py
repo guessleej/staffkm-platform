@@ -176,7 +176,9 @@ async def _dispatch(session, alert: dict, pct: float, *, scope_label: str = "wor
 
 async def alert_worker_loop(session_factory_getter, interval_sec: int = 600) -> None:
     """背景常駐：每 interval_sec 跑一次 evaluate。"""
+    from app.core.heartbeat import safe_beat
     while True:
+        await safe_beat(session_factory_getter, worker_name="quota_alert_worker")
         try:
             sf = session_factory_getter()
             if sf is not None:
