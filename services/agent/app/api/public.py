@@ -31,6 +31,19 @@ class PublicChatRequest(BaseModel):
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     messages: list[dict] = Field(..., min_length=1)
     kb_ids: list[str] = Field(default_factory=list)
+    # v3.7 P1：public chat 通常 stateless，預設不歸因；若 caller 傳則尊重
+    conversation_id: str | None = None
+    message_id: str | None = None
+
+
+def _coerce_conv_id(body: "PublicChatRequest") -> str | None:
+    raw = body.conversation_id
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(str(raw)))
+    except (TypeError, ValueError):
+        return None
 
 
 @router.get("/{app_id}", response_model=ApiResponse, summary="取得公開應用程式資訊")
@@ -121,6 +134,8 @@ async def public_chat(
                     application_id=str(app_id),
                     provider_type=agent._provider_type,
                     model=agent._model,
+                    conversation_id=_coerce_conv_id(body),
+                    message_id=body.message_id,
                 ) as meter:
                     try:
                         async for token in agent.stream_response(ctx):

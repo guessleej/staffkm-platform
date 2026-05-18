@@ -61,6 +61,8 @@ user_quotas_router  = make_proxy_router("user-quotas")
 quota_alerts_router = make_proxy_router("quota-alerts")
 # v3.5 P2：workflow human-approval
 approvals_router    = make_proxy_router("approvals")
+# v3.7 P1：per-conversation cost attribution
+conversations_router = make_proxy_router("conversations")
 
 
 # v3.2 P3：admin 跨 workspace quota — 非 workspace-scoped，直接 proxy 到 agent

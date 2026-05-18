@@ -446,6 +446,20 @@ class AppChatRequest(BaseModel):
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     messages: list[dict] = Field(..., min_length=1)
     kb_ids: list[str] = Field(default_factory=list)
+    # v3.7 P1：per-conversation cost 歸因
+    conversation_id: str | None = None
+    message_id: str | None = None
+
+
+def _coerce_conv_id(body: "AppChatRequest") -> str | None:
+    """從 body 取 conversation_id；fallback: session_id（若為 UUID）。"""
+    raw = body.conversation_id or body.session_id
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(str(raw)))
+    except (TypeError, ValueError):
+        return None
 
 
 @router.post(
@@ -512,6 +526,8 @@ async def chat_with_application(
                     application_id=str(app_id),
                     provider_type=agent._provider_type,
                     model=agent._model,
+                    conversation_id=_coerce_conv_id(body),
+                    message_id=body.message_id,
                 ) as meter:
                     try:
                         async for token in agent.stream_response(chat_ctx):

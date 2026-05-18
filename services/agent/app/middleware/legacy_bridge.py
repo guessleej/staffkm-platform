@@ -46,6 +46,7 @@ _LEGACY_PREFIXES = (
     "/api/v1/user-quotas",
     "/api/v1/quota-alerts",
     "/api/v1/approvals",
+    "/api/v1/conversations",
 )
 
 _EXCLUDE_PREFIXES = (

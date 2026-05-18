@@ -82,6 +82,20 @@ class AppChatRequest(BaseModel):
         default_factory=list,
         description="額外補充的知識庫 IDs（合併 application 設定的 kb_ids）",
     )
+    # v3.7 P1：per-conversation cost 歸因；前端未傳會 fallback 用 session_id（若為 UUID）
+    conversation_id: str | None = None
+    message_id: str | None = None
+
+
+def _coerce_conv_id(body: "AppChatRequest") -> str | None:
+    """從 body 取 conversation_id；fallback: session_id（前端目前傳 conv id 進 session_id）。"""
+    raw = body.conversation_id or body.session_id
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(str(raw)))
+    except (TypeError, ValueError):
+        return None
 
 
 # Sprint 19-B preview chat：移到 applications.py 內，因為它才是
@@ -159,6 +173,8 @@ async def chat_with_application(
                     application_id=str(app_id),
                     provider_type=agent._provider_type,
                     model=agent._model,
+                    conversation_id=_coerce_conv_id(body),
+                    message_id=body.message_id,
                 ) as meter:
                     try:
                         async for token in agent.stream_response(ctx):
