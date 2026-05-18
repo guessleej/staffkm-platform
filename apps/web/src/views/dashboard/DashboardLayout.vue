@@ -64,6 +64,8 @@
           <NavIconLink to="/admin/run-history"  label="執行紀錄"     icon="play" />
           <!-- v3.6 P1：webhook outbox monitor -->
           <NavIconLink to="/admin/webhook-outbox" label="Webhook Outbox" icon="send" />
+          <!-- v3.6 P2：worker heartbeats freshness -->
+          <NavIconLink to="/admin/heartbeats" label="Worker Heartbeats" icon="loader" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>

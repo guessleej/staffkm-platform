@@ -1,0 +1,54 @@
+{
+  "title": "staffKM v3.6 — Background workers",
+  "uid": "staffkm-v3-workers",
+  "tags": ["staffkm", "v3.6"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "text",
+      "title": "說明",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Worker heartbeat freshness**\n\n- last_beat < 5min → 健康；> 5min → 紅燈、可能 worker 卡死\n- in_flight = worker 目前正在跑的 task 數"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Worker status",
+      "gridPos": { "x": 0, "y": 3, "w": 24, "h": 12 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT worker_name, pid, host, in_flight, last_beat, EXTRACT(EPOCH FROM (now() - last_beat))::INT AS stale_seconds FROM task_heartbeats ORDER BY worker_name",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "stale_seconds" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 120 },
+                    { "color": "red", "value": 300 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

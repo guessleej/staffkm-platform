@@ -115,8 +115,10 @@ async def trigger_worker_loop(session_factory_getter, *, interval_sec: int = 60)
 
     session_factory_getter: 呼叫時取得目前的 session_factory（避免在 import 時鎖死）
     """
+    from app.core.heartbeat import safe_beat
     log.info("trigger_worker_started", interval_sec=interval_sec)
     while True:
+        await safe_beat(session_factory_getter, worker_name="trigger_worker")
         try:
             await _scan_and_fire(session_factory_getter())
         except asyncio.CancelledError:

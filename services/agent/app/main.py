@@ -13,7 +13,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -164,6 +164,9 @@ app.include_router(admin_quota.router,       prefix="/api/v1/admin", tags=["Admi
 
 # ── v3.6 P1：admin webhook outbox（跨 workspace 系統 webhooks 監看 + retry）─
 app.include_router(webhook_outbox.router,    prefix="/api/v1/admin/webhook-outbox", tags=["Admin Webhook Outbox (v3.6)"])
+
+# ── v3.6 P2：admin worker heartbeats（background loop 健康觀測）─
+app.include_router(heartbeats.router,        prefix="/api/v1/admin/heartbeats", tags=["Admin Heartbeats (v3.6)"])
 
 
 @app.get("/health")

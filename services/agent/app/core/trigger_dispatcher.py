@@ -253,8 +253,10 @@ async def trigger_dispatcher_loop(session_factory_getter, *, interval_sec: int =
 
     若處理到一筆 → 立刻再嘗試下一筆（背壓友善）；都沒有才 sleep。
     """
+    from app.core.heartbeat import safe_beat
     log.info("trigger_dispatcher_started", interval_sec=interval_sec)
     while True:
+        await safe_beat(session_factory_getter, worker_name="trigger_dispatcher")
         try:
             did = await _process_one(session_factory_getter())
             if did:
