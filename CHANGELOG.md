@@ -2,6 +2,93 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.6.0] — 2026-05-18
+
+> **Async resilience** milestone — 強化非同步任務的可靠性、idempotency、graceful shutdown。
+
+### Highlights
+- 📬 **Webhook outbox + retry** — 失敗自動 exp backoff (1m/5m/30m/2h/12h)，5 次後 DLQ；admin 可手動 retry
+- 💓 **Task heartbeats** — 5 個背景 worker 加 heartbeat upsert + admin UI + Grafana freshness panel
+- 🔑 **Idempotency-Key middleware** — POST + header → 24h 內 cache JSON response
+- 🛑 **Graceful shutdown** — SIGTERM 等 in-flight workflow done 才退 + 4 場景 DR drill 文件
+
+### Added — Webhook outbox (v3.6-P1, PR #212)
+- alembic `0009_webhook_outbox`：表 (status pending/in_flight/delivered/failed + attempts + next_retry_at + last_error + source_type/id)
+- `core/webhook_outbox.py`：
+  - `enqueue_webhook()` — caller insert row instead of httpx direct
+  - `webhook_dispatcher_loop` — 30s 一輪、`FOR UPDATE SKIP LOCKED` claim、單輪上限 50
+  - Backoff: `[60, 300, 1800, 7200, 43200]`（1m/5m/30m/2h/12h），5 次後 `status='failed'` (DLQ)
+- `quota_alert_worker`：webhook / slack 改走 outbox，**email 保留 SMTP 直送**（v3.4-P2 邏輯）
+- `_dispatch` 簽名加 `session` 參數
+- `/admin/webhook-outbox` API：list + retry button（跨 ws admin only）
+- 三層 routing：agent mount + gateway proxy（仿 `_make_admin_quotas_router` pattern）
+- 前端 `WebhookOutboxView.vue`：status filter / retry button / 展開 error / SIcon `send`
+
+### Added — Task heartbeats (v3.6-P2, PR #213)
+- alembic `0010_task_heartbeats`：表 (worker_name PK + pid + host + started_at + last_beat + in_flight)
+- `core/heartbeat.py`：`beat()` + `safe_beat()` helper（module-scoped `_started` dict 紀錄首次心跳）
+- 5 worker loop 開頭加 `safe_beat`：
+  - `trigger_worker` / `trigger_dispatcher` / `resume_worker` / `quota_alert_worker` / `webhook_dispatcher`
+- `/admin/heartbeats` API + 前端 `HeartbeatsView`（30s auto-refresh）
+- Pill / Grafana 三色 threshold：
+  - < 120s 綠（健康）
+  - < 300s 黃（延遲）
+  - >= 300s 紅（失聯）
+- Grafana `v3-workers.json` dashboard（PG datasource + cell color-background）
+- DashboardLayout nav SIcon `loader`
+
+### Added — Idempotency middleware (v3.6-P3, PR #214)
+- alembic `0011_idempotency_keys`：表 (PK = key + endpoint, default `expires_at = now() + 24h`)
+- `middleware/idempotency.py`：
+  - 只攔 POST + `Idempotency-Key` header
+  - SSE / streaming endpoint 跳過（path 含 `chat`/`stream`/`sse`/`run` 或 `Accept: text/event-stream`）
+  - 第一次：收集 body chunks（starlette `BaseHTTPMiddleware` pattern）→ INSERT `ON CONFLICT DO NOTHING`（並發安全）
+  - 第二次：直接回 cached `JSONResponse` + header `Idempotency-Replayed: true`
+  - 5xx response 不快取（client 應重試）
+  - 非 JSON response 不快取
+- Middleware order：LegacyURLBridge（外）→ **Idempotency** → GatewayHeaders → TenantContext → CORS（內）
+- 文件 `docs/dev/idempotency.md`（含 curl 範例 + cleanup SQL cron）
+
+### Added — Graceful shutdown + DR drill (v3.6-P4, PR #215)
+- agent service lifespan finally block：
+  - 標 shutdown 後，等 `event_trigger_runs WHERE status='running'` count 歸 0 或 30s timeout
+  - log `graceful_shutdown_waiting` 每 2s / `graceful_shutdown_no_inflight` / `graceful_shutdown_timeout_30s`
+  - 接著 cancel 5 個 worker（既有 pattern）
+- compose `agent` service `stop_grace_period: 60s`
+- 新文件 `docs/deploy/dr-drill.md` — 4 場景演練 runbook：
+
+| 場景 | RTO | RPO |
+|---|---|---|
+| K8s rolling update | < 60s | 0 |
+| PG primary failover | 1-2 min | < 30s |
+| Redis restart | < 30s | counter reset |
+| Backup full restore | 10-30 min | 24h |
+
+### Breaking Changes
+- ⚠️ **Quota alert webhook 改走 outbox**：對外 webhook 不再 sync 送、有 30s 延遲。Slack 失敗會自動重試（之前直接 log 不重試）
+- ⚠️ **alembic 0009 / 0010 / 0011** auto-migrate（3 個 CREATE TABLE）
+- ⚠️ **agent container `stop_grace_period: 60s`**：滾動更新會比之前慢 ~30-60s（換取 in-flight workflow 保護）
+
+### Known limitations（→ v3.7）
+- Idempotency cleanup worker（目前只能手動 SQL cron）
+- Webhook signing / HMAC（v3.7）
+- Webhook outbox retention cleanup（delivered > 7d）
+- Multi-region active-active → v4.0
+- 在 SSE / streaming endpoint replay response（技術上需大改，v4.x）
+
+### Migration（從 v3.5 升 v3.6）
+1. **DB**：alembic 自動跑 0009 / 0010 / 0011（3 個 CREATE TABLE，全 IF NOT EXISTS）
+2. **Webhook alert**：升完後對外 webhook 變 async 走 outbox；admin 進 `/admin/webhook-outbox` 看 status
+3. **Heartbeat**：5 個 worker 啟動後 30s 內 upsert；admin `/admin/heartbeats` + Grafana `v3-workers` dashboard 可看
+4. **Idempotency**：client 對 POST 加 `Idempotency-Key: <uuid>` header → 自動 dedup；不加 header 行為不變
+5. **Graceful shutdown**：K8s rolling update 預期慢 30-60s（換取 workflow 保護）；不滿意可設 `stop_grace_period: 5s` 回舊行為
+6. **DR drill**：建議每季跑一次 `docs/deploy/dr-drill.md` 4 場景
+
+### PR refs
+#211（roadmap）/ #212（webhook outbox）/ #213（heartbeats）/ #214（idempotency）/ #215（graceful shutdown）
+
+---
+
 ## [3.5.0] — 2026-05-18
 
 > **Workflow ecosystem expansion** milestone — 補齊 workflow 還缺的 nodes + run observability。
