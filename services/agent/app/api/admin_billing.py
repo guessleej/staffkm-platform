@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from staffkm_core.schemas.response import ApiResponse
-from staffkm_core.utils.database import get_session
+from staffkm_core.utils.database import get_read_session  # v4.0 P6: 報表全走 read replica
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ def _require_admin(request: Request) -> None:
 async def list_user_billing(
     request: Request,
     month: str | None = Query(default=None, description="YYYY-MM；預設當月"),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),  # v4.0 P6: read replica
 ):
     _require_admin(request)
 
@@ -90,7 +90,7 @@ async def user_billing_detail(
     request: Request,
     user_id: uuid.UUID = Path(...),
     month: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),  # v4.0 P6: read replica
 ):
     _require_admin(request)
 
@@ -161,7 +161,7 @@ async def user_billing_detail(
 async def export_csv(
     request: Request,
     month: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_read_session),  # v4.0 P6: read replica
 ):
     _require_admin(request)
 

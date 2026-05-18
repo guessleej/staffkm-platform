@@ -74,6 +74,30 @@ kubectl logs -f deployment/staffkm-agent | grep heartbeat
 - v3.6-P2 task_heartbeats 表會顯示 stale，admin /admin/heartbeats 看
 - workflow_run_steps 可能 partial 寫入；無 transaction 確保 idempotent，但 step_index 不會跳號（INSERT 失敗就漏）
 
+### v4.0 P5 — 有 replica 後的演練（active-passive）
+v4.0 起 compose / Helm 都有 `postgres-replica`（預設關，profile=multi-region / `postgres.replica.enabled=true`）。
+啟用後 PG primary 掛時可走以下 manual promote 流程（RTO < 5min）：
+
+```bash
+# 0. 確認 replica 正在跟 primary 同步（lag 多少）
+docker exec staffkm-postgres-replica \
+    psql -U staffkm -c "SELECT now() - pg_last_xact_replay_timestamp() AS lag;"
+
+# 1. primary 已掛，promote replica
+docker exec staffkm-postgres-replica \
+    psql -U staffkm -c "SELECT pg_promote();"
+# K8s: kubectl exec staffkm-postgres-replica-0 -- pg_ctl promote -D /var/lib/postgresql/data/pgdata
+
+# 2. 切 app DSN 到 new primary（compose 改 DB_URL；K8s set env）
+#    若已設 DB_READ_URL (v4.0 P6)，也記得換到一個還活著的 replica，否則先清空 fallback 到主 pool
+
+# 3. 驗證
+curl -sf http://staffkm.local/api/v1/health
+# 5 個 worker 應在 1 分鐘內恢復 heartbeat
+```
+
+詳細設定看 `docs/deploy/multi-region.md`。production 仍建議走 patroni / managed PG（automated failover；v5.0+）。
+
 ---
 
 ## 場景 3：Redis 重啟

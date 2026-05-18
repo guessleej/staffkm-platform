@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DB_URL: str = "postgresql+asyncpg://staffkm:staffkm_secret@postgres:5432/staffkm?ssl=disable"
+    # v4.0 P6: optional read replica URL；空字串 = 用 DB_URL（單 pool 行為）
+    DB_READ_URL: str = ""
     REDIS_URL: str = "redis://:staffkm_redis@redis:6379/2"
     KNOWLEDGE_SERVICE_URL: str = "http://knowledge:8001"
 
