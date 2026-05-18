@@ -194,6 +194,12 @@ const router = createRouter({
           meta: { title: 'Per-User Billing', roles: ['admin'] },
         },
         {
+          path: 'admin/slow-queries',
+          name: 'admin-slow-queries',
+          component: () => import('../views/admin/SlowQueriesView.vue'),
+          meta: { title: 'Slow Query Analyzer', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),
