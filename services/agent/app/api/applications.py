@@ -9,19 +9,31 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.audit import _record
 from app.core.base_agent import AgentContext
 from app.core.application_agent import ApplicationAgent
 from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
 from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_admin, require_member, require_writer
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _safe_audit(session: AsyncSession, **kwargs) -> None:
+    """audit 寫入失敗不中斷原 endpoint。"""
+    try:
+        await _record(session, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit record failed: %s", exc)
 
 
 # ── Pydantic Schemas ────────────────────────────────────────────────────────
@@ -161,6 +173,7 @@ async def list_applications(
 )
 async def create_application(
     body: ApplicationCreate,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
@@ -217,6 +230,21 @@ async def create_application(
     if not app_row:
         raise HTTPException(status_code=500, detail="應用程式建立失敗")
 
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="create",
+        entity_type="application",
+        entity_id=str(new_id),
+        entity_label=body.name,
+        detail={"type": body.type, "status": body.status},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+
     return ApiResponse(data=_row_to_out(app_row), message="應用程式建立成功")
 
 
@@ -254,6 +282,7 @@ async def get_application(
 async def update_application(
     app_id: uuid.UUID,
     body: ApplicationUpdate,
+    request: Request,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
@@ -302,7 +331,22 @@ async def update_application(
         text("SELECT * FROM applications WHERE id = :id"),
         {"id": str(app_id)},
     )
-    return ApiResponse(data=_row_to_out(row.fetchone()), message="應用程式更新成功")
+    out = _row_to_out(row.fetchone())
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="update",
+        entity_type="application",
+        entity_id=str(app_id),
+        entity_label=out.name,
+        detail={"fields": sorted(updates.keys())},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return ApiResponse(data=out, message="應用程式更新成功")
 
 
 # ── 刪除（軟刪除）──────────────────────────────────────────────────────────
@@ -315,17 +359,19 @@ async def update_application(
 )
 async def delete_application(
     app_id: uuid.UUID,
+    request: Request,
     ctx: TenantContext = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     check = await session.execute(
         text(
-            "SELECT id FROM applications "
+            "SELECT id, name FROM applications "
             "WHERE id = :id AND workspace_id = :ws AND status != 'deleted'"
         ),
         {"id": str(app_id), "ws": str(ctx.workspace_id)},
     )
-    if not check.fetchone():
+    existing = check.fetchone()
+    if not existing:
         raise HTTPException(status_code=404, detail="應用程式不存在")
 
     await session.execute(
@@ -340,6 +386,19 @@ async def delete_application(
             "uid": str(ctx.user_id),
         },
     )
+    await _safe_audit(
+        session,
+        workspace_id=ctx.workspace_id,
+        actor_user_id=ctx.user_id,
+        actor_username=None,
+        action="delete",
+        entity_type="application",
+        entity_id=str(app_id),
+        entity_label=existing._mapping.get("name"),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
     return ApiResponse(message="應用程式已刪除")
 
 
