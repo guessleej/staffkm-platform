@@ -40,6 +40,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        version_table='alembic_version_auth',
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -60,9 +61,12 @@ def run_migrations_online() -> None:
     unlock_sql = text(f"SELECT pg_advisory_unlock(hashtext('staffkm_migrate_{_SERVICE}'))")
 
     with connectable.connect() as connection:
+        # 用 AUTOCOMMIT：advisory_lock / unlock 不能在 transaction 內
+        # 而且 alembic 的 begin_transaction 會自己管 inner transaction commit
+        connection = connection.execution_options(isolation_level="AUTOCOMMIT")
         connection.execute(lock_sql)
         try:
-            context.configure(connection=connection, target_metadata=target_metadata)
+            context.configure(connection=connection, target_metadata=target_metadata, version_table='alembic_version_auth')
             with context.begin_transaction():
                 context.run_migrations()
         finally:
