@@ -2,6 +2,104 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.5.0] — 2026-05-18
+
+> **Workflow ecosystem expansion** milestone — 補齊 workflow 還缺的 nodes + run observability。
+> 重點：human approval flow + sub workflow 巢狀 + run step persistence + 完整 admin viewer。
+
+### Highlights
+- 🧑‍⚖️ **human_approval node** — workflow 跑到此 node 暫停、admin 點同意才續跑
+- 🔁 **sub_workflow node** — 巢狀呼叫另一個 application 的 workflow（防遞迴 depth>3）
+- 📜 **Run step persistence** — 每個 node 的 input/output/status 寫進 DB
+- 🖥️ **Run history UI** — admin step-by-step viewer（含 retry / paused 視覺化）
+
+### Pre-roadmap discovery
+v3.5 規劃時以為要做 6 個新 node，盤點後發現 4 個已在 codebase：
+- `http_request` / `condition`+`switch` / `loop`+`map` / `wait`+`schedule` 全有
+- `WorkflowExecutor(workflow_manager="retry")` 已支援 3 次重試 + 指數退避
+
+實際只做 2 個新 node + step persistence + UI。
+
+### Added — Run step persistence (v3.5-P1, PR #206)
+- alembic `0007_workflow_run_steps`：
+  ```sql
+  CREATE TABLE workflow_run_steps (
+    id, run_id, step_index, node_key, node_type, status,
+    input_snapshot JSONB, output_snapshot JSONB,
+    error, attempts, latency_ms, started_at, finished_at
+  );
+  CREATE INDEX idx_wrs_run ON (run_id, step_index);
+  ```
+- `WorkflowExecutor`：
+  - `__init__` 加 `run_id` keyword-only + `self._step_idx`
+  - `_record_step()` helper：4KB JSON truncate + 寫失敗只 log + jsonb CAST
+  - dispatch wrapper 三狀態：ok / error / retry（retry path 獨立寫，避免雙寫）
+- `trigger_dispatcher`：`WorkflowExecutor(run_id=rec["run_id"])`
+- 新 API：
+  - `GET /workspace/{ws}/applications/{app}/runs` — list (含 tokens_used + cost_usd + trigger_name)
+  - `GET /workspace/{ws}/applications/{app}/runs/{run_id}/steps` — step list（含越權檢查）
+
+### Added — human_approval node + resume worker (v3.5-P2, PR #207)
+- alembic `0008_workflow_approvals`：
+  - `workflow_approvals` 表（status pending/approved/rejected + CHECK + GIN(status) partial index）
+  - `event_trigger_runs` 加 `paused_at` / `resumed_at` / `resume_node`
+- 新 `WorkflowPaused` exception
+- `_exec_human_approval`：寫 pending row → raise `WorkflowPaused`
+- `WorkflowExecutor` 加 `resume_from_node` kwarg：從指定 node 的下一個 node 開始
+- `trigger_dispatcher`：catch `WorkflowPaused` → status='paused'、寫 `paused_at` + `resume_node`、不寫 `finished_at`
+- 新背景 worker `resume_worker_loop` 每 30s：
+  - 掃 `event_trigger_runs.status='paused'` 且 `workflow_approvals.status='approved'`
+  - approved → 從 resume_node 之後續跑
+  - rejected → 標 `status='rejected'`、不續跑
+- 新 API：`/approvals` (list / approve / reject) — admin only
+- 三層 routing：agent mount + legacy_bridge prefix + gateway proxy
+- 前端：
+  - LogicFlow `human_approval` node（紫色，icon 「人」）
+  - `views/admin/ApprovalsView.vue`（status filter / pending table / approve+reject modal）
+  - router + nav (`check-circle` icon)
+
+### Added — sub_workflow node (v3.5-P3, PR #208)
+- `WorkflowExecutor` 加 `depth` kwarg（>3 raise `RuntimeError`）
+- 新 `_exec_sub_workflow`：載入 sub application 的 workflow、巢狀 executor (`depth+1`)、events 加 `sub.` prefix 不污染外層 stream
+- 最後結果塞回外層 `context[output_variable]`
+- 設計決定：
+  - sub run 不寫 `workflow_run_steps`（避免污染外層 run_id；保持 trace 簡單）
+  - sub metering 仍正常歸帳到 `sub_application_id`（cost 正確）
+  - 跨 workspace sub_workflow 不支援
+- LogicFlow FE 加 `sub_workflow` node（青色，icon 'Sub'）+ defaults + palette「組合」分組
+
+### Added — Run history UI (v3.5-P4, PR #209)
+- `api/runHistory.ts` — listRuns / listSteps
+- `views/admin/RunHistoryView.vue`：
+  - Application select 切換
+  - 左欄：run list（status badge / tokens / cost）
+  - 右欄：step timeline（icon / latency / attempts / status pill）
+  - 點 step 展開 input/output snapshot（JSON pretty print，bg-neutral-50 + max-h-60 overflow）
+  - 顏色：ok 綠 / error 紅 / retry 黃 / paused 紫
+- router 加 `admin/run-history` (roles=['admin']) + DashboardLayout nav（SIcon `play`）
+
+### Breaking Changes
+- ⚠️ workflow LLM call 寫多一筆 `model_usage_logs`（v3.5 之前 streaming case 不寫，v3.5 改用 metering helper 寫）— 對 cost 計算更精確、無破壞
+- ⚠️ alembic 0007 / 0008 auto-migrate；新表預設無資料、不影響既有 workflow
+
+### Known limitations（→ v3.6）
+- Approval email 通知（用 quota_alert worker pattern；v3.6 backlog）
+- Multi-approver / 多階核（多個 admin 投票）
+- Approval timeout auto-reject（時效機制）
+- Run replay（同 input 重跑 button）
+- Step-level retry config（不同 node 不同 retry policy）
+
+### Migration（從 v3.4 升 v3.5）
+1. **DB**：alembic 自動跑 `0007_workflow_run_steps` + `0008_workflow_approvals`（2 個 CREATE TABLE + 3 個 ADD COLUMN）
+2. **Workflow**：既有 workflow 不動；新 node `human_approval` / `sub_workflow` opt-in 加入
+3. **Resume worker**：lifespan 自動啟，每 30s 掃 paused run；停 worker：`docker compose restart agent`
+4. **Admin UI**：新 2 個 nav 條目（approvals / run-history），admin 角色登入後可見
+
+### PR refs
+#205（roadmap）/ #206（step persistence）/ #207（human_approval）/ #208（sub_workflow）/ #209（run history UI）
+
+---
+
 ## [3.4.0] — 2026-05-18
 
 > **v3.3 留尾收口** milestone — 把 v3.3 known limitations 4 條全收完。
