@@ -1,0 +1,88 @@
+{
+  "title": "staffKM v3.3 — Observability Demo (logs ↔ traces ↔ metrics)",
+  "uid": "staffkm-v3-obs-demo",
+  "tags": ["staffkm", "v3.3", "observability"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "text",
+      "title": "說明 — 三向跳轉",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Logs ↔ Traces ↔ Metrics 三向跳轉示範**\n\n- 下方 **Logs panel** 每列右側點 `TraceID` derived field → 跳 Tempo 看完整 span tree\n- **Latency panel** 圖上點任何 exemplar 點 → 跳對應 trace\n- **Service map panel** 直接看 service 拓樸 + 平均延遲\n- 升級指引：`docker compose --profile monitoring --profile observability up -d` 之後設 `.env` 的 `OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318`"
+      }
+    },
+    {
+      "type": "logs",
+      "title": "最近錯誤 log (Loki)",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "staffkm-loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=~\"staffkm-.*\"} |= \"error\" | json",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "dedupStrategy": "exact",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP 5xx rate (含 trace exemplar)",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "staffkm-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job) (rate(http_requests_total{status=~\"5..\"}[1m]))",
+          "legendFormat": "{{job}}",
+          "exemplar": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "showPoints": "always", "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 latency by service (含 trace exemplar)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "staffkm-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (job, le) (rate(http_request_duration_seconds_bucket[2m])))",
+          "legendFormat": "{{job}}",
+          "exemplar": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "showPoints": "always" }
+        }
+      }
+    },
+    {
+      "type": "nodeGraph",
+      "title": "Service map (Tempo)",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 10 },
+      "datasource": { "type": "tempo", "uid": "staffkm-tempo" },
+      "targets": [
+        { "refId": "A", "queryType": "serviceMap" }
+      ]
+    }
+  ]
+}

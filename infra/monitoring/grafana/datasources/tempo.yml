@@ -12,4 +12,8 @@ datasources:
         spanStartTimeShift: '-5m'
         spanEndTimeShift: '5m'
       serviceMap:
-        datasourceUid: 'prometheus'   # 若 prometheus datasource uid 不一樣需對齊；先寫 prometheus 之後可改
+        datasourceUid: 'staffkm-prometheus'   # v3.3 B3: 對齊 prometheus.yml uid
+      tracesToMetrics:
+        datasourceUid: 'staffkm-prometheus'
+        spanStartTimeShift: '-2m'
+        spanEndTimeShift: '2m'

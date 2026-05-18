@@ -74,7 +74,31 @@ docker compose --profile observability down
 
 OTel 失敗永遠不阻塞 app 啟動（`setup_otel` 內 try/except + log.error）。
 
-## 下一步
+## B3 — Exemplar 接線（v3.3）
 
-- B3：Grafana dashboards 接 Tempo exemplar（p95 latency panel → 點 spike 跳 trace）
-- B4：前端 web vitals → OTLP（browser instrument）
+Prometheus datasource provisioning（`grafana/datasources/prometheus.yml`）已加：
+```yaml
+jsonData:
+  exemplarTraceIdDestinations:
+    - name: trace_id
+      datasourceUid: staffkm-tempo
+```
+
+要在自訂 dashboard panel 啟用 exemplar 顯示：
+1. PromQL target 加 `"exemplar": true`
+2. panel `fieldConfig.defaults.custom.showPoints: "always"`
+3. Prometheus 端要有帶 `trace_id` exemplar label 的 metric（OTel auto-instrument 對 FastAPI histogram 會自動帶）
+
+範例見 `v3-observability-demo.json` 的 "p95 latency" panel。
+
+既有的 v3-traffic / v3-endpoints / v3-resource / v3-llm-usage 等沒主動加 exemplar；想啟用就在 targets 加 `"exemplar": true` 即可（不破壞既有顯示）。
+
+## B4 — Observability Demo dashboard
+
+`v3-observability-demo.json`（uid `staffkm-v3-obs-demo`）展示三向跳轉：
+- **Logs panel (Loki)** — 最近 staffkm-* 容器 error log；JSON 內 `trace_id` 自動轉 `TraceID` derived field、點即跳 Tempo
+- **5xx rate + p95 latency (Prometheus + exemplar)** — 圖上 exemplar 點直接跳對應 trace
+- **Service map (Tempo nodeGraph)** — service 拓樸 + 平均延遲
+
+Grafana → Dashboards → "staffKM v3.3 — Observability Demo" 直接看。
+
