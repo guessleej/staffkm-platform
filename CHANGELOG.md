@@ -2,6 +2,83 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.7.0] — 2026-05-18
+
+> **Cost attribution + LLM-as-judge + Slow query trace** milestone — 從 quota 拓展到 per-conversation cost、評估從 hit@5 升級到 LLM 評分、observability 補慢 query 追蹤。
+
+### Highlights
+- 💰 **Per-conversation cost** — `model_usage_logs` 加 `conversation_id` / `message_id`，前端 chat header 顯示 💰 $X · 🔤 N tokens
+- 🏷️ **Feature labelling** — 每筆 usage log 標 `feature`（chat / workflow / image / stt / tts / rerank），新 Grafana dashboard 分流
+- 🧑‍⚖️ **LLM-as-judge eval** — `rag_eval.py --judge-model` 啟用 0-5 LLM 評分，每 query top-5 送 judge
+- 🐢 **Slow query trace** — SQLAlchemy event listener，>500ms 寫 log + OTel span tag
+
+### Added — Conversation cost attribution (v3.7-P1, PR #218)
+- alembic `0012_conversation_cost`：`model_usage_logs.conversation_id` + `message_id` + partial index
+- `UsageRecord` / `record_usage` / `meter_llm_call` / `meter_media_call` 全鏈加 conversation_id + message_id（keyword-only, default None）
+- 3 chat endpoints 接 body.conversation_id（fallback session_id 驗 UUID；public chat 無 fallback）
+- 新 API `GET /workspace/{ws}/conversations/{id}/cost` → total + by_message[]
+- 三層 routing（agent mount + legacy_bridge + gateway proxy）
+- 前端 `ConversationCostBadge.vue` 掛在 ApplicationChatView header → lazy load 顯示
+
+### Added — Cost-by-feature dashboard (v3.7-P2, PR #219)
+- alembic `0013_usage_feature`：`model_usage_logs.feature VARCHAR(16)` + partial index
+- 7 個 metering call site 標 feature：
+  - 3 chat endpoint → `chat`
+  - workflow executor LLM nodes (3 處) → `workflow`
+  - executor `_exec_image_generate` → `image`
+  - executor `_exec_stt` → `stt`
+  - executor `_exec_tts` → `tts`
+  - executor `_exec_reranker` → `rerank`
+- 新 Grafana dashboard `v3-cost-by-feature.json`：
+  - 本月 cost by feature (barchart)
+  - daily cost by feature (timeseries 30d)
+  - top 20 conversations by cost (table)
+  - top 20 users by cost (join users)
+
+### Added — LLM-as-judge eval (v3.7-P3, PR #220)
+- `tools/eval/rag_eval.py` 加 `--judge-model` / `--judge-base` / `--judge-key` 參數
+- `llm_judge()` helper：OpenAI-compat `/chat/completions` 呼叫，prompt 含 0-5 rubric → 取 first int
+- `run_mode()` 加 `judge_cfg` kwarg：每 query 收 top-5 passages 送 judge → 平均
+- markdown output 多一欄 `judge_avg`（有設 --judge-model 才印）
+- 失敗（network / parse error）→ skip 該 query 不污染平均
+- dataset 可加 `judge_criteria` 欄位給 judge 額外 rubric（per-query rubric）
+- 文件 `docs/perf/v3.3-rag-bench.md` 補 v3.7 P3 章節
+- 向後相容：不設參數 → 行為不變
+
+### Added — Slow query trace (v3.7-P4, PR #221)
+- 新 `core/slow_query.py`：
+  - SQLAlchemy `event.listens_for` `before_cursor_execute` / `after_cursor_execute`
+  - 超過 `SLOW_QUERY_THRESHOLD_MS`（預設 500ms）→ structlog warning（含 sql preview + params + duration_ms）
+  - 加 OTel span 三個 tag：`db.slow=true`、`db.duration_ms=N`、`db.statement_preview`
+- lifespan 在 `init_db()` 後安裝 listener（try/except 防爆）
+- compose `agent` env 加 `SLOW_QUERY_THRESHOLD_MS`
+- Grafana `v3-observability-demo.json` 加 logs panel：Loki filter `slow_query` JSON → 顯示 ms + sql
+- 對 sync + async engine 都適用（async engine 用 `sync_engine` 拿底層）
+
+### Breaking Changes
+- ⚠️ **alembic 0012 / 0013 auto-migrate**（2 個 ADD COLUMN）
+- ⚠️ **model_usage_logs 加 2 個 index**（partial index、不影響既有寫入效能）
+- ⚠️ **Slow query listener**：所有 query 多一個 event hook（微小 overhead，benchmark 顯示 < 0.1ms per query）
+
+### Known limitations（→ v3.8）
+- Per-user billing UI（→ SaaS 主題）
+- Multi-judge averaging（GPT-4 + Claude + 人工）→ v3.8
+- Query plan analyzer（pg_stat_statements 整合）→ v3.8
+- workflow executor conversation_id 暫保持 None（v3.8）
+
+### Migration（從 v3.6 升 v3.7）
+1. **DB**：alembic 自動跑 0012 + 0013（4 個 ADD COLUMN + 2 partial index）
+2. **Feature labels**：升完後新 usage logs 自動帶 feature；舊 row `feature IS NULL`，dashboard 顯示為 `unknown`
+3. **Conversation cost**：前端 ApplicationChatView 自動顯示；無需配置
+4. **LLM-as-judge**：opt-in，跑 eval 時加 `--judge-model gpt-4o-mini --judge-key $OPENAI_KEY`
+5. **Slow query**：自動啟用、預設 500ms threshold；`SLOW_QUERY_THRESHOLD_MS=300` 可調更敏感
+6. **Grafana**：載入新 dashboard `v3-cost-by-feature`、刷新 `v3-observability-demo` 即看到 slow query panel
+
+### PR refs
+#217（roadmap）/ #218（conv cost）/ #219（feature dashboard）/ #220（LLM-as-judge）/ #221（slow query）
+
+---
+
 ## [3.6.0] — 2026-05-18
 
 > **Async resilience** milestone — 強化非同步任務的可靠性、idempotency、graceful shutdown。
