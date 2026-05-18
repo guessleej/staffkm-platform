@@ -256,6 +256,10 @@
                     <div v-if="r.finished_at" class="text-[11px] text-fg-tertiary mt-0.5">
                       完成於 {{ relTime(r.finished_at) }}（耗時 {{ duration(r.fired_at, r.finished_at) }}）
                     </div>
+                    <div v-if="r.tokens_used || r.cost_usd" class="text-[11px] text-fg-tertiary mt-0.5 flex gap-2">
+                      <span v-if="r.tokens_used">🔤 {{ r.tokens_used.toLocaleString() }} tokens</span>
+                      <span v-if="r.cost_usd">💰 ${{ r.cost_usd.toFixed(4) }}</span>
+                    </div>
                     <p v-if="r.output_summary" class="text-xs text-fg mt-2 whitespace-pre-wrap line-clamp-4">
                       {{ r.output_summary }}
                     </p>

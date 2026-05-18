@@ -30,6 +30,8 @@ export interface TriggerRun {
   status:          RunStatus
   output_summary:  string | null
   error:           string | null
+  tokens_used?:    number      // v3.3 A4
+  cost_usd?:       number      // v3.3 A4
 }
 
 export interface CreateTriggerInput {

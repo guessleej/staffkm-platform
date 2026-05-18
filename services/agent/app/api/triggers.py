@@ -182,7 +182,8 @@ async def list_runs(
     rows = await session.execute(
         text(
             """
-            SELECT id, fired_at, finished_at, status, output_summary, error
+            SELECT id, fired_at, finished_at, status, output_summary, error,
+                   tokens_used, cost_usd
             FROM event_trigger_runs
             WHERE trigger_id = :tid AND workspace_id = :ws
             ORDER BY fired_at DESC
