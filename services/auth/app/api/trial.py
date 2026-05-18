@@ -10,6 +10,7 @@ Public endpoint，不需 auth。建 trial workspace + admin user + workspace_mem
 """
 from __future__ import annotations
 import datetime as dt
+import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -82,13 +83,30 @@ async def trial_signup(
         VALUES (:mid, :ws, :uid, 'admin', TRUE, now(), now())
     """), {"mid": str(uuid.uuid4()), "ws": ws_id, "uid": user_id})
 
+    # 4. 補 verify_token（v4.6 F：trial signup 預設要驗證 email）
+    verify_token = secrets.token_urlsafe(32)
+    verify_exp = dt.datetime.utcnow() + dt.timedelta(hours=24)
+    await session.execute(text("""
+        UPDATE users SET verify_token = :t, verify_token_exp = :e
+        WHERE id = :id
+    """), {"t": verify_token, "e": verify_exp, "id": user_id})
     await session.commit()
 
-    # 4. send welcome email (best-effort — auth service 暫無 SMTP wrapper，留 TODO)
-    # v4.1 後續：複製 agent service 的 app/core/email.py 進 auth service
-    # 或抽到 staffkm_core/utils/email.py 共用。
+    # 5. send welcome + verify email (best-effort)
     try:
-        from app.core.email import send_email  # noqa: F401  (placeholder)
+        from app.core.email import send_email
+        from app.config import settings as _s
+        base = (getattr(_s, "PUBLIC_WEB_BASE_URL", "") or "http://localhost").rstrip("/")
+        verify_link = f"{base}/verify-email?token={verify_token}"
+        await send_email(
+            to=body.email,
+            subject="[staffKM] Welcome — verify your email",
+            body=(
+                f"Welcome to staffKM! Your 14-day trial is now active.\n\n"
+                f"Verify your email to activate all features:\n{verify_link}\n\n"
+                "Link valid for 24 hours."
+            ),
+        )
     except Exception:
         pass
 

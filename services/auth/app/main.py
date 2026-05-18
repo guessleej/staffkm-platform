@@ -12,6 +12,8 @@ from app.api.users import router as users_router
 from app.api.models import router as models_router
 from app.api.workspaces import router as workspaces_router
 from app.api.trial import router as trial_router
+from app.api.account import router as account_router
+from app.api.oauth import router as oauth_router
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
 from app.config import settings
@@ -52,6 +54,9 @@ app.include_router(models_router, prefix="/api/v1/admin/models", tags=["模型�
 app.include_router(workspaces_router, prefix="/api/v1/workspaces", tags=["工作區（多租戶）"])
 # v4.1 A：public trial signup（不需 auth；GatewayHeadersMiddleware 寬容）
 app.include_router(trial_router, prefix="/api/v1/auth", tags=["Trial Signup (v4.1)"])
+# v4.6 F: email verify + forgot/reset password + self-service OAuth
+app.include_router(account_router, prefix="/api/v1/auth", tags=["Account (v4.6 F)"])
+app.include_router(oauth_router,   prefix="/api/v1/auth/oauth", tags=["OAuth (v4.6 F)"])
 
 
 @app.get("/health")

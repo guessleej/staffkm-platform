@@ -15,6 +15,11 @@ PUBLIC_PATHS = {
     "/api/v1/auth/oidc/callback",
     # v4.1 A: public 14-day trial signup
     "/api/v1/auth/trial",
+    # v4.6 F: account self-service (email verify / forgot+reset password)
+    "/api/v1/auth/verify-email/send",
+    "/api/v1/auth/verify-email/confirm",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
     "/api/v1/health",
     "/api/docs",
     "/api/redoc",
@@ -30,6 +35,8 @@ PUBLIC_PATHS = {
 # 以 prefix 比對的公開路徑（不需要 JWT 驗證）
 PUBLIC_PREFIXES = (
     "/api/v1/public/",
+    # v4.6 F: self-service OAuth (Google / GitHub) — authorize + callback
+    "/api/v1/auth/oauth/",
 )
 
 

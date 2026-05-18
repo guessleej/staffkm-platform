@@ -15,6 +15,8 @@ python-multipart==0.0.18
 httpx==0.28.1
 prometheus-fastapi-instrumentator==7.0.0
 psycopg2-binary==2.9.10
+# v4.6 F: SMTP for verify-email / reset-password
+aiosmtplib==3.0.2
 
 # v3.3 B1: OpenTelemetry
 opentelemetry-api==1.28.2

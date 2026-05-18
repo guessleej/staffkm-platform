@@ -26,5 +26,23 @@ class Settings(BaseSettings):
     OIDC_SCOPES:         str  = "openid email profile"
     OIDC_DEFAULT_ROLE:   str  = "user"
 
+    # v4.6 F: SMTP for verify-email / forgot-password / trial welcome
+    # 沒設 SMTP_HOST 時 email dispatch 仍 log-only（dev 友善）
+    SMTP_HOST:     str  = ""
+    SMTP_PORT:     int  = 587
+    SMTP_USER:     str  = ""
+    SMTP_PASSWORD: str  = ""
+    SMTP_FROM:     str  = "noreply@staffkm.local"
+    SMTP_USE_TLS:  bool = True
+
+    # v4.6 F: self-service OAuth (Google / GitHub) — 與 v2.4 企業 OIDC SSO 並行
+    GOOGLE_OAUTH_CLIENT_ID:     str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GITHUB_OAUTH_CLIENT_ID:     str = ""
+    GITHUB_OAUTH_CLIENT_SECRET: str = ""
+
+    # 帳號 verify / reset link 用的 frontend base URL（前端網址）
+    PUBLIC_WEB_BASE_URL: str = "http://localhost"
+
 
 settings = Settings()
