@@ -33,7 +33,8 @@ log = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_otel(service_name="staffkm-agent")
-    init_db(settings.DB_URL)
+    # v4.0 P6: 帶入 optional read replica URL；空字串 → 維持單 pool
+    init_db(settings.DB_URL, read_url=settings.DB_READ_URL or None)
     # v3.7 P4: slow query trace (>SLOW_QUERY_THRESHOLD_MS ms → log + OTel span tag)
     try:
         from app.core.slow_query import install_slow_query_listener

@@ -63,6 +63,35 @@ services:
     networks:
       - backend
 
+  # ── v4.0 P5: PostgreSQL streaming replica（multi-region readiness）──
+  # 預設關（profile=multi-region 才起）；demo / dev / staging 用
+  # production 建議用 patroni / repmgr / managed PG（RDS Multi-AZ / Cloud SQL HA）
+  postgres-replica:
+    image: postgres:16-alpine
+    container_name: staffkm-postgres-replica
+    profiles: ["multi-region"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-staffkm_secret}
+      POSTGRES_USER: staffkm
+      POSTGRES_DB: staffkm
+      # 簡化：dev/staging 走 logical replication；prod 走 streaming
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+      - ./postgres/replica-init.sh:/docker-entrypoint-initdb.d/replica-init.sh:ro
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5433:5432"   # host port 不同避免衝突
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    logging: *default-logging
+
   redis:
     image: redis:7-alpine
     container_name: staffkm-redis
@@ -119,6 +148,25 @@ services:
     logging: *default-logging
     networks:
       - backend
+
+  # ── v4.0 P7: MinIO secondary（multi-region readiness）──────────
+  # 預設關（profile=multi-region）；production 設 mc replicate rule sync
+  minio-secondary:
+    image: minio/minio:latest
+    container_name: staffkm-minio-secondary
+    profiles: ["multi-region"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-staffkm}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-staffkm_minio}
+    volumes:
+      - minio_secondary_data:/data
+    ports:
+      - "9100:9000"   # API
+      - "9101:9001"   # console
+    networks: [backend]
+    logging: *default-logging
 
   # ══════════════════════════════════════════════════════════════
   #  Ollama — 內網 AI 引擎（地端優先策略，RFC-005）
@@ -440,6 +488,8 @@ services:
       # v4.0 P2: LEGACY_URL_MODE 已移除 (LegacyURLBridge 拔除)
       # v4.0 P3: worker backend 切換 — inprocess (預設、v3.x 行為) | arq
       WORKER_BACKEND: ${WORKER_BACKEND:-inprocess}
+      # v4.0 P6: optional read replica DSN；空字串 = 用 DB_URL（單 pool）
+      DB_READ_URL: ${DB_READ_URL:-}
     healthcheck:
       <<: *api-healthcheck
       test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
@@ -862,6 +912,12 @@ volumes:
     driver: local
     labels:
       staffkm.backup: "weekly"   # bge-reranker model cache（v3.4 P3）
+  # v4.0 P5: PG replica volume（profile=multi-region 才用）
+  postgres_replica_data:
+    driver: local
+  # v4.0 P7: MinIO secondary volume（profile=multi-region 才用）
+  minio_secondary_data:
+    driver: local
 
 # ──────────────────────────────────────────────────────────────
 #  網路 — 前後端隔離

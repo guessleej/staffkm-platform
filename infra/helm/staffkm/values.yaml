@@ -59,11 +59,18 @@ postgres:
   managed: false             # true 時不啟動 in-cluster；走 externalUrl
   externalUrl: ""            # postgresql://user:pwd@host:5432/staffkm
   image: pgvector/pgvector:pg16
+  version: "16-alpine"       # v4.0 P5: replica StatefulSet 用
   storageClass: standard
   persistence:
     size: 100Gi
   superuserPassword: ""
   password: ""
+  # v4.0 P5: streaming replica（multi-region readiness; active-passive）
+  # production 建議改用 patroni / repmgr / managed PG；此 StatefulSet 為 demo
+  replica:
+    enabled: false           # 預設關
+    storage: "20Gi"
+    storageClass: ""         # 例: "gp3-encrypted"
 
 # ── 觀測 ──────────────────────────────────────────────────────────
 observability:
