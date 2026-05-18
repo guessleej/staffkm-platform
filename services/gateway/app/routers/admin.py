@@ -19,7 +19,13 @@ async def admin_knowledge(request: Request, path: str):
     return await proxy_request(request, f"{settings.KNOWLEDGE_SERVICE_URL}/api/v1/admin/knowledge/{path}")
 
 
-@router.api_route("/users/{path:path}", methods=["GET", "POST", "PUT", "DELETE"],
+@router.api_route("/users", methods=["GET", "POST"],
+                  dependencies=[Depends(require_admin)])
+async def admin_users_root(request: Request):
+    return await proxy_request(request, f"{settings.AUTH_SERVICE_URL}/api/v1/admin/users")
+
+
+@router.api_route("/users/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                   dependencies=[Depends(require_admin)])
 async def admin_users(request: Request, path: str):
     return await proxy_request(request, f"{settings.AUTH_SERVICE_URL}/api/v1/admin/users/{path}")

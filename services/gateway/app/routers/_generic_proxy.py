@@ -331,3 +331,24 @@ def _make_admin_workspaces_router() -> APIRouter:
 
 
 admin_workspaces_router = _make_admin_workspaces_router()
+
+
+# v5.0.1：admin system settings — 非 workspace-scoped
+def _make_admin_system_settings_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET"])
+    @router.api_route("/", methods=["GET"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/system-settings")
+
+    @router.api_route("/{path:path}", methods=["GET", "PUT"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/system-settings{suffix}")
+
+    return router
+
+
+admin_system_settings_router = _make_admin_system_settings_router()
