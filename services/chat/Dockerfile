@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS runtime
 COPY --chown=staffkm:staffkm services/chat/app ./app
+COPY --chown=staffkm:staffkm services/chat/alembic ./alembic
+COPY --chown=staffkm:staffkm services/chat/alembic.ini ./alembic.ini
 COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core ./staffkm_core
 USER staffkm
 EXPOSE 8005
