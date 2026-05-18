@@ -14,7 +14,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace, admin_regions
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace, admin_regions, system_settings
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -254,6 +254,9 @@ app.include_router(admin_workers.router,     prefix="/api/v1/admin/workers", tag
 
 # ── v4.1 A：starter pack（admin install 預設 5 個 application templates）─
 app.include_router(starter_pack.router,      prefix="/api/v1/admin/starter-pack", tags=["Starter Pack (v4.1)"])
+
+# ── v5.0.1：admin system settings（advisory；runtime 接線留 v5.x）─
+app.include_router(system_settings.router,   prefix="/api/v1/admin/system-settings", tags=["Admin System Settings (v5.0.1)"])
 
 # ── v4.3 Theme C：plugin install/list (admin only) ───────────────────
 app.include_router(plugins_api.router,       prefix="/api/v1/admin/plugins", tags=["Admin Plugins (v4.3)"])

@@ -34,6 +34,7 @@ from app.routers._generic_proxy import (
     admin_regions_router,
     admin_conflicts_router,
     admin_workspaces_router,
+    admin_system_settings_router,
 )
 
 log = structlog.get_logger()
@@ -140,3 +141,6 @@ app.include_router(workflow_gen_router, prefix="/api/v1/workflow-gen", tags=["AI
 app.include_router(admin_regions_router,    prefix="/api/v1/admin/regions",    tags=["Admin Regions (v5.0)"])
 app.include_router(admin_conflicts_router,  prefix="/api/v1/admin/conflicts",  tags=["Admin Conflicts (v5.0)"])
 app.include_router(admin_workspaces_router, prefix="/api/v1/admin/workspaces", tags=["Admin Workspace Region Bind (v5.0)"])
+
+# ── v5.0.1：admin system settings（advisory；runtime 接線留 v5.x）─
+app.include_router(admin_system_settings_router, prefix="/api/v1/admin/system-settings", tags=["Admin System Settings (v5.0.1)"])
