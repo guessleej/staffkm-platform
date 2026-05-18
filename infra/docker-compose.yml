@@ -863,6 +863,29 @@ services:
       - backend
 
   # ══════════════════════════════════════════════════════════════
+  #  Marketing site — v4.2 Theme B
+  #  純前端 SPA（Vue 3 + Vite），nginx 靜態服務 dist/。
+  #  使用前需先在 host 跑 `cd apps/marketing && pnpm build`。
+  #  prod 由 Caddy reverse proxy（v4.3 整合）。
+  # ══════════════════════════════════════════════════════════════
+  marketing:
+    image: nginx:alpine
+    container_name: staffkm-marketing
+    restart: unless-stopped
+    profiles: ["marketing"]
+    volumes:
+      - ../apps/marketing/dist:/usr/share/nginx/html:ro
+    ports:
+      - "8081:80"
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    logging: *default-logging
+    networks:
+      - frontend
+
+  # ══════════════════════════════════════════════════════════════
   #  Autoheal — 監聽 label="autoheal=true" 的容器，unhealthy 自動 restart
   #  解決「rebuild UI/agent 後 nginx upstream IP 過時 → 502」歷史共業
   # ══════════════════════════════════════════════════════════════
