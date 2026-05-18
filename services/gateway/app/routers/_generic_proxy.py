@@ -211,3 +211,24 @@ def _make_admin_starter_pack_router() -> APIRouter:
 
 
 admin_starter_pack_router = _make_admin_starter_pack_router()
+
+
+# v4.3 Theme C：admin plugins — 列已 load plugins / reload
+def _make_admin_plugins_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET", "POST"])
+    @router.api_route("/", methods=["GET", "POST"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/plugins")
+
+    @router.api_route("/{path:path}", methods=["GET", "POST"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/plugins{suffix}")
+
+    return router
+
+
+admin_plugins_router = _make_admin_plugins_router()

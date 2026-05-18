@@ -14,7 +14,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -80,6 +80,12 @@ async def lifespan(app: FastAPI):
         # v4.0 P3：arq backend → worker 跑在獨立 container（python -m arq …）
         _bg_tasks = ()
         log.info("worker_backend_arq_inprocess_disabled", backend=_worker_backend)
+    # v4.3 Theme C：load third-party plugins from /app/plugins/
+    try:
+        from app.core.plugin_loader import load_all_plugins
+        load_all_plugins()
+    except Exception as _pe:
+        log.warning("plugin_loader_init_failed", error=str(_pe))
     log.info("agent_service_ready")
     try:
         yield
@@ -228,6 +234,9 @@ app.include_router(admin_workers.router,     prefix="/api/v1/admin/workers", tag
 
 # ── v4.1 A：starter pack（admin install 預設 5 個 application templates）─
 app.include_router(starter_pack.router,      prefix="/api/v1/admin/starter-pack", tags=["Starter Pack (v4.1)"])
+
+# ── v4.3 Theme C：plugin install/list (admin only) ───────────────────
+app.include_router(plugins_api.router,       prefix="/api/v1/admin/plugins", tags=["Admin Plugins (v4.3)"])
 
 
 @app.get("/health")
