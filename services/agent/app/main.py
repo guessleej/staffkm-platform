@@ -13,7 +13,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -130,6 +130,7 @@ app.include_router(datasource_test.router, prefix=f"{_PREFIX}/data-sources", tag
 app.include_router(entity_folders.router,  prefix=f"{_PREFIX}/folders",      tags=["Entity Folders（D-5）"])
 app.include_router(app_versions.router,      prefix=f"{_PREFIX}/applications", tags=["Application 版本控制（D-7）"])
 app.include_router(workflow_versions.router, prefix=f"{_PREFIX}/applications", tags=["Workflow 版本控制（M2）"])
+app.include_router(run_history.router,        prefix=f"{_PREFIX}/applications", tags=["Workflow Run History (v3.5)"])
 app.include_router(usage.router,             prefix=f"{_PREFIX}/usage",        tags=["Token 用量 + Quota（M3）"])
 app.include_router(memories.router,          prefix=f"{_PREFIX}/memories",     tags=["Long-term Memory（M4）"])
 app.include_router(triggers.router,          prefix=f"{_PREFIX}/triggers",     tags=["Event Triggers（M4）"])
