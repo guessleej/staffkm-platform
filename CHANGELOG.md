@@ -2,6 +2,90 @@
 
 依 [Keep a Changelog](https://keepachangelog.com/) 與 SemVer。
 
+## [3.4.0] — 2026-05-18
+
+> **v3.3 留尾收口** milestone — 把 v3.3 known limitations 4 條全收完。
+> 重點：純收尾、無新主題；v3.x 收尾紀律。
+
+### Highlights
+- 🎬 **Non-LLM workflow metering** — image-gen / STT / TTS / reranker 4 個 node 接 unit-based pricing (`meter_media_call`)
+- 📧 **Email SMTP dispatch** — quota_alert email channel 從 log-only → 真送（aiosmtplib）
+- 🎯 **Cross-encoder reranker** — 獨立 service container（sentence-transformers + bge-reranker-v2-m3），取代 Ollama embedding cosine fallback
+- 📊 **RAG eval CI** — 10 篇 zh-TW seed corpus + 22 anchors + GH Action 每週跑 + threshold gate
+
+### Added — Non-LLM metering (v3.4-P1, PR #200)
+- alembic `0006_media_pricing`：
+  - `ai_models` 加 `price_per_image_usd` / `price_per_second_usd` / `price_per_1k_chars_usd` / `price_per_call_usd`
+  - `model_usage_logs` 加 `unit_type` (image/second/char/call) + `unit_count`
+- `MEDIA_PRICING` seed 9 個 model：dall-e×3 / whisper-1 / tts×2 / 3 個 reranker（cohere v3 / bge / english）
+- 新 `calc_media_cost(session, *, model, unit_type, unit_count) -> float` helper
+- 新 `meter_media_call` async context manager（與 `meter_llm_call` 對稱：pre check_quota + post record_usage + cost auto-calc + commit）
+- 4 個 workflow node 接 metering：
+  - `_exec_image_generate` — `unit=image, count=n`
+  - `_exec_stt` — `unit=second, count=len(audio)/4000`（32kbps 估算）
+  - `_exec_tts` — `unit=char, count=len(text)`
+  - `_exec_reranker` — `unit=call, count=1`
+- Graceful degrade 同 v3.3-A pattern（無 session/workspace 走原邏輯）
+
+### Added — Email SMTP dispatch (v3.4-P2, PR #201)
+- 新 `services/agent/app/core/email.py`：`aiosmtplib` thin wrapper
+- `quota_alert_worker` email 分支從 `log.info("...pending")` → `await send_email(...)`
+- settings 加 `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` / `SMTP_USE_TLS`
+- compose agent service environment + `.env.example` 加註解範例
+- `aiosmtplib==3.0.2` 加進 agent requirements
+- SMTP_HOST 未設 → `send_email()` log skip + 回 False（dev 友善、不破壞既有行為）
+
+### Added — Cross-encoder reranker (v3.4-P3, PR #202)
+- 新 service `services/reranker/`（FastAPI thin wrapper）：
+  - `POST /rerank` body `{query, documents, top_n}` → `{indices, scores}`
+  - `sentence-transformers` + `BAAI/bge-reranker-v2-m3`（device 可設 cpu/cuda）
+  - lazy load（cold start ~2 min、model ~1GB）
+- compose 加 `reranker` service（profile `reranker`，預設 disabled、2G mem limit、port 8010、`reranker_hf_cache` volume 持久化）
+- knowledge `core/reranker.py` 加 `cross_encoder` dispatch：
+  - config: `{"type": "cross_encoder", "endpoint": "http://reranker:8000"}`
+  - timeout 30s、失敗 fallback 回原順序
+  - dict copy 後寫 `relevance_score`，不污染上游
+- 文件 `docs/dev/reranker.md`：opt-in / API / 延遲 / 模型選擇
+
+### Added — RAG eval CI (v3.4-P4, PR #203)
+- 10 篇 zh-TW seed corpus（`tools/eval/seed_corpus/01-leave-policy.md` ~ `10-resignation.md`）— HR / policy 各約 260-310 字、4 段 H2 標題、deterministic 內容
+- `tools/eval/seed_eval_kb.py` — 上 KB + poll embedding + 輸出 paragraph IDs 到 `seeded_paragraphs.json`
+- `rag_eval_dataset.json` 加 `expected_corpus_anchors`（10 query × 22 anchors）— 用 `file + title_contains` pattern 標 ground truth
+- `rag_eval.py` 加 `--seeded` 參數、`resolve_anchors()` 啟動時把 anchor 解析成實際 paragraph_id
+- 新 GH Action `.github/workflows/rag-eval.yml`：
+  - cron 每週日 02:00 UTC + workflow_dispatch
+  - threshold gate：`hybrid+none` hit@5 < 0.5 → CI fail
+  - 結果 append 進 `docs/perf/v3.3-rag-bench-history.md` 並 auto commit
+- 新 `docs/perf/v3.3-rag-bench-history.md`（append target）
+
+### Changed
+- v3.3-A 在 4 個 non-LLM node 留的 `# TODO v3.4: separate metering` 註解改成 `# v3.4 P1: metered via meter_media_call`
+
+### Known limitations / 留 v3.5
+- Workflow ecosystem 新 nodes（http-call / branch-if / loop-foreach / human-approval / sub-workflow / delay-until）— v3.5 主題
+- CI workflow caveat：admin password / endpoint paths / GH runner memory / Ollama cold start，需首次 workflow_dispatch 驗證
+
+### Breaking Changes
+- ⚠️ **non-LLM workflow node 進 quota check**：之前繞過 metering，現在會檢 workspace + user cap，超額 → 同 v3.3-A pattern
+- ⚠️ **alembic 0006** auto-migrate；既有 `model_usage_logs` 列 `unit_type` / `unit_count` 為 NULL，不影響舊查詢
+
+### Migration（從 v3.3 升 v3.4）
+1. **DB**：alembic 自動跑 `0006_media_pricing` → 6 個 ADD COLUMN（全 IF NOT EXISTS）
+2. **Pricing seed**：lifespan 自動 UPSERT 9 個 media model 定價；手動改過的不會被覆蓋
+3. **Email alert**：設 `.env` SMTP_* → restart agent → email channel 開始真送；不設就維持 log-only
+4. **Cross-encoder**：opt-in
+   ```bash
+   docker compose --profile reranker up -d
+   # 首次 cold start ~2 min
+   ```
+   knowledge `/hit-test` body 傳 `{"reranker": {"type":"cross_encoder","endpoint":"http://reranker:8000"}}`
+5. **RAG eval CI**：首次手動 workflow_dispatch 跑一次，確認 endpoint paths / admin pwd / runner memory 都 ok 後再讓 cron 自跑
+
+### PR refs
+#199（roadmap）/ #200（non-LLM metering）/ #201（SMTP）/ #202（cross-encoder）/ #203（RAG eval CI）
+
+---
+
 ## [3.3.0] — 2026-05-18
 
 > **Comprehensive deepening** mega-milestone — A + D + B + C 一次清。
