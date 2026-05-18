@@ -64,6 +64,30 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # v3.6 P4: graceful shutdown — 等 running workflow 收尾才 cancel worker
+        log.info("agent_service_shutting_down")
+        try:
+            import datetime as _dt
+            deadline = _dt.datetime.utcnow() + _dt.timedelta(seconds=30)
+            from sqlalchemy import text as _text
+            while _dt.datetime.utcnow() < deadline:
+                if _db._session_factory is None:
+                    break
+                async with _db._session_factory() as _s:
+                    r = await _s.execute(_text(
+                        "SELECT COUNT(*) FROM event_trigger_runs WHERE status='running'"
+                    ))
+                    running = int(r.scalar_one() or 0)
+                if running == 0:
+                    log.info("graceful_shutdown_no_inflight")
+                    break
+                log.info("graceful_shutdown_waiting", running=running)
+                await asyncio.sleep(2)
+            else:
+                log.warning("graceful_shutdown_timeout_30s")
+        except Exception as e:
+            log.warning("graceful_shutdown_check_failed", error=str(e))
+        # 取消所有背景 worker
         for t in (worker_task, dispatcher_task, alert_task, resume_task, webhook_task):
             t.cancel()
             try:
