@@ -47,6 +47,66 @@ def _next_fire(kind: str, *, interval_sec: int | None, cron_expr: str | None, no
     return None
 
 
+async def _scan_due_triggers(session) -> None:
+    """v4.0 P3: arq job-friendly helper — 給定一個 active session，掃 due triggers
+    並 INSERT queued runs + 更新 trigger 狀態。caller 負責 session 生命週期。
+    """
+    now = datetime.utcnow()
+    rows = await session.execute(
+        text(
+            """
+            SELECT id, workspace_id, application_id, kind, cron_expr, interval_sec
+            FROM event_triggers
+            WHERE enabled = TRUE
+              AND (next_fire_at IS NOT NULL AND next_fire_at <= :now)
+            LIMIT 100
+            """
+        ),
+        {"now": now},
+    )
+    due = [dict(r._mapping) for r in rows.fetchall()]
+    if not due:
+        return
+
+    log.info("trigger_due", count=len(due))
+
+    for t in due:
+        run_id = str(uuid.uuid4())
+        nfa = _next_fire(
+            t["kind"],
+            interval_sec=t.get("interval_sec"),
+            cron_expr=t.get("cron_expr"),
+            now=now,
+        )
+        try:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO event_trigger_runs (id, trigger_id, workspace_id, status)
+                    VALUES (:id, :tid, :ws, 'queued')
+                    """
+                ),
+                {"id": run_id, "tid": str(t["id"]), "ws": str(t["workspace_id"])},
+            )
+            await session.execute(
+                text(
+                    """
+                    UPDATE event_triggers
+                    SET last_fired_at = :now,
+                        next_fire_at  = :nfa,
+                        last_status   = 'queued',
+                        last_error    = NULL,
+                        updated_at    = :now
+                    WHERE id = :id
+                    """
+                ),
+                {"now": now, "nfa": nfa, "id": str(t["id"])},
+            )
+        except Exception as e:
+            log.warning("trigger_fire_failed", trigger=str(t["id"]), error=str(e))
+    await session.commit()
+
+
 async def _scan_and_fire(session_factory) -> None:
     if session_factory is None:
         return

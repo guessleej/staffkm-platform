@@ -169,3 +169,24 @@ def _make_admin_slow_queries_router() -> APIRouter:
 
 
 admin_slow_queries_router = _make_admin_slow_queries_router()
+
+
+# v4.0 P3/P4：admin worker backend status — 非 workspace-scoped，read-only
+def _make_admin_workers_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET"])
+    @router.api_route("/", methods=["GET"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/workers")
+
+    @router.api_route("/{path:path}", methods=["GET"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/workers{suffix}")
+
+    return router
+
+
+admin_workers_router = _make_admin_workers_router()
