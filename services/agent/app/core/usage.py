@@ -45,6 +45,8 @@ class UsageRecord:
     # v3.7 P1: per-conversation / per-message cost attribution
     conversation_id:   str | None       = None
     message_id:        str | None       = None
+    # v3.7 P2: feature 標籤（chat / workflow / hit_test / embed / image / stt / tts / rerank）
+    feature:           str | None       = None
 
 
 async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
@@ -59,14 +61,16 @@ async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
                     prompt_tokens, completion_tokens, total_tokens,
                     cost_usd, latency_ms, status, error,
                     unit_type, unit_count,
-                    conversation_id, message_id
+                    conversation_id, message_id,
+                    feature
                 ) VALUES (
                     :id, :ws, :uid, :app_id,
                     :ptype, :model,
                     :pt, :ct, :tt,
                     :cost, :latency, :status, :error,
                     :unit_type, :unit_count,
-                    :conv_id, :msg_id
+                    :conv_id, :msg_id,
+                    :feature
                 )
                 """
             ),
@@ -88,6 +92,7 @@ async def record_usage(session: AsyncSession, rec: UsageRecord) -> None:
                 "unit_count": rec.unit_count,
                 "conv_id":    rec.conversation_id,
                 "msg_id":     rec.message_id,
+                "feature":    rec.feature,
             },
         )
     except Exception as e:
