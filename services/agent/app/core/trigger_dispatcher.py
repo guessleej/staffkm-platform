@@ -123,6 +123,7 @@ async def _run_workflow(rec: dict[str, Any], session) -> tuple[str, str]:
         roles=["editor"],   # trigger 跑時以 editor 角色執行（最小寫入權）
         workflow_manager=mgr,
         application_id=str(app_id),  # v3.3：metering 歸帳
+        run_id=rec["run_id"],        # v3.5 P1：step persistence
     )
 
     events: list[str] = []

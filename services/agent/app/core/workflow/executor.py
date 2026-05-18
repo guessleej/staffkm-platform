@@ -2,10 +2,13 @@
 import base64
 import json
 import re
+import time
+import uuid as _uuid
 import httpx
 import structlog
 from typing import AsyncIterator, Any
 from openai import AsyncOpenAI
+from sqlalchemy import text
 from app.config import settings
 # v3.3：workflow LLM 節點接 metering（quota check + usage record + cost calc）
 from app.core.metering import meter_llm_call, meter_media_call
@@ -30,6 +33,8 @@ class WorkflowExecutor:
         roles: list[str] | None = None,
         workflow_manager: str = "simple",  # M2-2: simple/parallel/retry/batch/sandbox
         application_id: str | None = None,  # v3.3：metering 歸帳到 application
+        *,
+        run_id: _uuid.UUID | str | None = None,  # v3.5 P1：寫 workflow_run_steps 用
     ):
         # M2-2：執行策略
         if workflow_manager not in _VALID_MANAGERS:
@@ -46,6 +51,9 @@ class WorkflowExecutor:
         self.roles = roles or []
         # v3.3：給 metering 用；caller (workflows.py / trigger_dispatcher) 應傳入
         self.application_id = application_id
+        # v3.5 P1：run-level id（trigger dispatcher 帶入）+ step index 累計
+        self.run_id = run_id
+        self._step_idx: int = 0
         # 建立有向圖（key -> [key, ...]）
         self.children: dict[str, list[str]] = {n: [] for n in self.nodes}
         self.edge_conditions: dict[tuple, Any] = {}
@@ -54,6 +62,60 @@ class WorkflowExecutor:
             if src in self.children:
                 self.children[src].append(tgt)
             self.edge_conditions[(src, tgt)] = edge.get("condition")
+
+    async def _record_step(
+        self,
+        *,
+        node_key: str,
+        node_type: str,
+        input_data: Any,
+        output_data: Any,
+        status: str,
+        error: str | None,
+        attempts: int,
+        latency_ms: int,
+    ) -> None:
+        """v3.5 P1：寫一筆 workflow_run_steps（run_id 未設或 db 未初始化則 noop）。"""
+        if not self.run_id or not _db._session_factory:
+            return
+
+        def _truncate(d: Any) -> Any:
+            try:
+                s = json.dumps(d, ensure_ascii=False, default=str)
+                if len(s) <= 4096:
+                    return json.loads(s)
+                return {"_truncated": True, "_size": len(s), "_preview": s[:3900]}
+            except Exception:
+                return {"_unserializable": True}
+
+        try:
+            async with _db._session_factory() as session:
+                await session.execute(text("""
+                    INSERT INTO workflow_run_steps (
+                        run_id, step_index, node_key, node_type,
+                        status, input_snapshot, output_snapshot,
+                        error, attempts, latency_ms, finished_at
+                    ) VALUES (
+                        :rid, :idx, :nkey, :ntype, :status,
+                        CAST(:inp AS jsonb), CAST(:out AS jsonb),
+                        :err, :att, :lat, now()
+                    )
+                """), {
+                    "rid": str(self.run_id),
+                    "idx": self._step_idx,
+                    "nkey": node_key,
+                    "ntype": node_type,
+                    "status": status,
+                    "inp": json.dumps(_truncate(input_data), ensure_ascii=False),
+                    "out": json.dumps(_truncate(output_data), ensure_ascii=False),
+                    "err": (error[:1000] if error else None),
+                    "att": attempts,
+                    "lat": latency_ms,
+                })
+                await session.commit()
+                self._step_idx += 1
+        except Exception as e:
+            log.warning("step_record_failed", run=str(self.run_id), node=node_key, error=str(e))
 
     def _find_start_node(self) -> str | None:
         targets = {e["target_node_key"] for e in self.edges}
@@ -114,6 +176,10 @@ class WorkflowExecutor:
             yield {"event": "node_start", "data": json.dumps({"node_key": current_key, "type": node_type})}
 
             next_key = None
+            # v3.5 P1：step 追蹤
+            _step_started = time.monotonic()
+            _step_status = "ok"
+            _step_error: str | None = None
             try:
                 if node_type == "start":
                     pass  # start 節點只設定初始 context
@@ -226,6 +292,8 @@ class WorkflowExecutor:
                         yield ev
 
             except Exception as e:
+                _step_status = "error"
+                _step_error = str(e)
                 # M2-2：manager='retry' 時自動重試（最多 3 次、指數退避）
                 attempts = _node_attempts.get(current_key, 0) + 1
                 _node_attempts[current_key] = attempts
@@ -242,6 +310,16 @@ class WorkflowExecutor:
                     yield {"event": "retry", "data": json.dumps({
                         "node_key": current_key, "attempt": attempts, "backoff_ms": backoff_ms,
                     })}
+                    # 寫一筆 retry step（status=retry）後重跑
+                    await self._record_step(
+                        node_key=current_key, node_type=node_type,
+                        input_data=config,
+                        output_data=None,
+                        status="retry",
+                        error=_step_error,
+                        attempts=attempts,
+                        latency_ms=int((time.monotonic() - _step_started) * 1000),
+                    )
                     await asyncio.sleep(backoff_ms / 1000.0)
                     visited.discard(current_key)   # 取消 visited 標記讓 while 重跑該節點
                     continue
@@ -253,6 +331,20 @@ class WorkflowExecutor:
                     **self._audit_fields(context),
                 )
                 yield {"event": "error", "data": json.dumps({"node_key": current_key, "error": str(e)})}
+
+            # v3.5 P1：寫 step（成功/失敗都寫，retry 的已在上面寫過並 continue）
+            _node_output_var = (config or {}).get("output_variable") if isinstance(config, dict) else None
+            _node_output = context.get(_node_output_var) if _node_output_var else None
+            await self._record_step(
+                node_key=current_key,
+                node_type=node_type,
+                input_data=config,
+                output_data=_node_output,
+                status=_step_status,
+                error=_step_error,
+                attempts=_node_attempts.get(current_key, 1),
+                latency_ms=int((time.monotonic() - _step_started) * 1000),
+            )
 
             yield {"event": "node_done", "data": json.dumps({"node_key": current_key})}
 
