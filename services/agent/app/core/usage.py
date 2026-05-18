@@ -125,21 +125,96 @@ async def get_quota(session: AsyncSession, workspace_id: str) -> dict[str, Any]:
     }
 
 
-async def check_quota(session: AsyncSession, workspace_id: str) -> None:
-    """超過 cap 時 raise QuotaExceeded；皆未設則直接過。"""
+async def get_user_quota(
+    session: AsyncSession, workspace_id: str, user_id: str
+) -> dict[str, Any]:
+    """讀 user 層 quota；無設定回 {None, None}。"""
+    r = await session.execute(
+        text(
+            "SELECT monthly_token_cap, monthly_cost_cap_usd "
+            "FROM user_quotas WHERE workspace_id = :ws AND user_id = :uid"
+        ),
+        {"ws": workspace_id, "uid": user_id},
+    )
+    row = r.fetchone()
+    if not row:
+        return {"monthly_token_cap": None, "monthly_cost_cap_usd": None}
+    d = dict(row._mapping)
+    return {
+        "monthly_token_cap":    d.get("monthly_token_cap"),
+        "monthly_cost_cap_usd": (
+            float(d["monthly_cost_cap_usd"]) if d.get("monthly_cost_cap_usd") is not None else None
+        ),
+    }
+
+
+async def get_user_monthly_usage(
+    session: AsyncSession, workspace_id: str, user_id: str
+) -> dict[str, Any]:
+    """取得指定 user 在當月（自然月起算）總 tokens / cost。"""
+    r = await session.execute(
+        text(
+            """
+            SELECT
+                COALESCE(SUM(total_tokens), 0)::BIGINT AS tokens,
+                COALESCE(SUM(cost_usd), 0)::NUMERIC(12, 6) AS cost
+            FROM model_usage_logs
+            WHERE workspace_id = :ws
+              AND user_id = :uid
+              AND created_at >= date_trunc('month', now())
+            """
+        ),
+        {"ws": workspace_id, "uid": user_id},
+    )
+    row = r.fetchone()
+    d = dict(row._mapping) if row else {"tokens": 0, "cost": 0}
+    return {
+        "tokens":   int(d.get("tokens") or 0),
+        "cost_usd": float(d.get("cost") or 0),
+    }
+
+
+async def check_quota(
+    session: AsyncSession,
+    workspace_id: str,
+    user_id: str | None = None,
+) -> None:
+    """超過 cap 時 raise QuotaExceeded；皆未設則直接過。
+
+    v3.3 D1：先檢 workspace 層、再檢 user 層；任一層超額就 raise，
+    error message 標記哪一層（workspace / user）以利 UI 區分。
+    """
+    # ── 1. workspace cap ─────────────────────────────────────
     q = await get_quota(session, workspace_id)
-    if q["monthly_token_cap"] is None and q["monthly_cost_cap_usd"] is None:
+    if q["monthly_token_cap"] is not None or q["monthly_cost_cap_usd"] is not None:
+        u = await get_monthly_usage(session, workspace_id)
+        if q["monthly_token_cap"] is not None and u["tokens"] >= int(q["monthly_token_cap"]):
+            raise QuotaExceeded(
+                f"[workspace] workspace {workspace_id} 已達月 token 上限 "
+                f"({u['tokens']}/{q['monthly_token_cap']})"
+            )
+        if q["monthly_cost_cap_usd"] is not None and u["cost_usd"] >= float(q["monthly_cost_cap_usd"]):
+            raise QuotaExceeded(
+                f"[workspace] workspace {workspace_id} 已達月成本上限 "
+                f"(${u['cost_usd']:.2f}/${q['monthly_cost_cap_usd']:.2f})"
+            )
+
+    # ── 2. user cap（若有傳 user_id）──────────────────────────
+    if not user_id:
         return
-    u = await get_monthly_usage(session, workspace_id)
-    if q["monthly_token_cap"] is not None and u["tokens"] >= int(q["monthly_token_cap"]):
+    uq = await get_user_quota(session, workspace_id, user_id)
+    if uq["monthly_token_cap"] is None and uq["monthly_cost_cap_usd"] is None:
+        return
+    uu = await get_user_monthly_usage(session, workspace_id, user_id)
+    if uq["monthly_token_cap"] is not None and uu["tokens"] >= int(uq["monthly_token_cap"]):
         raise QuotaExceeded(
-            f"workspace {workspace_id} 已達月 token 上限 "
-            f"({u['tokens']}/{q['monthly_token_cap']})"
+            f"[user] user {user_id} 已達月 token 上限 "
+            f"({uu['tokens']}/{uq['monthly_token_cap']})"
         )
-    if q["monthly_cost_cap_usd"] is not None and u["cost_usd"] >= float(q["monthly_cost_cap_usd"]):
+    if uq["monthly_cost_cap_usd"] is not None and uu["cost_usd"] >= float(uq["monthly_cost_cap_usd"]):
         raise QuotaExceeded(
-            f"workspace {workspace_id} 已達月成本上限 "
-            f"(${u['cost_usd']:.2f}/${q['monthly_cost_cap_usd']:.2f})"
+            f"[user] user {user_id} 已達月成本上限 "
+            f"(${uu['cost_usd']:.2f}/${uq['monthly_cost_cap_usd']:.2f})"
         )
 
 

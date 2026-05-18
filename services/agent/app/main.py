@@ -13,9 +13,10 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
+from app.core.quota_alert_worker import alert_worker_loop
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
@@ -43,11 +44,15 @@ async def lifespan(app: FastAPI):
     dispatcher_task = asyncio.create_task(
         trigger_dispatcher_loop(lambda: _db._session_factory, interval_sec=10),
     )
+    # v3.3 D2：背景啟動 quota alert worker（每 10 分鐘評估 + 派發）
+    alert_task = asyncio.create_task(
+        alert_worker_loop(lambda: _db._session_factory, interval_sec=600),
+    )
     log.info("agent_service_ready")
     try:
         yield
     finally:
-        for t in (worker_task, dispatcher_task):
+        for t in (worker_task, dispatcher_task, alert_task):
             t.cancel()
             try:
                 await t
@@ -128,6 +133,8 @@ app.include_router(triggers.router,          prefix=f"{_PREFIX}/triggers",     t
 app.include_router(mcp_servers.router,       prefix=f"{_PREFIX}/mcp",          tags=["MCP Hub（M4）"])
 app.include_router(app_templates.router,     prefix=f"{_PREFIX}/app-templates",tags=["Workspace App Templates（Sprint 19.x）"])
 app.include_router(audit.router,             prefix=f"{_PREFIX}/admin/audit-logs", tags=["Audit Log (v3.0)"])
+app.include_router(user_quotas.router,        prefix=f"{_PREFIX}/user-quotas",      tags=["User Quota (v3.3)"])
+app.include_router(quota_alerts.router,       prefix=f"{_PREFIX}/quota-alerts",     tags=["Quota Alerts (v3.3)"])
 
 # ── 公開存取 / pre-auth endpoint（不掛 workspace 前綴）──────────────────
 app.include_router(public.router,             prefix="/api/v1/public/applications", tags=["公開存取"])
