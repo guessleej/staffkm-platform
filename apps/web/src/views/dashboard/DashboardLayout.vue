@@ -60,6 +60,8 @@
           <NavIconLink to="/admin/quota-alerts" label="配額告警"     icon="alert-circle" />
           <!-- v3.5 P2：workflow human approval -->
           <NavIconLink to="/admin/approvals"    label="人工核可"     icon="check-circle" />
+          <!-- v3.5 P4：workflow run history -->
+          <NavIconLink to="/admin/run-history"  label="執行紀錄"     icon="play" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>
