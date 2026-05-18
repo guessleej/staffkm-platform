@@ -152,6 +152,18 @@ const router = createRouter({
           meta: { title: 'Workspace Quota 管理', roles: ['admin'] },
         },
         {
+          path: 'admin/user-quotas',
+          name: 'admin-user-quotas',
+          component: () => import('../views/admin/UserQuotaView.vue'),
+          meta: { title: '使用者 Quota 管理', roles: ['admin'] },
+        },
+        {
+          path: 'admin/quota-alerts',
+          name: 'admin-quota-alerts',
+          component: () => import('../views/admin/QuotaAlertView.vue'),
+          meta: { title: '配額告警', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),

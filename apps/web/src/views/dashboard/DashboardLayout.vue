@@ -55,6 +55,9 @@
           <NavIconLink to="/admin/audit-logs" label="Audit Log" icon="file-text" />
           <!-- v3.2 P3：跨 workspace quota 管理 -->
           <NavIconLink to="/admin/quotas" label="Workspace Quota" icon="lock" />
+          <!-- v3.3 D3：user-level quota + alert -->
+          <NavIconLink to="/admin/user-quotas"  label="使用者 Quota" icon="user" />
+          <NavIconLink to="/admin/quota-alerts" label="配額告警"     icon="alert-circle" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>
