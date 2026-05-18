@@ -170,6 +170,12 @@ const router = createRouter({
           meta: { title: '人工核可', roles: ['admin'] },
         },
         {
+          path: 'admin/run-history',
+          name: 'admin-run-history',
+          component: () => import('../views/admin/RunHistoryView.vue'),
+          meta: { title: 'Workflow 執行紀錄', roles: ['admin'] },
+        },
+        {
           path: 'usage',
           name: 'usage',
           component: () => import('../views/usage/UsageView.vue'),
