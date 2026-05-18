@@ -39,6 +39,7 @@ async def _claim_one(session) -> dict[str, Any] | None:
                 r.id              AS run_id,
                 r.trigger_id      AS trigger_id,
                 r.workspace_id    AS workspace_id,
+                r.fired_at        AS fired_at,
                 t.application_id  AS application_id,
                 t.input_template  AS input_template,
                 t.name            AS trigger_name
@@ -161,17 +162,40 @@ async def _process_one(session_factory) -> bool:
         except Exception as e:
             status, summary = "error", f"dispatcher_raised: {e}"
         try:
+            # v3.3 A4：聚合本 run 期間的 LLM usage（在 fired_at 之後寫入、且同 ws/app）
+            agg = await session.execute(
+                text("""
+                    SELECT COALESCE(SUM(total_tokens), 0)::BIGINT       AS tokens,
+                           COALESCE(SUM(cost_usd),    0)::NUMERIC(12,6) AS cost
+                    FROM model_usage_logs
+                    WHERE workspace_id = :ws
+                      AND application_id = :app
+                      AND created_at >= :since
+                """),
+                {
+                    "ws":    str(rec["workspace_id"]),
+                    "app":   str(rec["application_id"]),
+                    "since": rec["fired_at"],
+                },
+            )
+            arow = agg.fetchone()
+            tokens_used = int(arow.tokens or 0)
+            cost_usd    = float(arow.cost or 0)
+
             await session.execute(
                 text(
                     "UPDATE event_trigger_runs "
-                    "SET status = :s, output_summary = :o, finished_at = :ts "
+                    "SET status = :s, output_summary = :o, finished_at = :ts, "
+                    "    tokens_used = :tok, cost_usd = :cost "
                     "WHERE id = :id"
                 ),
                 {
-                    "s":  status,
-                    "o":  summary,
-                    "ts": datetime.utcnow(),
-                    "id": str(rec["run_id"]),
+                    "s":    status,
+                    "o":    summary,
+                    "ts":   datetime.utcnow(),
+                    "tok":  tokens_used,
+                    "cost": cost_usd,
+                    "id":   str(rec["run_id"]),
                 },
             )
             await session.execute(
