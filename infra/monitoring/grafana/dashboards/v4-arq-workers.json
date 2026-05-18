@@ -1,0 +1,80 @@
+{
+  "title": "staffKM v4.0 — Arq workers",
+  "uid": "staffkm-v4-arq",
+  "tags": ["staffkm", "v4.0", "workers"],
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "text",
+      "title": "說明",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Arq distributed worker backend (v4.0 P3+P4)** — opt-in via `WORKER_BACKEND=arq`。\n\n下方 panel 從 PG `task_heartbeats` 看 5 個 worker 心跳 + redis queue depth（由 `/admin/workers/queue` 暴露）。如 backend=inprocess 兩個來源都會空。"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Worker heartbeats (from task_heartbeats)",
+      "gridPos": { "x": 0, "y": 3, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT worker_name, pid, host, in_flight, last_beat, EXTRACT(EPOCH FROM (now() - last_beat))::INT AS stale_sec FROM task_heartbeats ORDER BY worker_name",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "overrides": [{
+          "matcher": { "id": "byName", "options": "stale_sec" },
+          "properties": [
+            { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+            { "id": "thresholds", "value": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 120 },
+                { "color": "red", "value": 300 }
+              ]
+            }}
+          ]
+        }]
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Workflow runs (last 1h)",
+      "gridPos": { "x": 0, "y": 13, "w": 8, "h": 6 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT status, COUNT(*) AS c FROM event_trigger_runs WHERE fired_at >= now() - INTERVAL '1 hour' GROUP BY status",
+        "format": "table"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Webhook outbox (24h)",
+      "gridPos": { "x": 8, "y": 13, "w": 8, "h": 6 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT status, COUNT(*) AS c FROM webhook_outbox WHERE created_at >= now() - INTERVAL '24 hours' GROUP BY status",
+        "format": "table"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Quota alerts fires (本月)",
+      "gridPos": { "x": 16, "y": 13, "w": 8, "h": 6 },
+      "datasource": { "type": "postgres", "uid": "staffkm-postgres" },
+      "targets": [{
+        "refId": "A",
+        "rawSql": "SELECT COUNT(*)::INT AS fires FROM quota_alert_fires WHERE month = date_trunc('month', now())::date",
+        "format": "table"
+      }]
+    }
+  ]
+}

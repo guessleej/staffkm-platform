@@ -1,0 +1,46 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-worker
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: staffkm
+spec:
+  replicas: {{ .Values.replicaCount.worker | default 2 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.registry }}/staffkm/agent:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # 重用 agent image，跑 arq worker process
+          command: ["python", "-m", "arq", "app.workers.arq_settings.WorkerSettings"]
+          envFrom:
+            - secretRef: { name: {{ .Release.Name }}-config }
+          env:
+            - name: WORKER_BACKEND
+              value: "arq"
+            - name: OTEL_SERVICE_NAME
+              value: staffkm-worker
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.observability.otelCollectorEndpoint | quote }}
+          resources:
+            {{- toYaml .Values.resources.worker | nindent 12 }}
+          # arq worker 沒 HTTP endpoint，用 process liveness 即可
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "arq.worker"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+{{- end }}
