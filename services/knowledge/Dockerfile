@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS runtime
 COPY --chown=staffkm:staffkm services/knowledge/app ./app
+COPY --chown=staffkm:staffkm services/knowledge/alembic ./alembic
+COPY --chown=staffkm:staffkm services/knowledge/alembic.ini ./alembic.ini
 COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core     ./staffkm_core
 COPY --chown=staffkm:staffkm packages/python/staffkm-tenant/staffkm_tenant ./staffkm_tenant
 

@@ -1,4 +1,8 @@
-"""啟動時 idempotent DDL — 為 agent service 涉及的表加上 workspace_id。
+"""[DEPRECATED in v3.1] 新 schema 改動請走 alembic revision
+（services/agent/alembic/versions/），不要加進這個檔案的 DDL list。
+此檔保留純為老 deploy 的 idempotent backstop，v4.0 計畫移除。
+
+啟動時 idempotent DDL — 為 agent service 涉及的表加上 workspace_id。
 
 對應 RFC-001 Stage 2：所有業務表必須具備 workspace_id 欄位 + 索引，
 並把既有 row backfill 到 default workspace（由 0001_workspace.sql 預先建立）。

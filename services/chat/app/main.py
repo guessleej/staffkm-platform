@@ -8,6 +8,7 @@ import structlog
 from app.api.conversations import router as conv_router
 from staffkm_core.utils.database import init_db
 from app.config import settings
+from app.utils.migrate import run_alembic_upgrade
 
 log = structlog.get_logger()
 
@@ -15,6 +16,7 @@ log = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
+    await run_alembic_upgrade()
     log.info("chat_service_ready")
     yield
 

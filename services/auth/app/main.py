@@ -13,6 +13,7 @@ from app.api.models import router as models_router
 from app.api.workspaces import router as workspaces_router
 from staffkm_core.utils.database import init_db
 from app.config import settings
+from app.utils.migrate import run_alembic_upgrade
 
 log = structlog.get_logger()
 
@@ -26,6 +27,8 @@ class GatewayHeadersMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# [DEPRECATED in v3.1] 新 schema 改動請走 alembic revision（services/auth/alembic/versions/），
+# 不要再加進這個 list。此清單保留純為老 deploy 的 idempotent backstop，v4.0 計畫移除。
 _AUTH_BOOTSTRAP_DDL = [
     # v3.0：OIDC SSO 正規欄位（idempotent；既有 deploy 自動補）
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS oidc_sub VARCHAR(256)",
@@ -56,6 +59,7 @@ async def _run_auth_bootstrap_ddl():
 async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await _run_auth_bootstrap_ddl()
+    await run_alembic_upgrade()
     log.info("auth_service_ready", ldap_enabled=settings.LDAP_ENABLED, oidc_enabled=settings.OIDC_ENABLED)
     yield
 

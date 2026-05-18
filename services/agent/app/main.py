@@ -15,6 +15,7 @@ from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.bootstrap_ddl import run_bootstrap_ddl
 from app.config import settings
+from app.utils.migrate import run_alembic_upgrade
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
@@ -27,6 +28,7 @@ log = structlog.get_logger()
 async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await run_bootstrap_ddl()
+    await run_alembic_upgrade()
     # M4：背景啟動 trigger worker（每 60s 掃 due triggers 寫 queued run）
     worker_task = asyncio.create_task(
         trigger_worker_loop(lambda: _db._session_factory, interval_sec=60),

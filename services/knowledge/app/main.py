@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
+from app.utils.migrate import run_alembic_upgrade
 from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync
 from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
@@ -21,6 +22,9 @@ from staffkm_tenant import TenantContextMiddleware
 log = structlog.get_logger()
 
 
+# [DEPRECATED in v3.1] 新 schema 改動請走 alembic revision
+# （services/knowledge/alembic/versions/），不要再加進這個 list。
+# 此清單保留純為老 deploy 的 idempotent backstop，v4.0 計畫移除。
 # Idempotent DDL — 啟動時補丁式遷移；asyncpg 一次只執行單一 statement，故拆成清單
 _BOOTSTRAP_STATEMENTS: list[str] = [
     # 1. Hybrid Search 預計算 tsvector 欄位
@@ -165,6 +169,7 @@ async def _run_bootstrap_ddl():
 async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await _run_bootstrap_ddl()
+    await run_alembic_upgrade()
     log.info("knowledge_service_ready")
     yield
 
