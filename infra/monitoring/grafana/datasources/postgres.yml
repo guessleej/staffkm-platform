@@ -1,0 +1,16 @@
+apiVersion: 1
+datasources:
+  - name: staffkm-postgres
+    type: postgres
+    uid: staffkm-postgres
+    url: postgres:5432
+    user: staffkm
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      database: staffkm
+      sslmode: disable
+      maxOpenConns: 10
+      postgresVersion: 1600
+      timescaledb: false
+    editable: false

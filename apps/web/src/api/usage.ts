@@ -1,9 +1,24 @@
 import { http } from './index'
 
+export interface UsageByDay {
+  day:      string
+  tokens:   number
+  cost_usd: number
+}
+
+export interface UsageByModel {
+  model:    string
+  tokens:   number
+  cost_usd: number
+  requests: number
+}
+
 export interface UsageSummary {
-  month: string
-  usage: { tokens: number; cost_usd: number; requests: number }
-  quota: { monthly_token_cap: number | null; monthly_cost_cap_usd: number | null }
+  month:     string
+  usage:     { tokens: number; cost_usd: number; requests: number }
+  quota:     { monthly_token_cap: number | null; monthly_cost_cap_usd: number | null }
+  by_day?:   UsageByDay[]
+  by_model?: UsageByModel[]
 }
 
 export interface UsageLog {

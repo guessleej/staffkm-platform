@@ -35,10 +35,49 @@ async def usage_summary(
 ):
     usage = await get_monthly_usage(session, str(ctx.workspace_id))
     quota = await get_quota(session, str(ctx.workspace_id))
+
+    # v3.2 P3：當月每日 token / cost
+    by_day_rows = await session.execute(text("""
+        SELECT date_trunc('day', created_at)::date AS day,
+               SUM(total_tokens)::BIGINT           AS tokens,
+               SUM(cost_usd)::NUMERIC(12,6)        AS cost_usd
+        FROM model_usage_logs
+        WHERE workspace_id = :ws AND created_at >= date_trunc('month', now())
+        GROUP BY 1 ORDER BY 1
+    """), {"ws": str(ctx.workspace_id)})
+    by_day = [
+        {"day": r.day.isoformat(), "tokens": int(r.tokens or 0), "cost_usd": float(r.cost_usd or 0)}
+        for r in by_day_rows
+    ]
+
+    # v3.2 P3：當月每 model 統計（top 20）
+    by_model_rows = await session.execute(text("""
+        SELECT model,
+               SUM(total_tokens)::BIGINT    AS tokens,
+               SUM(cost_usd)::NUMERIC(12,6) AS cost_usd,
+               COUNT(*)::BIGINT             AS requests
+        FROM model_usage_logs
+        WHERE workspace_id = :ws AND created_at >= date_trunc('month', now())
+        GROUP BY model
+        ORDER BY tokens DESC
+        LIMIT 20
+    """), {"ws": str(ctx.workspace_id)})
+    by_model = [
+        {
+            "model":    r.model,
+            "tokens":   int(r.tokens or 0),
+            "cost_usd": float(r.cost_usd or 0),
+            "requests": int(r.requests or 0),
+        }
+        for r in by_model_rows
+    ]
+
     return ApiResponse(data={
-        "month":   datetime.utcnow().strftime("%Y-%m"),
-        "usage":   usage,
-        "quota":   quota,
+        "month":    datetime.utcnow().strftime("%Y-%m"),
+        "usage":    usage,
+        "quota":    quota,
+        "by_day":   by_day,
+        "by_model": by_model,
     })
 
 

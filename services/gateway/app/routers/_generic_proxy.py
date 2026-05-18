@@ -56,3 +56,25 @@ app_templates_router = make_proxy_router("app-templates")
 # 注意：prefix 含斜線，注入後 target 是
 #   {base}/api/v1/workspace/{ws}/admin/audit-logs/... — 正常 path concat，沒問題
 audit_logs_router = make_proxy_router("admin/audit-logs")
+
+
+# v3.2 P3：admin 跨 workspace quota — 非 workspace-scoped，直接 proxy 到 agent
+# /api/v1/admin/quotas/...（agent 那邊用 X-User-Roles 判 admin）
+def _make_admin_quotas_router() -> APIRouter:
+    router = APIRouter()
+    base = settings.AGENT_SERVICE_URL
+
+    @router.api_route("", methods=["GET", "POST", "PUT", "DELETE"])
+    @router.api_route("/", methods=["GET", "POST", "PUT", "DELETE"])
+    async def _root(request: Request):
+        return await proxy_request(request, f"{base}/api/v1/admin/quotas")
+
+    @router.api_route("/{path:path}", methods=["GET", "POST", "PATCH", "PUT", "DELETE"])
+    async def _any(request: Request, path: str):
+        suffix = f"/{path}" if path else ""
+        return await proxy_request(request, f"{base}/api/v1/admin/quotas{suffix}")
+
+    return router
+
+
+admin_quotas_router = _make_admin_quotas_router()

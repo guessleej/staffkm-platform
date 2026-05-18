@@ -44,6 +44,7 @@
         <NavIconLink to="/mcp/servers"   label="MCP Servers"            icon="share-2" />
         <NavIconLink to="/triggers"      :label="$t('nav.triggers')"    icon="refresh" />
         <NavIconLink to="/memories"      :label="$t('nav.memory')"      icon="info" />
+        <NavIconLink to="/usage"         label="當月用量"               icon="file-text" />
 
         <template v-if="auth.hasRole(['admin'])">
           <span class="mx-2 w-px h-5 bg-neutral-200"></span>
@@ -52,6 +53,8 @@
           </HNavItem>
           <!-- v3.0：admin audit log icon-only -->
           <NavIconLink to="/admin/audit-logs" label="Audit Log" icon="file-text" />
+          <!-- v3.2 P3：跨 workspace quota 管理 -->
+          <NavIconLink to="/admin/quotas" label="Workspace Quota" icon="lock" />
           <HNavItem to="/admin/models" :label="$t('nav.models')">
             <template #icon><IconCpu :size="16" /></template>
           </HNavItem>

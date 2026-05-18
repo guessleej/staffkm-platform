@@ -13,7 +13,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.bootstrap_ddl import run_bootstrap_ddl
@@ -136,6 +136,9 @@ app.include_router(api_keys.public_router,    prefix="/api/v1/api-keys",        
 # ── 全域唯讀 Registry（workspace-agnostic；任何登入者可讀）─────────────
 app.include_router(model_providers.router,   prefix="/api/v1/model-providers", tags=["Model Provider Registry（M3）"])
 app.include_router(media_providers.router,   prefix="/api/v1/media-providers", tags=["Media Provider Registry（M4）"])
+
+# ── v3.2 P3：admin 跨 workspace quota 管理（不是 workspace-scoped）─────
+app.include_router(admin_quota.router,       prefix="/api/v1/admin", tags=["Admin Quota (v3.2)"])
 
 
 @app.get("/health")

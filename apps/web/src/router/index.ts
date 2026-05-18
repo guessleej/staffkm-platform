@@ -146,6 +146,18 @@ const router = createRouter({
           meta: { title: 'Token 用量 / Quota', roles: ['admin'] },
         },
         {
+          path: 'admin/quotas',
+          name: 'admin-quotas',
+          component: () => import('../views/admin/QuotaView.vue'),
+          meta: { title: 'Workspace Quota 管理', roles: ['admin'] },
+        },
+        {
+          path: 'usage',
+          name: 'usage',
+          component: () => import('../views/usage/UsageView.vue'),
+          meta: { title: '當月用量' },
+        },
+        {
           path: 'admin/system',
           name: 'admin-system',
           component: () => import('../views/admin/SystemView.vue'),

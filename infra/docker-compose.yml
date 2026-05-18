@@ -645,6 +645,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-staffkm_grafana}
       GF_SERVER_ROOT_URL: http://localhost:3000
       GF_LOG_LEVEL: warn
+      # v3.2 P3：給 postgres datasource provisioning 用（連 staffKM PG 抓 model_usage_logs）
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-staffkm_secret}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
