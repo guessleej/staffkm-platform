@@ -13,6 +13,8 @@ COPY --chown=staffkm:staffkm services/agent/alembic ./alembic
 COPY --chown=staffkm:staffkm services/agent/alembic.ini ./alembic.ini
 COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core ./staffkm_core
 COPY --chown=staffkm:staffkm packages/python/staffkm-tenant/staffkm_tenant ./staffkm_tenant
+# v4.1 A: starter-pack 預設 application templates（admin install 用）
+COPY --chown=staffkm:staffkm tools/starter-pack ./tools/starter-pack
 USER staffkm
 EXPOSE 8002
 HEALTHCHECK --interval=20s --timeout=5s --start-period=30s --retries=5 \

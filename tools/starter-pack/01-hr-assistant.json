@@ -1,0 +1,25 @@
+{
+  "name": "HR 助理",
+  "description": "請假規則 / 報帳流程 / 新人 onboarding QA",
+  "icon": "users",
+  "type": "knowledge-chat",
+  "system_prompt": "你是公司 HR 助理，幫員工查詢公司 HR 政策。回答簡潔、引用來源。",
+  "welcome_message": "嗨，我是 HR 助理。可以幫你查詢請假、報帳、新人 onboarding 相關政策。",
+  "suggested_questions": [
+    "我要怎麼請特休？",
+    "出差報帳流程是什麼？",
+    "新人第一週要做哪些事？"
+  ],
+  "nodes": [
+    {"node_key": "start", "node_type": "start", "label": "開始", "config": {}},
+    {"node_key": "kb",    "node_type": "knowledge_retrieval", "label": "查 HR 知識庫", "config": {"top_k": 5, "search_mode": "hybrid"}},
+    {"node_key": "llm",   "node_type": "llm", "label": "回答", "config": {"system_prompt": "{{system_prompt}}", "prompt_template": "依據以下知識回答：{{knowledge_results}}\n\n問題：{{user_input}}"}},
+    {"node_key": "answer","node_type": "answer", "label": "輸出", "config": {"message_template": "{{llm_response}}", "stream": true}}
+  ],
+  "edges": [
+    {"source_node_key": "start", "target_node_key": "kb"},
+    {"source_node_key": "kb",    "target_node_key": "llm"},
+    {"source_node_key": "llm",   "target_node_key": "answer"}
+  ],
+  "sample_knowledge": []
+}

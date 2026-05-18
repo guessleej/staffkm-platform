@@ -11,6 +11,7 @@ from app.api.oidc import router as oidc_router
 from app.api.users import router as users_router
 from app.api.models import router as models_router
 from app.api.workspaces import router as workspaces_router
+from app.api.trial import router as trial_router
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
 from app.config import settings
@@ -49,6 +50,8 @@ app.include_router(oidc_router, prefix="/api/v1/auth/oidc", tags=["OIDC SSO (v2.
 app.include_router(users_router, prefix="/api/v1/admin/users", tags=["使用者管理"])
 app.include_router(models_router, prefix="/api/v1/admin/models", tags=["模型供應商管理"])
 app.include_router(workspaces_router, prefix="/api/v1/workspaces", tags=["工作區（多租戶）"])
+# v4.1 A：public trial signup（不需 auth；GatewayHeadersMiddleware 寬容）
+app.include_router(trial_router, prefix="/api/v1/auth", tags=["Trial Signup (v4.1)"])
 
 
 @app.get("/health")

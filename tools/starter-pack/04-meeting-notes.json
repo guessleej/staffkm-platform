@@ -1,0 +1,23 @@
+{
+  "name": "會議紀要助理",
+  "description": "貼會議逐字稿 → 自動萃取行動項目 / 決議 / 待跟進",
+  "icon": "file-text",
+  "type": "knowledge-chat",
+  "system_prompt": "你是會議紀要助手。輸入是會議逐字稿，輸出結構化摘要（決議、行動項、負責人、期限）。",
+  "welcome_message": "貼上會議逐字稿，我幫你整理摘要與行動項。",
+  "suggested_questions": [
+    "請整理這份會議的決議",
+    "誰負責什麼？",
+    "下次會議要追蹤什麼？"
+  ],
+  "nodes": [
+    {"node_key": "start", "node_type": "start", "label": "開始", "config": {}},
+    {"node_key": "llm",   "node_type": "llm", "label": "結構化萃取", "config": {"system_prompt": "{{system_prompt}}", "prompt_template": "逐字稿/問題：{{user_input}}\n\n以 Markdown 表格輸出：## 決議 / ## 行動項（負責人｜期限｜內容）/ ## 待釐清"}},
+    {"node_key": "answer","node_type": "answer", "label": "輸出", "config": {"message_template": "{{llm_response}}", "stream": true}}
+  ],
+  "edges": [
+    {"source_node_key": "start", "target_node_key": "llm"},
+    {"source_node_key": "llm",   "target_node_key": "answer"}
+  ],
+  "sample_knowledge": []
+}

@@ -13,6 +13,8 @@ PUBLIC_PATHS = {
     "/api/v1/auth/oidc/info",
     "/api/v1/auth/oidc/login",
     "/api/v1/auth/oidc/callback",
+    # v4.1 A: public 14-day trial signup
+    "/api/v1/auth/trial",
     "/api/v1/health",
     "/api/docs",
     "/api/redoc",

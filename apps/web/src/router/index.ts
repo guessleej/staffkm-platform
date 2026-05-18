@@ -10,6 +10,13 @@ const router = createRouter({
       component: () => import('../views/login/LoginView.vue'),
       meta: { public: true },
     },
+    // v4.1 A: public 14-day trial signup
+    {
+      path: '/signup',
+      name: 'signup',
+      component: () => import('../views/login/SignupView.vue'),
+      meta: { public: true },
+    },
     // ── 對話為中心的 layout（claude.ai 風格），獨立路徑避免與 /
     //    被 DashboardLayout 的 children 互蓋（Vue Router 只認第一個 / parent）
     {

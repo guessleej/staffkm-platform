@@ -276,6 +276,13 @@
           <span class="text-indigo-600 font-medium cursor-default">資訊管理部門</span>
           協助重置
         </p>
+        <!-- v4.1 A: trial signup CTA -->
+        <p class="text-center text-[12px] text-fg-tertiary leading-relaxed mt-2">
+          還沒有帳號？
+          <router-link to="/signup" class="text-indigo-600 font-medium hover:underline">
+            申請 14 天免費試用
+          </router-link>
+        </p>
 
       </div>
     </div>
