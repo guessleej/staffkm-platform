@@ -47,3 +47,43 @@ MEDIA_PRICING: dict[str, dict[str, float | None]] = {
     "rerank-multilingual-v3.0": {"image": None, "second": None, "chars_1k": None, "call": 0.001},  # cohere $1/1k calls
     "rerank-english-v3.0":   {"image": None,  "second": None, "chars_1k": None, "call": 0.001},
 }
+
+# v5.0.4: provider_type → 預設 model rows（INSERT 進 ai_models 給 admin UI 顯示）
+# (model_name, model_type, display_name)
+PROVIDER_DEFAULT_MODELS: dict[str, list[tuple[str, str, str]]] = {
+    "openai": [
+        ("gpt-4o",                  "llm",       "GPT-4o"),
+        ("gpt-4o-mini",             "llm",       "GPT-4o mini"),
+        ("gpt-4-turbo",             "llm",       "GPT-4 Turbo"),
+        ("gpt-3.5-turbo",           "llm",       "GPT-3.5 Turbo"),
+        ("o1-preview",              "llm",       "o1-preview"),
+        ("o1-mini",                 "llm",       "o1-mini"),
+        ("text-embedding-3-small",  "embedding", "Embedding 3 small"),
+        ("text-embedding-3-large",  "embedding", "Embedding 3 large"),
+        ("dall-e-3",                "image",     "DALL·E 3"),
+        ("dall-e-3-hd",             "image",     "DALL·E 3 HD"),
+        ("whisper-1",               "stt",       "Whisper"),
+        ("tts-1",                   "tts",       "TTS-1"),
+        ("tts-1-hd",                "tts",       "TTS-1 HD"),
+    ],
+    "anthropic": [
+        ("claude-3-5-sonnet-20241022", "llm", "Claude 3.5 Sonnet"),
+        ("claude-3-5-haiku-20241022",  "llm", "Claude 3.5 Haiku"),
+        ("claude-3-opus-20240229",     "llm", "Claude 3 Opus"),
+    ],
+    "google": [
+        ("gemini-1.5-pro",   "llm", "Gemini 1.5 Pro"),
+        ("gemini-1.5-flash", "llm", "Gemini 1.5 Flash"),
+    ],
+    "ollama": [
+        ("llama3.1",           "llm",       "Llama 3.1"),
+        ("llama3.2",           "llm",       "Llama 3.2"),
+        ("qwen2.5",            "llm",       "Qwen 2.5"),
+        ("bge-m3",             "embedding", "BGE-M3 embedding"),
+        ("bge-reranker-v2-m3", "reranker",  "BGE Reranker v2 M3"),
+    ],
+    "cohere": [
+        ("rerank-multilingual-v3.0", "reranker", "Cohere Rerank v3 multilingual"),
+        ("rerank-english-v3.0",      "reranker", "Cohere Rerank v3 English"),
+    ],
+}

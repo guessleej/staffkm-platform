@@ -36,50 +36,22 @@
           <template #icon><IconAgent :size="16" /></template>
         </HNavItem>
 
-        <!-- Workflow 工具（icon-only，hover 顯示 tooltip）—— 直接 nav item、無下拉 -->
-        <span class="mx-1 w-px h-5 bg-neutral-200" aria-hidden="true"></span>
-        <NavIconLink to="/skills"        :label="$t('nav.skills')"      icon="key" />
-        <NavIconLink to="/tools"         :label="$t('nav.tools')"       icon="settings" />
-        <NavIconLink to="/data-sources"  :label="$t('nav.dataSources')" icon="database" />
-        <NavIconLink to="/mcp/servers"   label="MCP Servers"            icon="share-2" />
-        <NavIconLink to="/triggers"      :label="$t('nav.triggers')"    icon="refresh" />
-        <NavIconLink to="/memories"      :label="$t('nav.memory')"      icon="info" />
-        <NavIconLink to="/usage"         label="當月用量"               icon="file-text" />
+        <!-- 工具（popover grid，替代 v3.x 一字排開的 7 個 icon-only）-->
+        <span class="mx-2 w-px h-5 bg-neutral-200" aria-hidden="true"></span>
+        <NavMenuPopover
+          :label="$t('nav.toolsMenu') || '工具'"
+          icon="settings"
+          :groups="toolsGroups"
+        />
 
+        <!-- Admin（popover grid，替代 v3-v5 累積 14 個 admin link）-->
         <template v-if="auth.hasRole(['admin'])">
           <span class="mx-2 w-px h-5 bg-neutral-200"></span>
-          <HNavItem to="/admin/users" :label="$t('nav.users')">
-            <template #icon><IconUsers :size="16" /></template>
-          </HNavItem>
-          <!-- v3.0：admin audit log icon-only -->
-          <NavIconLink to="/admin/audit-logs" label="Audit Log" icon="file-text" />
-          <!-- v3.2 P3：跨 workspace quota 管理 -->
-          <NavIconLink to="/admin/quotas" label="Workspace Quota" icon="lock" />
-          <!-- v3.3 D3：user-level quota + alert -->
-          <NavIconLink to="/admin/user-quotas"  label="使用者 Quota" icon="user" />
-          <NavIconLink to="/admin/quota-alerts" label="配額告警"     icon="alert-circle" />
-          <!-- v3.5 P2：workflow human approval -->
-          <NavIconLink to="/admin/approvals"    label="人工核可"     icon="check-circle" />
-          <!-- v3.5 P4：workflow run history -->
-          <NavIconLink to="/admin/run-history"  label="執行紀錄"     icon="play" />
-          <!-- v3.6 P1：webhook outbox monitor -->
-          <NavIconLink to="/admin/webhook-outbox" label="Webhook Outbox" icon="send" />
-          <!-- v3.6 P2：worker heartbeats freshness -->
-          <NavIconLink to="/admin/heartbeats" label="Worker Heartbeats" icon="loader" />
-          <!-- v3.8 P2：per-user billing 報表 -->
-          <NavIconLink to="/admin/billing" label="Per-User Billing" icon="file-text" />
-          <!-- v4.7 G：Stripe billing (subscription + topup + invoices) -->
-          <NavIconLink to="/admin/billing/stripe" label="Stripe Billing" icon="key" />
-          <!-- v3.8 P4：slow query plan analyzer -->
-          <NavIconLink to="/admin/slow-queries" label="Slow Query Analyzer" icon="database" />
-          <!-- v5.0 K：active-active multi-region (scaffolding) -->
-          <NavIconLink to="/admin/regions" label="Multi-Region" icon="globe" />
-          <HNavItem to="/admin/models" :label="$t('nav.models')">
-            <template #icon><IconCpu :size="16" /></template>
-          </HNavItem>
-          <HNavItem to="/admin/system" :label="$t('nav.settings')">
-            <template #icon><IconSettings :size="16" /></template>
-          </HNavItem>
+          <NavMenuPopover
+            label="管理"
+            icon="lock"
+            :groups="adminGroups"
+          />
         </template>
       </nav>
 
@@ -200,6 +172,7 @@ import { onClickOutside } from '@vueuse/core'
 
 import HNavItem from '../../components/common/HNavItem.vue'
 import NavIconLink from '../../components/common/NavIconLink.vue'
+import NavMenuPopover from '../../components/common/NavMenuPopover.vue'
 import OnboardingWizard from '../../components/onboarding/OnboardingWizard.vue'
 import WorkspaceSwitcher from '../../components/workspace/WorkspaceSwitcher.vue'
 import ProjectPicker from '../../components/project/ProjectPicker.vue'
@@ -225,6 +198,65 @@ const menuRef = ref<HTMLElement | null>(null)
 onClickOutside(menuRef, () => { open.value = false })
 
 // nav active 偵測由各 NavIconLink 自己處理，這裡不再需要 advancedOpen state
+
+// v5.0.4：工具 + 管理 popover 分組（取代 v3.x 一字排開的 24 個 nav item）
+const toolsGroups = [
+  {
+    label: '工作流元件',
+    items: [
+      { to: '/skills',       label: 'Skills',       icon: 'key',      desc: '能力包' },
+      { to: '/tools',        label: 'Tools',        icon: 'settings', desc: '可呼叫工具' },
+      { to: '/data-sources', label: '資料來源',     icon: 'database', desc: 'KB / 外部資料' },
+      { to: '/mcp/servers',  label: 'MCP Servers',  icon: 'share-2',  desc: 'Model Context Protocol' },
+    ],
+  },
+  {
+    label: '自動化 / 用量',
+    items: [
+      { to: '/triggers', label: '排程觸發', icon: 'refresh',   desc: 'cron / event 觸發' },
+      { to: '/memories', label: '長期記憶', icon: 'info',      desc: 'per-user memory' },
+      { to: '/usage',    label: '當月用量', icon: 'file-text', desc: 'token / cost' },
+    ],
+  },
+]
+
+const adminGroups = [
+  {
+    label: '帳號 / 系統',
+    items: [
+      { to: '/admin/users',  label: '使用者管理', icon: 'user',     desc: '邀請 / 角色 / 停用' },
+      { to: '/admin/models', label: '模型供應商', icon: 'database', desc: 'LLM / Embedding / Reranker' },
+      { to: '/admin/system', label: '系統設定',   icon: 'settings', desc: '全域偏好' },
+    ],
+  },
+  {
+    label: '配額 / 計費',
+    items: [
+      { to: '/admin/quotas',         label: 'Workspace 配額', icon: 'lock',          desc: '月 cap 設定' },
+      { to: '/admin/user-quotas',    label: '使用者配額',     icon: 'user',          desc: 'per-user cap' },
+      { to: '/admin/quota-alerts',   label: '配額告警',       icon: 'alert-circle',  desc: 'webhook / slack / email' },
+      { to: '/admin/billing',        label: '用戶報表',       icon: 'file-text',     desc: '每月匯出 CSV' },
+      { to: '/admin/billing/stripe', label: 'Stripe Billing', icon: 'key',           desc: '訂閱 / 額度 / 發票' },
+    ],
+  },
+  {
+    label: '觀測 / 流程',
+    items: [
+      { to: '/admin/audit-logs',     label: 'Audit Log',     icon: 'file-text',    desc: '操作紀錄' },
+      { to: '/admin/run-history',    label: '執行紀錄',      icon: 'play',         desc: 'workflow run + steps' },
+      { to: '/admin/approvals',      label: '人工核可',      icon: 'check-circle', desc: '暫停的 workflow' },
+      { to: '/admin/webhook-outbox', label: 'Webhook Outbox', icon: 'send',        desc: '失敗重送 / DLQ' },
+      { to: '/admin/heartbeats',     label: 'Worker 心跳',   icon: 'loader',       desc: '背景 task 健康' },
+      { to: '/admin/slow-queries',   label: '慢查詢分析',    icon: 'database',     desc: 'SQL plan' },
+    ],
+  },
+  {
+    label: '基礎建設',
+    items: [
+      { to: '/admin/regions', label: 'Multi-Region', icon: 'globe', desc: 'active-active scaffolding' },
+    ],
+  },
+]
 
 // Sprint 19.x：route 切換 scroll-top + 視覺 fade，無 mode='out-in' 不會 race
 const _route = useRoute()
