@@ -65,6 +65,8 @@ approvals_router    = make_proxy_router("approvals")
 conversations_router = make_proxy_router("conversations")
 # v4.7 G：Stripe billing — workspace-scoped (/billing/me, /checkout, /portal, /invoices, /credits/ledger)
 billing_router = make_proxy_router("billing")
+# v4.9 I：AI-generated workflow（自然語言 → workflow JSON）
+workflow_gen_router = make_proxy_router("workflow-gen")
 
 
 # v4.7 G：Stripe webhook — public path（不需 JWT；不需 workspace header）
