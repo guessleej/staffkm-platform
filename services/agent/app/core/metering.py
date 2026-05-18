@@ -36,6 +36,7 @@ from app.core.usage import (
     QuotaExceeded,
     UsageRecord,
     calc_cost,
+    calc_media_cost,
     check_quota,
     record_usage,
 )
@@ -109,3 +110,73 @@ async def meter_llm_call(
             await session.commit()
         except Exception as e:
             log.warning("meter_record_failed", workspace=ws, error=str(e))
+
+
+# ── v3.4 P1: non-LLM media metering ─────────────────────────────────────────
+class _MediaMeter:
+    """unit-based meter（image / second / char / call）。"""
+
+    def __init__(self):
+        self.count: float = 0.0
+        self.error: str | None = None
+
+    def record(self, *, unit_count: float) -> None:
+        self.count = float(unit_count or 0)
+
+
+@asynccontextmanager
+async def meter_media_call(
+    session: AsyncSession,
+    *,
+    workspace_id: str | uuid.UUID,
+    user_id: str | uuid.UUID | None = None,
+    application_id: str | uuid.UUID | None = None,
+    provider_type: str | None = None,
+    model: str | None = None,
+    unit_type: str,  # 'image' | 'second' | 'char' | 'call'
+):
+    """Pre: check_quota；post: record_usage 用 unit-based pricing。
+
+    與 meter_llm_call 對稱；非 token-based node（DALL-E / Whisper / TTS / Reranker）使用。
+    """
+    ws = str(workspace_id)
+    uid = str(user_id) if user_id else None
+    try:
+        await check_quota(session, ws, user_id=uid)
+    except QuotaExceeded:
+        raise
+
+    start = time.monotonic()
+    meter = _MediaMeter()
+    status = "ok"
+    try:
+        yield meter
+    except Exception as e:
+        status = "error"
+        meter.error = str(e)[:500]
+        raise
+    finally:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        try:
+            cost = await calc_media_cost(
+                session, model=model, unit_type=unit_type, unit_count=meter.count,
+            )
+            await record_usage(session, UsageRecord(
+                workspace_id=ws,
+                user_id=uid,
+                application_id=str(application_id) if application_id else None,
+                provider_type=provider_type,
+                model=model,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                cost_usd=cost,
+                latency_ms=latency_ms,
+                status=status,
+                error=meter.error,
+                unit_type=unit_type,
+                unit_count=meter.count,
+            ))
+            await session.commit()
+        except Exception as e:
+            log.warning("meter_media_record_failed", workspace=ws, error=str(e))
