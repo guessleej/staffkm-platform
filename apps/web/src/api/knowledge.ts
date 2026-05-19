@@ -263,6 +263,23 @@ export const knowledgeApi = {
     await http.delete(`/knowledge/paragraphs/${paragraphId}`)
   },
 
+  // — v2.8 H1：整 KB metadata 匯出 / 匯入
+  async exportKb(kbId: string, includeEmbeddings = false): Promise<Blob> {
+    const r = await http.get(`/knowledge/bases/${kbId}/export`, {
+      params: { include_embeddings: includeEmbeddings ? 1 : 0 },
+      responseType: 'blob',
+    })
+    return r.data as Blob
+  },
+  async importKb(file: File, renameTo?: string): Promise<{ kb_id: string; documents: number; paragraphs: number }> {
+    const form = new FormData()
+    form.append('file', file)
+    const params: Record<string, any> = {}
+    if (renameTo) params.rename_to = renameTo
+    const { data } = await http.post('/knowledge/bases/import', form, { params })
+    return data.data
+  },
+
   // — Workflow KB inline-write（v2.1 11-1，給 SDK / 工具用）
   async inlineWrite(kbId: string, body: {
     content: string;

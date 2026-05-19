@@ -60,7 +60,7 @@
           <tr v-for="u in items" :key="u.id"
               class="border-t border-neutral-100 hover:bg-neutral-50/40 transition">
             <td class="px-4 py-3">
-              <p class="font-medium text-fg text-sm">{{ u.display_name || u.username }}</p>
+              <p class="font-medium text-fg text-sm">{{ formatUserName(u) }}</p>
               <p class="text-[10px] text-fg-tertiary font-mono mt-0.5">{{ u.username }}</p>
             </td>
             <td class="px-4 py-3 text-fg-secondary">{{ u.email || '—' }}</td>
@@ -79,6 +79,7 @@
             <td class="px-4 py-3 text-right">
               <div class="inline-flex items-center gap-1">
                 <button @click="openRole(u)" class="px-2 py-1 text-[11px] text-brand-700 bg-brand-50 hover:bg-brand-100 rounded">改角色</button>
+                <button @click="openLoginMethods(u)" class="px-2 py-1 text-[11px] text-info-700 bg-info-50 hover:bg-info-100 rounded" title="限定登入方式（白名單）">登入方式</button>
                 <button @click="openPassword(u)" class="px-2 py-1 text-[11px] text-fg-secondary bg-neutral-100 hover:bg-neutral-200 rounded">重設密碼</button>
                 <button
                   @click="toggleStatus(u)"
@@ -180,6 +181,27 @@
       </div>
     </div>
 
+    <!-- v2.7 X-Pack：登入方式白名單 -->
+    <div v-if="editingMethods" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="editingMethods = null">
+      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-sm p-5">
+        <h3 class="text-base font-semibold text-fg">限定登入方式</h3>
+        <p class="text-xs text-fg-tertiary mt-0.5">{{ editingMethods.username }}</p>
+        <p class="text-[11px] text-fg-tertiary mt-3">
+          全部不勾 = 不限制（預設）；勾選後該使用者只能用勾選的方式登入。
+        </p>
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <label v-for="m in METHODS" :key="m" class="flex items-center gap-2 text-sm text-fg-secondary cursor-pointer">
+            <input type="checkbox" :value="m" v-model="methodsDraft" class="accent-brand-600" />
+            <span>{{ m }}</span>
+          </label>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button @click="editingMethods = null" class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:bg-neutral-50">取消</button>
+          <button @click="submitMethods" :disabled="saving" class="px-3 py-1.5 text-xs text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50">儲存</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 刪除確認 -->
     <div v-if="deleting" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="deleting = null">
       <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-sm p-5">
@@ -198,6 +220,7 @@
 import { onMounted, ref, computed, reactive } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { usersApi, type User } from '../../api/users'
+import { formatUserName } from '../../utils/userName'
 
 const items = ref<User[]>([])
 const total = ref(0)
@@ -273,6 +296,27 @@ async function submitRole() {
   try {
     await usersApi.setRole(editingRole.value.id, [roleDraft.value])
     editingRole.value = null
+    await load()
+  } catch (e: any) {
+    alert(e?.response?.data?.detail || e?.message || '儲存失敗')
+  } finally { saving.value = false }
+}
+
+// v2.7 X-Pack：登入方式白名單
+const METHODS = ['password', 'oidc', 'google', 'github'] as const
+const editingMethods = ref<User | null>(null)
+const methodsDraft = ref<string[]>([])
+function openLoginMethods(u: User) {
+  editingMethods.value = u
+  methodsDraft.value = Array.isArray(u.allowed_login_methods) ? [...u.allowed_login_methods] : []
+}
+async function submitMethods() {
+  if (!editingMethods.value) return
+  saving.value = true
+  try {
+    const payload = methodsDraft.value.length ? methodsDraft.value : null
+    await usersApi.setLoginMethods(editingMethods.value.id, payload)
+    editingMethods.value = null
     await load()
   } catch (e: any) {
     alert(e?.response?.data?.detail || e?.message || '儲存失敗')

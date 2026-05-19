@@ -178,6 +178,10 @@ async def oidc_callback(
         if changed:
             await session.commit()
 
+    # v2.7 X-Pack：驗證 per-user 登入方式白名單
+    from app.api.auth import _check_method_allowed
+    _check_method_allowed(user, "oidc")
+
     # 4. 簽 staffKM JWT
     svc = AuthService(session)
     tokens = svc.generate_tokens(user)

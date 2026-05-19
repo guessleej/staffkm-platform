@@ -225,6 +225,232 @@ async def convert_to_workflow_kb(
     })
 
 
+# ═══════════════════════════════════════════════════════════════════════
+#  v2.8 H1：KB 全 metadata 匯出 / 匯入
+# ═══════════════════════════════════════════════════════════════════════
+from io import BytesIO
+from fastapi import File, UploadFile
+from fastapi.responses import StreamingResponse
+
+
+@router.get("/{kb_id}/export")
+async def export_kb_full(
+    kb_id: uuid.UUID,
+    include_embeddings: int = 0,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """整 KB 匯出成 ZIP（含 documents / paragraphs metadata）。
+
+    `?include_embeddings=1` 時連 paragraph 向量一起匯出（base64 packed float32）。
+    """
+    from sqlalchemy import text
+    from app.core.exporter import kb_full_export_zip
+    from app.models.knowledge_base import Document, Paragraph
+
+    # 1. KB 本體
+    q = WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    kb = (await session.execute(q)).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+
+    kb_meta = {
+        "schema_version":      1,
+        "name":                kb.name,
+        "description":         kb.description,
+        "embedding_model":     kb.embedding_model,
+        "vector_store_type":   kb.vector_store_type,
+        "chunk_strategy":      kb.chunk_strategy,
+        "chunk_size":          kb.chunk_size,
+        "chunk_overlap":       kb.chunk_overlap,
+        "is_public":           kb.is_public,
+        "source_type":         kb.source_type,
+        "settings":            kb.meta or {},
+    }
+
+    # 2. Documents
+    doc_rows = (await session.execute(
+        WorkspaceScopedQuery(Document).select().where(Document.knowledge_base_id == kb_id)
+    )).scalars().all()
+    docs: list[dict] = []
+    para_by_doc: dict[str, list[dict]] = {}
+    doc_ids = [d.id for d in doc_rows]
+
+    for d in doc_rows:
+        docs.append({
+            "id":              str(d.id),
+            "name":            d.name,
+            "file_type":       d.file_type,
+            "file_size":       d.file_size,
+            "status":          d.status,
+            "tags":            d.tags or [],
+            "hit_strategy":    d.hit_strategy or "rag",
+            "is_enabled":      bool(d.is_enabled),
+            "meta":            d.meta or {},
+            "questions":       d.questions or [],
+            "paragraph_count": d.paragraph_count,
+            "char_count":      d.char_count,
+            "created_at":      d.created_at.isoformat() if d.created_at else None,
+        })
+
+    # 3. Paragraphs（一次 query）
+    if doc_ids:
+        from sqlalchemy import select as sql_select
+        para_rows = (await session.execute(
+            sql_select(Paragraph)
+            .where(Paragraph.document_id.in_(doc_ids))
+            .where(Paragraph.workspace_id == ctx.workspace_id)
+            .order_by(Paragraph.document_id, Paragraph.order_index)
+        )).scalars().all()
+        for p in para_rows:
+            para_by_doc.setdefault(str(p.document_id), []).append({
+                "id":          str(p.id),
+                "title":       p.title,
+                "content":     p.content,
+                "order_index": p.order_index,
+                "char_count":  p.char_count,
+                "is_active":   bool(p.is_active),
+                "meta":        p.meta or {},
+                "qa_pairs":    p.qa_pairs or [],
+            })
+
+    # 4. Embeddings（可選）
+    embeddings: dict[str, list[float]] | None = None
+    if include_embeddings:
+        # paragraph_embeddings 不在 ORM 中，走 raw SQL；CAST 規則參考 CLAUDE.md §8
+        rows = await session.execute(text(
+            "SELECT pe.paragraph_id, pe.embedding "
+            "FROM paragraph_embeddings pe "
+            "JOIN paragraphs p ON p.id = pe.paragraph_id "
+            "WHERE p.knowledge_base_id = CAST(:kb AS uuid)"
+        ), {"kb": str(kb_id)})
+        embeddings = {}
+        for r in rows.fetchall():
+            pid = str(r._mapping["paragraph_id"])
+            emb = r._mapping["embedding"]
+            # pgvector 在 asyncpg 下通常以 string "[0.1,0.2,...]" 或 list 來
+            if isinstance(emb, str):
+                emb = [float(x) for x in emb.strip("[]").split(",") if x]
+            elif emb is not None:
+                emb = list(map(float, emb))
+            if emb:
+                embeddings[pid] = emb
+
+    data = kb_full_export_zip(kb_meta, docs, para_by_doc, embeddings_by_paragraph=embeddings)
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="kb-{kb_id}.full.zip"'},
+    )
+
+
+@router.post("/import", response_model=ApiResponse)
+async def import_kb_full(
+    file: UploadFile = File(...),
+    rename_to: str | None = None,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """匯入 KB（多 part zip）。
+    一律建新 KB（避免覆蓋舊資料）；upload 後 paragraph 留待 worker 重新 embed。
+    若 ZIP 帶 embeddings/{pid}.b64 仍會被忽略（v2.8 簡化版）；
+    後續 v2.9 可加 `?include_embeddings=1` 還原以省 embed cost。
+    """
+    import json as _json
+    import zipfile as _zip
+    from app.models.knowledge_base import Document, DocStatus, Paragraph
+
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="僅接受 .zip 檔")
+
+    raw = await file.read()
+    try:
+        zf = _zip.ZipFile(BytesIO(raw), "r")
+    except _zip.BadZipFile:
+        raise HTTPException(status_code=400, detail="ZIP 檔損毀")
+
+    names = set(zf.namelist())
+    if "kb.json" not in names:
+        raise HTTPException(status_code=400, detail="ZIP 缺少 kb.json")
+    try:
+        kb_meta = _json.loads(zf.read("kb.json"))
+        docs_meta: list[dict] = _json.loads(zf.read("documents.json")) if "documents.json" in names else []
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"kb.json / documents.json 解析失敗：{e}")
+
+    # 1. 建新 KB
+    new_kb = KnowledgeBase(
+        workspace_id=ctx.workspace_id,
+        name=(rename_to or kb_meta.get("name") or "Imported KB")[:128],
+        description=kb_meta.get("description"),
+        embedding_model=kb_meta.get("embedding_model") or "bge-m3",
+        vector_store_type=kb_meta.get("vector_store_type") or "pgvector",
+        chunk_strategy=kb_meta.get("chunk_strategy") or "auto",
+        chunk_size=kb_meta.get("chunk_size") or 512,
+        chunk_overlap=kb_meta.get("chunk_overlap") or 64,
+        is_public=bool(kb_meta.get("is_public", False)),
+        meta=kb_meta.get("settings") or {},
+    )
+    session.add(new_kb)
+    await session.flush()
+
+    doc_count = 0
+    para_count = 0
+    for dm in docs_meta:
+        new_doc = Document(
+            workspace_id=ctx.workspace_id,
+            knowledge_base_id=new_kb.id,
+            name=dm.get("name") or "untitled",
+            file_type=dm.get("file_type") or "txt",
+            file_size=int(dm.get("file_size") or 0),
+            status=DocStatus.READY,
+            tags=dm.get("tags") or [],
+            hit_strategy=dm.get("hit_strategy") or "rag",
+            is_enabled=bool(dm.get("is_enabled", True)),
+            meta=dm.get("meta") or {},
+            questions=dm.get("questions") or [],
+            paragraph_count=int(dm.get("paragraph_count") or 0),
+            char_count=int(dm.get("char_count") or 0),
+        )
+        session.add(new_doc)
+        await session.flush()
+        doc_count += 1
+
+        # 對應 paragraphs/{old_doc_id}.json
+        old_doc_id = str(dm.get("id"))
+        para_path = f"paragraphs/{old_doc_id}.json"
+        if para_path in names:
+            try:
+                paras: list[dict] = _json.loads(zf.read(para_path))
+            except Exception:
+                paras = []
+            for p in paras:
+                session.add(Paragraph(
+                    workspace_id=ctx.workspace_id,
+                    document_id=new_doc.id,
+                    knowledge_base_id=new_kb.id,
+                    content=p.get("content") or "",
+                    title=p.get("title"),
+                    order_index=int(p.get("order_index") or 0),
+                    char_count=int(p.get("char_count") or len(p.get("content") or "")),
+                    is_active=bool(p.get("is_active", True)),
+                    meta=p.get("meta") or {},
+                    qa_pairs=p.get("qa_pairs") or [],
+                ))
+                para_count += 1
+
+    await session.commit()
+    return ApiResponse(
+        message="KB 匯入成功；段落尚未 embed，請等待後台任務或手動觸發 re-embed。",
+        data={
+            "kb_id":           str(new_kb.id),
+            "documents":       doc_count,
+            "paragraphs":      para_count,
+            "embeddings_note": "embeddings 內容尚未還原（v2.8 簡化版）；段落需重 embed。",
+        },
+    )
+
+
 @router.get("/{kb_id}/source-info", response_model=ApiResponse)
 async def get_source_info(
     kb_id: uuid.UUID,

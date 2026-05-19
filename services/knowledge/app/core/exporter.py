@@ -22,6 +22,44 @@ import zipfile
 from typing import Any, Callable
 
 
+def kb_full_export_zip(
+    kb_meta: dict[str, Any],
+    docs: list[dict[str, Any]],
+    paragraphs_by_doc: dict[str, list[dict[str, Any]]],
+    *,
+    embeddings_by_paragraph: dict[str, list[float]] | None = None,
+) -> bytes:
+    """v2.8 H1：整 KB 帶 metadata 匯出（與 to_zip_bytes 用於 doc 內容的場景不同）。
+
+    ZIP 結構：
+      kb.json                     ← KnowledgeBase 全 meta（name / embedding_model / chunk_* / source_* / settings）
+      documents.json              ← 全部 Document 的 metadata + tags + hit_strategy + is_enabled
+      paragraphs/{doc_id}.json    ← 每文件的 paragraphs 全 metadata（含 qa_pairs / order_index）
+      embeddings/{paragraph_id}.b64  ← 可選；?include_embeddings=1 時帶
+    """
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("kb.json", json.dumps(kb_meta, ensure_ascii=False, indent=2, default=str))
+        zf.writestr("documents.json",
+                    json.dumps(docs, ensure_ascii=False, indent=2, default=str))
+        for doc_id, paras in paragraphs_by_doc.items():
+            zf.writestr(
+                f"paragraphs/{doc_id}.json",
+                json.dumps(paras, ensure_ascii=False, indent=2, default=str),
+            )
+        if embeddings_by_paragraph:
+            import base64
+            import struct
+            for pid, vec in embeddings_by_paragraph.items():
+                # float32 packed → base64，比 JSON list 小 ~6x
+                buf = b"".join(struct.pack("<f", float(x)) for x in vec)
+                zf.writestr(
+                    f"embeddings/{pid}.b64",
+                    base64.b64encode(buf).decode("ascii"),
+                )
+    return out.getvalue()
+
+
 def _slugify(name: str, idx: int) -> str:
     safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in (name or "doc"))
     return f"{idx:03d}_{safe[:60]}"

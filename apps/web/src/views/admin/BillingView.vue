@@ -82,7 +82,7 @@
             class="border-t border-neutral-100 hover:bg-neutral-50/40 transition cursor-pointer"
             @click="openDetail(row)"
           >
-            <td class="px-4 py-3 text-fg font-medium">{{ row.username }}</td>
+            <td class="px-4 py-3 text-fg font-medium">{{ formatUserName(row) }}</td>
             <td class="px-4 py-3 text-fg-secondary text-xs">{{ row.email }}</td>
             <td class="px-4 py-3 text-fg-secondary text-xs">{{ row.workspace_name || '—' }}</td>
             <td class="px-4 py-3 text-right text-fg-secondary">{{ fmtNum(row.calls) }}</td>
@@ -117,7 +117,7 @@
         <div class="w-full max-w-2xl bg-surface-raised h-full overflow-y-auto shadow-xl">
           <div class="px-6 py-4 border-b border-neutral-200 flex items-center justify-between sticky top-0 bg-surface-raised z-10">
             <div>
-              <h2 class="text-base font-semibold text-fg">{{ selected.username }}</h2>
+              <h2 class="text-base font-semibold text-fg">{{ formatUserName(selected) }}</h2>
               <p class="text-xs text-fg-tertiary mt-0.5">{{ selected.email }} · {{ selected.workspace_name || '—' }}</p>
             </div>
             <button
@@ -229,6 +229,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { adminBillingApi, type UserBillingRow, type UserBillingDetail, type UserBillingSummary } from '../../api/adminBilling'
+import { formatUserName } from '../../utils/userName'
 
 const items = ref<UserBillingRow[]>([])
 const summary = ref<UserBillingSummary>({ total_cost: 0, total_tokens: 0, user_count: 0 })

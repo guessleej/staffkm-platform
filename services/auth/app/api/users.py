@@ -42,6 +42,8 @@ class UserOut(BaseModel):
     status: str
     roles: list[str]
     department: str | None
+    # v2.7 X-Pack：per-user 登入方式白名單（NULL = 全部允許）
+    allowed_login_methods: list[str] | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = {"from_attributes": True}
@@ -203,6 +205,57 @@ async def reset_user_password(
     )
     await session.commit()
     return ApiResponse(message="密碼已重設")
+
+
+# ── v2.7 X-Pack：per-user 登入方式白名單 ─────────────────────────────
+_ALLOWED_METHODS = {"password", "ldap", "oidc", "google", "github", "local"}
+
+
+class LoginMethodsUpdate(BaseModel):
+    # None / 不傳 = 不限制（清空白名單）；空 list 視為不限制
+    allowed_login_methods: list[str] | None = None
+
+
+@router.put("/{user_id}/login-methods", response_model=ApiResponse)
+async def update_user_login_methods(
+    user_id: uuid.UUID,
+    body: LoginMethodsUpdate,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """設定使用者允許的登入方式。None / 空 list = 不限制（全部允許）。"""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="使用者不存在")
+    methods = body.allowed_login_methods
+    if methods is not None:
+        invalid = [m for m in methods if m not in _ALLOWED_METHODS]
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支援的登入方式：{invalid}（可用：{sorted(_ALLOWED_METHODS)}）",
+            )
+        # 空 list 視為 NULL，避免使用者完全鎖死
+        if not methods:
+            methods = None
+    old = list(user.allowed_login_methods) if user.allowed_login_methods else None
+    user.allowed_login_methods = methods
+    actor_user_id = getattr(request.state, "user_id", None)
+    await _safe_audit(
+        session,
+        workspace_id=None,
+        actor_user_id=actor_user_id,
+        actor_username=None,
+        action="update",
+        entity_type="user",
+        entity_id=str(user_id),
+        entity_label=user.username,
+        detail={"allowed_login_methods": {"old": old, "new": methods}},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return ApiResponse(message="登入方式白名單已更新", data={"allowed_login_methods": methods})
 
 
 @router.delete("/{user_id}", response_model=ApiResponse)

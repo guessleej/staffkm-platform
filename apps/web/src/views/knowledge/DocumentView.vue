@@ -1,5 +1,9 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden bg-surface-base">
+    <!-- 標籤 autocomplete（從 /knowledge-bases/{id}/tags 拿） -->
+    <datalist id="kb-tag-suggest">
+      <option v-for="t in tagSuggestions" :key="t.tag" :value="t.tag" />
+    </datalist>
 
     <!-- Header -->
     <div class="bg-surface-raised border-b border-neutral-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
@@ -120,6 +124,7 @@
               <th class="px-5 py-3 font-semibold">文件</th>
               <th class="px-5 py-3 font-semibold w-32">狀態</th>
               <th class="px-5 py-3 font-semibold w-48">處理進度</th>
+              <th class="px-5 py-3 font-semibold w-56">標籤</th>
               <th class="px-5 py-3 font-semibold w-20 text-right">段落</th>
               <th class="px-5 py-3 font-semibold w-24 text-right">大小</th>
               <th class="px-5 py-3 font-semibold w-12"></th>
@@ -195,6 +200,48 @@
                   <IconCheck :size="12" :stroke-width="2.5" />
                   完成
                 </p>
+              </td>
+              <td class="px-5 py-3">
+                <div class="flex flex-wrap items-center gap-1">
+                  <span
+                    v-for="t in (doc.tags || [])"
+                    :key="t"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] bg-brand-50 text-brand-700 group/chip"
+                  >
+                    <span>{{ t }}</span>
+                    <button
+                      class="text-brand-500 hover:text-brand-800 opacity-60 group-hover/chip:opacity-100"
+                      :title="`移除 ${t}`"
+                      @click.stop="removeTag(doc, t)"
+                    >×</button>
+                  </span>
+                  <div class="relative">
+                    <button
+                      v-if="tagEditingDocId !== doc.id"
+                      class="px-1.5 py-0.5 rounded-md border border-dashed border-neutral-300 text-[10px] text-neutral-500 hover:border-brand-400 hover:text-brand-600"
+                      @click.stop="openTagEditor(doc)"
+                    >+ Add</button>
+                    <div
+                      v-else
+                      class="flex items-center gap-1"
+                    >
+                      <input
+                        ref="tagInputRef"
+                        v-model="tagDraft"
+                        @keyup.enter="commitTag(doc)"
+                        @keyup.esc="closeTagEditor(doc.id)"
+                        @blur="onTagBlur(doc)"
+                        list="kb-tag-suggest"
+                        placeholder="標籤名…"
+                        class="h-6 w-24 px-1.5 text-[11px] rounded border border-brand-300 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      />
+                      <button
+                        @click.stop="commitTag(doc)"
+                        class="text-[11px] text-brand-600 hover:text-brand-700"
+                      >✓</button>
+                    </div>
+                  </div>
+                </div>
               </td>
               <td class="px-5 py-3 text-sm text-neutral-600 text-right tabular-nums">
                 {{ doc.paragraph_count || 0 }}
@@ -329,6 +376,62 @@ const uploadProgress = ref(0)
 const sourceInfo = ref<{ source_type?: string; source_workflow_id?: string } | null>(null)
 let pollTimer: any = null
 
+// ── H2：inline tag editor ─────────────────────────────────────────
+const tagSuggestions = ref<{ tag: string; count: number }[]>([])
+const tagEditingDocId = ref<string | null>(null)
+const tagDraft = ref('')
+const tagInputRef = ref<HTMLInputElement | null>(null)
+
+async function loadTagSuggestions() {
+  try { tagSuggestions.value = await knowledgeApi.listWorkspaceTags() }
+  catch (e) { /* 無權限 / 空 KB 都吃下，不阻塞 UI */ }
+}
+
+function openTagEditor(doc: any) {
+  tagEditingDocId.value = doc.id
+  tagDraft.value = ''
+  // 等 DOM mount focus 進去
+  setTimeout(() => (tagInputRef.value as any)?.focus?.(), 0)
+}
+
+function closeTagEditor(_id?: string) {
+  tagEditingDocId.value = null
+  tagDraft.value = ''
+}
+
+async function commitTag(doc: any) {
+  const t = tagDraft.value.trim()
+  if (!t) { closeTagEditor(); return }
+  const cur: string[] = Array.isArray(doc.tags) ? [...doc.tags] : []
+  if (cur.includes(t)) { closeTagEditor(); return }
+  cur.push(t)
+  try {
+    await knowledgeApi.updateDocSettings(doc.id, { tags: cur })
+    doc.tags = cur
+    loadTagSuggestions() // 背景刷新建議
+  } catch (e: any) {
+    alert('儲存標籤失敗：' + (e?.response?.data?.detail || e?.message))
+  } finally {
+    closeTagEditor()
+  }
+}
+
+async function removeTag(doc: any, tag: string) {
+  const cur: string[] = (doc.tags || []).filter((t: string) => t !== tag)
+  try {
+    await knowledgeApi.updateDocSettings(doc.id, { tags: cur })
+    doc.tags = cur
+  } catch (e: any) {
+    alert('移除標籤失敗：' + (e?.response?.data?.detail || e?.message))
+  }
+}
+
+function onTagBlur(doc: any) {
+  // input blur 後若仍有草稿就 commit；否則純關閉
+  if (tagDraft.value.trim()) commitTag(doc)
+  else closeTagEditor()
+}
+
 async function loadDocs() {
   loading.value = true
   try {
@@ -359,7 +462,7 @@ function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-onMounted(() => { loadDocs(); loadSourceInfo(); startPolling() })
+onMounted(() => { loadDocs(); loadSourceInfo(); loadTagSuggestions(); startPolling() })
 onBeforeUnmount(stopPolling)
 
 async function onFileSelected(e: Event) {
