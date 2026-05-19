@@ -171,7 +171,8 @@ docs/
 | 直接 import LogicFlow → ChatLayout chunk 飆到 1MB | 大型 dep 一定 manualChunks + 配 lazy 引入點 |
 | 改 352 處 `bg-neutral-200` vs 改 11 行 token | 改 token 永遠優先 |
 | 「empty state ≠ 真通」| 任何新 endpoint 上線前 curl POST 一次 |
-| asyncpg `:param::jsonb` | 一律 `CAST(:param AS jsonb)` |
+| asyncpg `:param::jsonb` / `:emb::vector` 等 dialect 不認，exception 被 starlette 吞、500 沒 log | 一律 `CAST(:param AS jsonb)`、`CAST(:emb AS vector)`；v5.0.10 全 repo 掃修 19 處 |
+| asyncpg array bind 用 PG literal `'{u1,u2}'` 也壞 | 用 Python list 直接 bind：`{"ids": [uuid1, uuid2]}` 配 `ANY(:ids)` |
 | Storybook 8 + vite 6 不自動掛 @vitejs/plugin-vue | 顯式在 main.ts viteFinal 注入 |
 | 「進階下拉」UX 突兀 | 改 icon-only nav + hover tooltip |
 | Token expiry 多 request 並發 → N 次 /refresh | 用 module-scoped promise 去重 |
@@ -190,6 +191,16 @@ grep -rl "UnderConstructionView" apps/web/src/
 # 2. 點過每個 nav item，確認有真實內容
 grep -cE 'to="/[a-z]' apps/web/src/views/dashboard/DashboardLayout.vue
 # 拿到數字 N → 手動點過 N 個 nav，每個都要看到非 placeholder 內容
+
+# 3. asyncpg dialect 雷掃描（CLAUDE.md §8 紀律）— 避免 500 沒 log 的悶炸
+grep -rnE ':[a-z_]+::(jsonb|vector|uuid|int|text|timestamptz|date|inet|bool)' \
+    services/ packages/python/ --include="*.py" 2>/dev/null \
+    | grep -v __pycache__ | grep -v "/alembic/versions/"
+# 預期：no matches。有的話一律改 CAST(:param AS type)
+
+# 4. asyncpg array literal 也要禁
+grep -rnE "ANY\(['\"]\\\\?\{[a-z0-9_,\\-]+\}['\"]\)" services/ --include="*.py" 2>/dev/null
+# 預期：no matches。改用 Python list bind: {"ids": [u1, u2]} + ANY(:ids)
 ```
 
 額外建議：

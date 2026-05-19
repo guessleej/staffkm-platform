@@ -168,7 +168,7 @@ async def save_workflow(
                 )
                 VALUES (
                     :id, :app_id, :ws, :node_type, :node_key,
-                    :label, :config::jsonb, :position::jsonb
+                    :label, CAST(:config AS jsonb), CAST(:position AS jsonb)
                 )
             """),
             {
@@ -197,7 +197,7 @@ async def save_workflow(
                     target_node_key, condition
                 )
                 VALUES (
-                    :id, :app_id, :ws, :source, :target, :condition::jsonb
+                    :id, :app_id, :ws, :source, :target, CAST(:condition AS jsonb)
                 )
             """),
             {

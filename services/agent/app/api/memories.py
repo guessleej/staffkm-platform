@@ -130,7 +130,7 @@ async def create_memory(
                 tags, importance, created_by
             ) VALUES (
                 :id, :ws, :uid, :app, :scope, :content,
-                :tags::jsonb, :imp, :by
+                CAST(:tags AS jsonb), :imp, :by
             )
         """),
         {

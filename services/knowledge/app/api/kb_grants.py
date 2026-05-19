@@ -142,7 +142,7 @@ async def list_related_resources(
             "FROM applications "
             "WHERE workspace_id = :ws "
             "  AND status != 'deleted' "
-            "  AND knowledge_base_ids @> :kb_arr::jsonb "
+            "  AND knowledge_base_ids @> CAST(:kb_arr AS jsonb) "
             "ORDER BY updated_at DESC NULLS LAST"
         ),
         {

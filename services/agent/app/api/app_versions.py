@@ -85,7 +85,7 @@ async def _snapshot_app(session: AsyncSession, app_id: uuid.UUID, ws, note: str 
                 id, application_id, workspace_id, version_number,
                 snapshot, note, created_at, created_by
             ) VALUES (
-                :id, :app_id, :ws, :ver, :snap::jsonb, :note, :now, :by
+                :id, :app_id, :ws, :ver, CAST(:snap AS jsonb), :note, :now, :by
             )
             """
         ),
