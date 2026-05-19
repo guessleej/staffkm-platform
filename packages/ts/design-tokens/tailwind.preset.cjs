@@ -61,6 +61,17 @@ module.exports = {
         raised:  hsl('surface-raised'),
         overlay: hsl('surface-overlay'),
         sunken:  hsl('surface-sunken'),
+        soft:    hsl('bg-soft'),
+      },
+
+      // v5.1 Warm Enterprise accents
+      warm: {
+        amber:      hsl('warm-amber'),
+        'amber-soft': hsl('warm-amber-soft'),
+      },
+      sage: {
+        DEFAULT: hsl('sage'),
+        soft:    hsl('sage-soft'),
       },
 
       // 設計系統 v1.1：dark-mode-aware foreground tokens

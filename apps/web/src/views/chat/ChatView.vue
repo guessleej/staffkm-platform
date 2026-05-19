@@ -1,15 +1,15 @@
 <template>
   <div class="h-full flex flex-col">
-    <!-- ───────── 空狀態：置中歡迎 + 輸入區 ───────── -->
+    <!-- ───────── 空狀態：置中歡迎 + 輸入區（v5.1 Warm Enterprise）───────── -->
     <div
       v-if="!activeConv && !streamingText"
       class="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-3xl mx-auto w-full"
     >
       <div class="text-center mb-10">
-        <h1 class="text-2xl font-semibold text-neutral-900 mb-2">
-          {{ $t('chat.welcome') }}
+        <h1 class="text-3xl font-semibold tracking-tight text-fg mb-2">
+          今天想了解什麼？
         </h1>
-        <p class="text-sm text-neutral-500">{{ $t('chat.welcomeHint') }}</p>
+        <p class="text-sm text-fg-tertiary">{{ $t('chat.welcomeHint') }}</p>
         <!-- Sprint 19.x：Project scope binding 指示 -->
         <div v-if="projectStore.active" class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 text-brand-700 text-xs">
           <span>{{ projectStore.active.emoji || '#' }}</span>
@@ -27,13 +27,35 @@
         @submit="onSubmit"
       />
 
-      <!-- 建議的快速起始 -->
+      <!-- v5.1：starter prompt 卡片（2x2 grid） -->
+      <div v-if="starterPrompts.length" class="mt-8 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          v-for="(p, i) in starterPrompts"
+          :key="p.title"
+          @click="useStarter(p)"
+          class="card-warm fade-up text-left p-4 flex items-start gap-3 group cursor-pointer"
+          :style="{ animationDelay: (i * 60) + 'ms' }"
+        >
+          <div
+            class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+            :style="{ background: p.bg, color: p.color }"
+          >
+            <SIcon :name="p.icon" :size="18" :stroke-width="1.8" />
+          </div>
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-fg">{{ p.title }}</div>
+            <div class="text-xs text-fg-tertiary mt-0.5 line-clamp-2">{{ p.prompt }}</div>
+          </div>
+        </button>
+      </div>
+
+      <!-- 既有 agents pills 仍保留為次選（如有） -->
       <div v-if="agents.length" class="mt-6 flex flex-wrap gap-2 justify-center">
         <button
           v-for="a in agents.slice(0, 4)"
           :key="a.scenario_id"
           @click="startWithScenario(a.scenario_id)"
-          class="px-3 py-1.5 text-xs rounded-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 transition"
+          class="px-3 py-1.5 text-xs rounded-full border border-bd text-fg-secondary hover:bg-surface-soft hover:text-fg transition"
         >{{ a.name }}</button>
       </div>
     </div>
@@ -215,6 +237,42 @@ function openMessageAsArtifact(msg: { content: string; created_at?: string }) {
 
 const draft = ref('')
 const sending = ref(false)
+
+// v5.1 — Welcome starter prompts（暖色 icon + 範例問題）
+const starterPrompts = [
+  {
+    icon: 'search',
+    title: '搜尋知識庫',
+    prompt: '幫我找出最近三個月的請假規則更新',
+    bg: 'hsl(38 92% 95%)',
+    color: 'hsl(28 80% 40%)',
+  },
+  {
+    icon: 'book-open',
+    title: '彙整文件重點',
+    prompt: '從我上傳的會議記錄中整理本季重要決議',
+    bg: 'hsl(140 25% 94%)',
+    color: 'hsl(140 35% 35%)',
+  },
+  {
+    icon: 'edit',
+    title: '草擬內部公告',
+    prompt: '幫我寫一份新人到職第一週的指引信',
+    bg: 'hsl(238 95% 96%)',
+    color: 'hsl(239 72% 50%)',
+  },
+  {
+    icon: 'info',
+    title: 'FAQ 整理',
+    prompt: '把員工常問的 IT 問題整理成 FAQ 條目',
+    bg: 'hsl(210 85% 95%)',
+    color: 'hsl(212 74% 40%)',
+  },
+] as Array<{ icon: string; title: string; prompt: string; bg: string; color: string }>
+
+function useStarter(p: { prompt: string }) {
+  draft.value = p.prompt
+}
 const streamingText = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
 const agents = ref<{ scenario_id: string; name: string }[]>([])

@@ -42,11 +42,12 @@
 
     <!-- 主內容 -->
     <div class="flex-1 flex flex-col">
-      <!-- 頁首 -->
-      <div class="px-6 py-5 border-b border-neutral-200 bg-surface-raised flex items-center justify-between flex-shrink-0">
+      <!-- 頁首（v5.1 Warm Enterprise hero）-->
+      <div class="px-6 pt-6 pb-5 bg-transparent flex-shrink-0">
+       <div class="card-hero flex items-center justify-between gap-4">
         <div>
-          <h1 class="text-lg font-semibold text-neutral-900">{{ activeFolderName }}</h1>
-          <p class="text-xs text-neutral-500 mt-0.5">{{ $t('knowledge.docCount', { n: filteredKbs.length }) }}</p>
+          <h1 class="heading-page heading-accent">{{ activeFolderName }}</h1>
+          <p class="text-sm text-fg-tertiary mt-1.5 ml-[1rem]">{{ $t('knowledge.docCount', { n: filteredKbs.length }) }}</p>
           <!-- D-6：Project 過濾指示 -->
           <div
             v-if="activeProject"
@@ -73,12 +74,13 @@
           />
           <button
             @click="showCreate = true"
-            class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
+            class="btn btn-primary"
           >
             <IconPlus :size="14" :stroke-width="2.5" />
             {{ $t('knowledge.createKb') }}
           </button>
         </div>
+       </div>
       </div>
 
       <!-- 列表 -->
@@ -87,29 +89,20 @@
           <IconSpinner :size="16" /> 載入中
         </div>
 
-        <SEmpty v-else-if="!filteredKbs.length"
-                variant="box"
+        <EmptyState v-else-if="!filteredKbs.length"
+                icon="book-open"
                 title="尚未建立知識庫"
                 description="建立一個知識庫，再上傳文件、設定檢索方式"
-                size="lg">
-          <template #action>
-            <button
-              @click="showCreate = true"
-              class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm">
-              <IconPlus :size="14" :stroke-width="2.5" />
-              建立第一個
-            </button>
-          </template>
-        </SEmpty>
+                action-label="建立第一個"
+                @action="showCreate = true" />
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div
-            v-for="kb in filteredKbs"
+            v-for="(kb, idx) in filteredKbs"
             :key="kb.id"
-            class="relative bg-surface-raised rounded-2xl border hover:shadow-lg hover:-translate-y-0.5 hover:border-brand-200 transition-all duration-200 overflow-hidden group"
-            :class="batch.isSelected(kb.id)
-              ? 'border-brand-400 ring-1 ring-brand-200'
-              : 'border-neutral-200 hover:border-brand-300'"
+            class="card-warm fade-up relative overflow-hidden group"
+            :style="{ animationDelay: (idx * 40) + 'ms' }"
+            :class="batch.isSelected(kb.id) ? 'border-brand-400 ring-1 ring-brand-200' : ''"
           >
             <button
               class="absolute top-3 right-3 z-10 w-5 h-5 flex items-center justify-center rounded border transition opacity-0 group-hover:opacity-100"
@@ -497,7 +490,7 @@ import { knowledgeApi, type KbFolder } from '../../api/knowledge'
 import { IconClose, IconDelete, IconKnowledge, IconPlus, IconSpinner } from '../../components/icons'
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
-import { SEmpty } from '@staffkm/ui-kit'
+import EmptyState from '../../components/common/EmptyState.vue'
 import FolderTree, { type FolderNode } from '../../components/common/FolderTree.vue'
 import KbAccessDrawer from '../../components/knowledge/KbAccessDrawer.vue'
 import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
