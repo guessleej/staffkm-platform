@@ -132,12 +132,29 @@
           </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+        <div class="flex-1 overflow-y-auto p-3 space-y-3">
           <div v-if="catalogLoading" class="flex justify-center py-12"><SSpinner :size="20" /></div>
           <div v-else-if="filteredCatalog.length === 0" class="text-xs text-fg-tertiary text-center py-8">沒有符合的供應商</div>
 
+          <!-- v5.9.5: 分類折疊 -->
+          <div v-for="group in groupedCatalog" :key="group.key">
+            <button
+              @click="toggleGroup(group.key)"
+              class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-neutral-100 transition-colors group"
+            >
+              <span class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary">
+                <SIcon
+                  name="chevron-down"
+                  :size="11"
+                  :class="['transition-transform', collapsedGroups.has(group.key) ? '-rotate-90' : '']"
+                />
+                {{ group.label }}
+              </span>
+              <span class="text-[10px] text-fg-tertiary tabular-nums">{{ group.items.length }}</span>
+            </button>
+            <div v-show="!collapsedGroups.has(group.key)" class="mt-1.5 space-y-2">
           <div
-            v-for="entry in filteredCatalog" :key="entry.type"
+            v-for="entry in group.items" :key="entry.type"
             class="border border-bd rounded-lg p-3 hover:border-brand-300 hover:bg-brand-50/30 transition-colors"
           >
             <div class="flex items-start justify-between mb-1.5">
@@ -166,6 +183,8 @@
                 v-for="cap in (entry.capabilities || [])" :key="cap"
                 class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-fg-tertiary uppercase font-medium"
               >{{ cap }}</span>
+            </div>
+          </div>
             </div>
           </div>
         </div>
@@ -328,6 +347,48 @@ const filteredCatalog = computed(() => {
     }
     return true
   })
+})
+
+// v5.9.5: 右側 catalog 分類折疊
+const CATALOG_GROUPS = [
+  { key: 'local',     label: '地端 self-hosted',
+    test: (r: ProviderRegistryEntry) => r.is_local },
+  { key: 'cloud-int', label: '國際雲',
+    test: (r: ProviderRegistryEntry) => [
+      'openai','anthropic','gemini','vertex_ai','bedrock','azure_openai',
+      'cohere','mistral','groq','together','fireworks','perplexity',
+      'openrouter','xai','nvidia_nim',
+    ].includes(r.type) },
+  { key: 'cloud-cn',  label: '中文雲',
+    test: (r: ProviderRegistryEntry) => [
+      'moonshot','deepseek','zhipu','qwen','baichuan','yi','siliconflow',
+      'doubao','minimax','hunyuan','qianfan','bailian',
+    ].includes(r.type) },
+  { key: 'specialty', label: '專業服務 (Embedding / TTS / STT / Image)',
+    test: (r: ProviderRegistryEntry) => [
+      'voyage','jina','elevenlabs','deepgram','stability_ai',
+    ].includes(r.type) },
+  { key: 'other',     label: '其他', test: (_: ProviderRegistryEntry) => true },
+] as const
+
+// 預設都展開；search 命中時自動全展（看完整命中結果）
+const collapsedGroups = ref<Set<string>>(new Set())
+function toggleGroup(key: string) {
+  if (collapsedGroups.value.has(key)) collapsedGroups.value.delete(key)
+  else collapsedGroups.value.add(key)
+  // 觸發 reactivity
+  collapsedGroups.value = new Set(collapsedGroups.value)
+}
+
+const groupedCatalog = computed(() => {
+  const out: { key: string; label: string; items: ProviderRegistryEntry[] }[] = []
+  const used = new Set<string>()
+  for (const g of CATALOG_GROUPS) {
+    const items = filteredCatalog.value.filter(r => !used.has(r.type) && g.test(r))
+    items.forEach(r => used.add(r.type))
+    if (items.length) out.push({ key: g.key, label: g.label, items })
+  }
+  return out
 })
 
 // ── Provider visual helpers ─────────────────────────────────────
