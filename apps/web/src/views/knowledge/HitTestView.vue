@@ -115,6 +115,10 @@
             共命中 {{ results.length }} 筆
             <span v-if="reranked">（已 rerank）</span>
           </div>
+          <div v-if="rerankWarning"
+               class="text-xs px-2 py-1.5 rounded-md bg-warning-50 text-warning-700 border border-warning-200">
+            ⚠ {{ rerankWarning }}
+          </div>
           <div
             v-for="(r, idx) in results"
             :key="r.paragraph_id"
@@ -182,6 +186,7 @@ const loading = ref(false)
 const error = ref('')
 const hasRun = ref(false)
 const reranked = ref(false)
+const rerankWarning = ref<string | null>(null)
 const results = ref<any[]>([])
 
 function fmt(n: number | null | undefined): string {
@@ -214,10 +219,12 @@ async function runTest() {
     const { data } = await http.post('/knowledge/hit-test', body)
     results.value = data.data?.results || []
     reranked.value = !!data.data?.reranked
+    rerankWarning.value = data.data?.rerank_warning || null
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || '檢索失敗'
     results.value = []
     reranked.value = false
+    rerankWarning.value = null
   } finally {
     loading.value = false
   }
