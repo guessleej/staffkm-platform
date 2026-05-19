@@ -78,15 +78,16 @@ async def update_setting(
 ):
     actor_user_id = require_admin_role(request)
     # value 任意 JSON — 序列化後存進 jsonb（避開 asyncpg dialect bug，用 CAST）
+    # v5.9.3: UPSERT — 之前若 key 不存在會回 404，但 setting 通常是「設定後存」
+    #   流程（如 default.llm / default.vision 等都不會預先 seed）
     value_json = json.dumps(body.value)
-    res = await session.execute(text("""
-        UPDATE system_settings
-           SET value      = CAST(:val AS jsonb),
+    await session.execute(text("""
+        INSERT INTO system_settings (key, value, updated_at, updated_by)
+        VALUES (:k, CAST(:val AS jsonb), now(), CAST(:by AS uuid))
+        ON CONFLICT (key) DO UPDATE
+           SET value      = EXCLUDED.value,
                updated_at = now(),
-               updated_by = CAST(:by AS uuid)
-         WHERE key = :k
+               updated_by = EXCLUDED.updated_by
     """), {"val": value_json, "by": actor_user_id, "k": key})
-    if res.rowcount == 0:
-        raise HTTPException(status_code=404, detail="setting 不存在")
     await session.commit()
     return ApiResponse(message="設定已更新")
