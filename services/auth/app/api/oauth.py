@@ -176,6 +176,11 @@ async def callback(
         raise HTTPException(500, "user lookup failed after create")
     if user.status != UserStatus.ACTIVE:
         raise HTTPException(403, "account disabled")
+
+    # v2.7 X-Pack：per-user 登入方式白名單（google / github）
+    from app.api.auth import _check_method_allowed
+    _check_method_allowed(user, provider)
+
     tokens = AuthService(session).generate_tokens(user)
 
     return ApiResponse(data={

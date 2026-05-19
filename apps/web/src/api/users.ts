@@ -8,6 +8,8 @@ export interface User {
   status: string
   roles: string[]
   department: string | null
+  // v2.7 X-Pack：登入方式白名單；null = 不限制
+  allowed_login_methods?: string[] | null
   created_at?: string
   updated_at?: string
   last_login_at?: string
@@ -33,6 +35,8 @@ export const usersApi = {
     http.put(`/admin/users/${userId}/role`, { roles }),
   resetPassword: (userId: string, new_password: string) =>
     http.post(`/admin/users/${userId}/reset-password`, { new_password }),
+  setLoginMethods: (userId: string, methods: string[] | null) =>
+    http.put(`/admin/users/${userId}/login-methods`, { allowed_login_methods: methods }),
   delete: (userId: string) =>
     http.delete(`/admin/users/${userId}`),
 }

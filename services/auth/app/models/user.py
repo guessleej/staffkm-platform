@@ -32,3 +32,9 @@ class User(Base, UUIDPrimaryKeyMixin, AuditMixin):
     tenant_id: Mapped[str | None] = mapped_column(String(64))
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     avatar_url: Mapped[str | None] = mapped_column(String(512))
+    # v2.7 X-Pack：每位使用者可被限定的登入方式
+    # NULL = 不限制；非 NULL 時必須為以下值的子集：
+    #   password / oidc / google / github / ldap / local
+    allowed_login_methods: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String), nullable=True, default=None,
+    )

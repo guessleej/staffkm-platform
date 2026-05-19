@@ -85,6 +85,19 @@ async def _fail_clear(key: str) -> None:
     _failed_attempts.pop(key, None)
 
 
+def _check_method_allowed(user, method: str) -> None:
+    """v2.7 X-Pack：若 user.allowed_login_methods 不為 NULL 且不含 method → 401。"""
+    allowed = getattr(user, "allowed_login_methods", None)
+    if allowed is None:
+        return
+    # 防呆：空 list 視為「全部不允許」，比 NULL 更嚴
+    if method not in (allowed or []):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"login_method_not_allowed:{method}",
+        )
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -166,6 +179,10 @@ async def login(body: LoginRequest, request: Request, session: AsyncSession = De
             detail=detail,
         )
 
+    # v2.7 X-Pack：驗證 per-user 登入方式白名單（password 走本地、ldap_dn 表示 LDAP）
+    method = "ldap" if getattr(user, "ldap_dn", None) else "password"
+    _check_method_allowed(user, method)
+
     # 成功 → 清零失敗計數
     await _fail_clear(fkey)
 
@@ -230,4 +247,6 @@ async def me(request: Request, session: AsyncSession = Depends(get_session)):
         "email": user.email,
         "roles": user.roles,
         "department": user.department,
+        # v2.7 X-Pack
+        "allowed_login_methods": user.allowed_login_methods,
     })

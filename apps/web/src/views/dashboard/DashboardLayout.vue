@@ -79,7 +79,7 @@
               {{ initials }}
             </div>
             <span class="text-sm text-neutral-700 hidden lg:inline truncate max-w-[120px]">
-              {{ auth.user?.display_name || auth.user?.username || '—' }}
+              {{ formatUserName(auth.user) }}
             </span>
             <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
@@ -96,7 +96,7 @@
                  class="absolute right-0 mt-1.5 w-56 bg-surface-raised rounded-xl border border-neutral-200 shadow-lg overflow-hidden">
               <div class="px-4 py-3 border-b border-neutral-100">
                 <p class="text-sm font-semibold text-neutral-900 truncate">
-                  {{ auth.user?.display_name || auth.user?.username }}
+                  {{ formatUserName(auth.user) }}
                 </p>
                 <p class="text-xs text-neutral-500 truncate">
                   {{ auth.user?.email || auth.user?.department || '' }}
@@ -178,6 +178,7 @@ import {
 } from '../../components/icons'
 
 import { useAuthStore } from '../../stores/auth'
+import { formatUserName } from '../../utils/userName'
 import { useProjectStore } from '../../stores/project'
 import { useUIStore } from '../../stores/ui'
 import { useWorkspaceStore } from '../../stores/workspace'
@@ -266,7 +267,7 @@ watch(() => _route.path, () => {
 })
 
 const initials = computed(() => {
-  const name = auth.user?.display_name || auth.user?.username || '?'
+  const name = formatUserName(auth.user) || '?'
   if (/[一-鿿]/.test(name)) return name.slice(0, 1)
   return name.slice(0, 2).toUpperCase()
 })

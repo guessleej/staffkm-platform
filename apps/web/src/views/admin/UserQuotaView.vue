@@ -40,7 +40,7 @@
           <tr v-for="r in rows" :key="r.user_id"
               class="border-t border-neutral-100 hover:bg-neutral-50/40 transition">
             <td class="px-4 py-3">
-              <p class="font-medium text-fg text-sm">{{ r.username }}</p>
+              <p class="font-medium text-fg text-sm">{{ formatUserName(r) }}</p>
               <p class="text-[11px] text-fg-tertiary mt-0.5">{{ r.email }}</p>
             </td>
             <td class="px-4 py-3">
@@ -65,7 +65,7 @@
          @click.self="closeEdit">
       <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-md p-5">
         <h3 class="text-base font-semibold text-fg">設定 Quota</h3>
-        <p class="text-xs text-fg-tertiary mt-0.5">{{ editing.username }} · {{ editing.email }}</p>
+        <p class="text-xs text-fg-tertiary mt-0.5">{{ formatUserName(editing) }} · {{ editing.email }}</p>
 
         <div class="mt-4 space-y-3">
           <div>
@@ -109,6 +109,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { userQuotaApi, type UserQuotaRow } from '../../api/userQuota'
 import UsageBar from './UsageBar.vue'
+import { formatUserName } from '../../utils/userName'
 
 const rows    = ref<UserQuotaRow[]>([])
 const loading = ref(true)

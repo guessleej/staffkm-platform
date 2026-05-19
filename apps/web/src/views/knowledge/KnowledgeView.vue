@@ -57,13 +57,28 @@
             <button @click="projects.switchTo(null)" class="text-brand-500 hover:text-brand-700">×</button>
           </div>
         </div>
-        <button
-          @click="showCreate = true"
-          class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
-        >
-          <IconPlus :size="14" :stroke-width="2.5" />
-          {{ $t('knowledge.createKb') }}
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- v2.8 H1：匯入整個 KB -->
+          <button
+            @click="($refs.kbImportInput as HTMLInputElement)?.click()"
+            class="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-neutral-700 bg-surface-raised border border-neutral-200 hover:border-brand-400 hover:text-brand-600 rounded-lg transition-colors"
+            title="從 zip 匯入 KB（建新 KB，不覆蓋）"
+          >匯入</button>
+          <input
+            ref="kbImportInput"
+            type="file"
+            accept=".zip"
+            class="hidden"
+            @change="onKbImportSelected"
+          />
+          <button
+            @click="showCreate = true"
+            class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
+          >
+            <IconPlus :size="14" :stroke-width="2.5" />
+            {{ $t('knowledge.createKb') }}
+          </button>
+        </div>
       </div>
 
       <!-- 列表 -->
@@ -182,6 +197,15 @@
               >
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 015.656 5.656l-1.414 1.414m-5.656-5.656l-1.414 1.414a4 4 0 105.656 5.656"/>
+                </svg>
+              </button>
+              <button
+                @click="onExportKb(kb)"
+                class="px-2 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                title="匯出整個 KB（含 metadata + paragraphs）"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
                 </svg>
               </button>
               <button
@@ -655,6 +679,35 @@ async function deleteKB(id: string) {
   if (!confirm('確定要刪除？其下的文件與向量資料會一併移除。')) return
   await knowledgeApi.deleteBase(id)
   await load()
+}
+
+// ── v2.8 H1：整 KB 匯出 / 匯入 ────────────────────────────────────
+async function onExportKb(kb: any) {
+  try {
+    const includeEmb = confirm(`匯出「${kb.name}」？\n按「確定」連 embeddings 一起匯出（檔案會比較大）；按「取消」只匯 metadata。`)
+    const blob = await knowledgeApi.exportKb(kb.id, includeEmb)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `kb-${kb.id}.full.zip`
+    document.body.appendChild(a); a.click()
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 100)
+  } catch (e: any) {
+    alert('匯出失敗：' + (e?.response?.data?.detail || e?.message))
+  }
+}
+async function onKbImportSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const rename = prompt('（選填）匯入後重新命名 KB；留空則沿用 zip 內名稱：', '') || undefined
+  try {
+    const r = await knowledgeApi.importKb(file, rename)
+    alert(`匯入完成：新 KB ${r.kb_id}（${r.documents} docs / ${r.paragraphs} paragraphs）。\n段落尚未 embed，可至文件頁手動觸發 re-embed。`)
+    await load()
+  } catch (err: any) {
+    alert('匯入失敗：' + (err?.response?.data?.detail || err?.message))
+  }
 }
 
 // ── v2.1 11-4：資源授權抽屜 + 轉換為工作流 KB ──────────────────────

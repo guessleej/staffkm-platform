@@ -98,7 +98,7 @@
                    class="absolute right-0 mt-1.5 w-56 bg-surface-raised rounded-xl border border-neutral-200 shadow-lg overflow-hidden z-50">
                 <div class="px-4 py-3 border-b border-neutral-100">
                   <p class="text-sm font-semibold text-neutral-900 truncate">
-                    {{ auth.user?.display_name || auth.user?.username }}
+                    {{ formatUserName(auth.user) }}
                   </p>
                   <p class="text-xs text-neutral-500 truncate">
                     {{ auth.user?.email || '' }}
@@ -142,6 +142,7 @@ const ArtifactPane = defineAsyncComponent(
 import ProjectPicker from '../../components/project/ProjectPicker.vue'
 import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
+import { formatUserName } from '../../utils/userName'
 import { useUIStore } from '../../stores/ui'
 import { useConversationStore } from '../../stores/conversation'
 import { useArtifactStore } from '../../stores/artifact'

@@ -18,6 +18,16 @@ from .recursive import RecursiveChunker
 _HEADING_RE = re.compile(r"^#{1,6}\s+\S", re.MULTILINE)
 _QA_RE      = re.compile(r"^\s*(?:[QqAa問答]|問題|回答)[\s：:.、\-]+", re.MULTILINE)
 
+# v2.8.1：偵測 strategy 前先把 ``` code fence 內的內容剝掉，
+# 避免程式碼註解（# foo / ## bar）被誤判為 markdown heading。
+_FENCE_BLOCK_RE = re.compile(r"^[ \t]*```.*?(?:\n[ \t]*```|\Z)", re.MULTILINE | re.DOTALL)
+
+
+def _strip_code_fences(text: str) -> str:
+    """以「state machine 等價」的方式移除整段 fenced code block。
+    遇到 EOF 仍未閉合 → 截到結尾為止。"""
+    return _FENCE_BLOCK_RE.sub("", text)
+
 
 class AutoChunker:
     name = "auto"
@@ -27,9 +37,12 @@ class AutoChunker:
         self.chunk_overlap = chunk_overlap
 
     def detect_strategy(self, text: str) -> str:
-        lines = text.count("\n") + 1
-        heading_count = len(_HEADING_RE.findall(text))
-        qa_count = len(_QA_RE.findall(text))
+        # v2.8.1：先剝掉 fenced code block 再計算 heading / QA marker
+        # （程式碼註解 # foo / Q: print(x) 等不應影響 strategy 判斷）
+        scan = _strip_code_fences(text)
+        lines = scan.count("\n") + 1
+        heading_count = len(_HEADING_RE.findall(scan))
+        qa_count = len(_QA_RE.findall(scan))
 
         # Markdown 啟發式：heading 與行數比例
         if lines > 0 and heading_count / max(lines, 1) >= 0.005 and heading_count >= 2:
