@@ -653,24 +653,14 @@ async def _verify_connection(
     _OPENAI_COMPAT_DEFAULT_BASE: dict[str, str] = {
         "openai":       "https://api.openai.com/v1",
         "custom":       "",  # 必須 user 自填
+        # v5.7: 中國雲僅保留 Moonshot
         "moonshot":     "https://api.moonshot.cn/v1",
-        "deepseek":     "https://api.deepseek.com/v1",
-        "zhipu":        "https://open.bigmodel.cn/api/paas/v4",
-        "qwen":         "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "groq":         "https://api.groq.com/openai/v1",
         "together":     "https://api.together.xyz/v1",
         "mistral":      "https://api.mistral.ai/v1",
         "perplexity":   "https://api.perplexity.ai",
         "openrouter":   "https://openrouter.ai/api/v1",
         "xai":          "https://api.x.ai/v1",
-        "siliconflow":  "https://api.siliconflow.cn/v1",
-        "yi":           "https://api.lingyiwanwu.com/v1",
-        "doubao":       "https://ark.cn-beijing.volces.com/api/v3",
-        "baichuan":     "https://api.baichuan-ai.com/v1",
-        # v5.1: MaxKB v2 對齊 — 中國雲補齊
-        "hunyuan":      "https://api.hunyuan.cloud.tencent.com/v1",
-        "qianfan":      "https://qianfan.baidubce.com/v2",
-        "bailian":      "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "fireworks":    "https://api.fireworks.ai/inference/v1",
         "nvidia_nim":   "https://integrate.api.nvidia.com/v1",
         # 地端 self-host：沒填 base_url 直接報錯

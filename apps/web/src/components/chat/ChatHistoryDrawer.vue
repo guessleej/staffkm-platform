@@ -15,15 +15,10 @@
       <router-link
         v-if="!collapsed"
         to="/"
-        class="flex items-center gap-2 min-w-0 hover:opacity-80 transition"
+        class="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition"
       >
-        <div
-          class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
-          style="background: linear-gradient(135deg, hsl(var(--color-brand-500)), hsl(var(--color-brand-700)))"
-        >
-          <span class="text-white text-xs font-bold">S</span>
-        </div>
-        <span class="font-semibold text-sm text-neutral-900 truncate">staffKM</span>
+        <BrandLogo :size="34" />
+        <span class="font-bold text-base text-neutral-900 truncate tracking-tight">staffKM</span>
       </router-link>
     </div>
 
@@ -89,6 +84,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { groupByDate } from '../../utils/dateGroup'
+import BrandLogo from '../common/BrandLogo.vue'
 import {
   IconMenu, IconPlus, IconKnowledge, IconApps, IconAgent, IconSettings,
 } from '../icons'

@@ -341,11 +341,8 @@ const COLORS: Record<string, string> = {
   sglang: '#7c3aed', tgi: '#f59e0b', lmstudio: '#9333ea',
   xinference: '#10b981', localai: '#0891b2', text_gen_webui: '#475569',
   gpt4all: '#dc2626',
-  // 中文雲
-  deepseek: '#4d6bfe', zhipu: '#3b82f6', moonshot: '#000000',
-  qwen: '#615ced', baichuan: '#dc2626', minimax: '#7c3aed',
-  siliconflow: '#06b6d4', yi: '#00a86b', doubao: '#ef4444',
-  hunyuan: '#0052d9', qianfan: '#2932e1', bailian: '#ff6a00',
+  // v5.7: 中文雲僅保留 Moonshot
+  moonshot: '#000000',
   // Specialty
   voyage: '#9333ea', jina: '#fbbf24', elevenlabs: '#000000',
   deepgram: '#13ef93', stability_ai: '#7c3aed',
