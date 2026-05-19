@@ -117,9 +117,11 @@
         </div>
       </header>
 
-      <!-- 主對話內容 -->
+      <!-- 主對話內容 (v5.9: page-fade-wrap 切對話/路由 fade-in) -->
       <main class="flex-1 overflow-hidden">
-        <router-view />
+        <div :class="['page-fade-wrap', chatFadeKey, 'h-full']">
+          <router-view />
+        </div>
       </main>
     </div>
 
@@ -129,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
@@ -162,6 +164,12 @@ const projects = useProjectStore()
 const chatOverride = useChatOverrideStore()
 const route = useRoute()
 const router = useRouter()
+
+// v5.9: page transition — 切對話 / 路由變 → toggle a/b 觸發 fade-in animation
+const chatFadeKey = ref<'a' | 'b'>('a')
+watch(() => route.fullPath, () => {
+  chatFadeKey.value = chatFadeKey.value === 'a' ? 'b' : 'a'
+})
 
 // MaxKB v2.8：對話中切 model / KB 用的資料
 const availableModels = ref<string[]>([])
