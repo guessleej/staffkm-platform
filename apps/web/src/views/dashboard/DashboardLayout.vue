@@ -5,19 +5,14 @@
          頂部導覽列：Brand · 主導覽（置中）· 工具
     ════════════════════════════════════════ -->
     <header
-      class="h-14 px-5 flex items-center gap-4 bg-surface-raised border-b border-neutral-200 sticky top-0 z-20"
+      class="h-16 px-6 flex items-center gap-5 bg-surface-raised border-b border-neutral-200 sticky top-0 z-20"
     >
-      <!-- 左：品牌 -->
-      <router-link to="/" class="flex items-center gap-2.5 flex-shrink-0 mr-2">
-        <div
-          class="w-8 h-8 rounded-lg flex items-center justify-center"
-          style="background: linear-gradient(135deg, hsl(var(--color-brand-500)), hsl(var(--color-brand-700)))"
-        >
-          <span class="text-white text-[13px] font-bold tracking-tight">S</span>
-        </div>
+      <!-- 左：品牌（v5.0.16：放大 logo + 升級字體） -->
+      <router-link to="/" class="flex items-center gap-3 flex-shrink-0 mr-3">
+        <BrandLogo :size="44" />
         <div class="hidden sm:block min-w-0 leading-tight">
-          <p class="font-semibold text-neutral-900 text-sm">staffKM</p>
-          <p class="text-[10px] text-neutral-400 tracking-wide uppercase">內部知識平台</p>
+          <p class="font-bold text-neutral-900 text-base tracking-tight">staffKM</p>
+          <p class="text-[11px] text-neutral-500 tracking-wider uppercase mt-0.5">內部知識平台</p>
         </div>
       </router-link>
 
@@ -170,6 +165,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 
+import BrandLogo from '../../components/common/BrandLogo.vue'
 import HNavItem from '../../components/common/HNavItem.vue'
 import NavIconLink from '../../components/common/NavIconLink.vue'
 import NavMenuPopover from '../../components/common/NavMenuPopover.vue'
