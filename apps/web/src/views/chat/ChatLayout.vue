@@ -14,7 +14,7 @@
     <div class="flex-1 flex flex-col min-w-0">
       <!-- 極簡頂部：左 model 顯示、右 user/theme -->
       <header
-        class="h-12 px-4 flex items-center justify-between border-b border-neutral-100 flex-shrink-0"
+        class="h-[60px] px-5 flex items-center justify-between border-b border-neutral-100 flex-shrink-0"
       >
         <!-- 中央顯示：Project picker + model / KB override (MaxKB v2.8) -->
         <div class="flex items-center gap-3 min-w-0">

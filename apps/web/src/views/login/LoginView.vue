@@ -117,15 +117,12 @@
     ══════════════════════════════════════════════ -->
     <div class="flex-1 relative flex flex-col bg-surface-raised">
 
-      <!-- 頂部 Logo 錨點 -->
-      <div class="flex items-center gap-3 px-10 pt-8 pb-0">
-        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-             style="background:linear-gradient(135deg,#4f46e5,#818cf8)">
-          <SIcon name="file-text" :size="14" class="text-white" />
-        </div>
-        <span class="text-sm font-bold text-fg tracking-tight">StaffKM</span>
-        <div class="w-px h-4 bg-neutral-200"></div>
-        <span class="text-xs text-fg-tertiary">行政知識管理平台</span>
+      <!-- 頂部 Logo 錨點 (v5.7.1: 統一用 BrandLogo + 放大) -->
+      <div class="flex items-center gap-3.5 px-10 pt-8 pb-0">
+        <BrandLogo :size="44" />
+        <span class="text-lg font-bold text-fg tracking-[-0.02em]">staffKM</span>
+        <div class="w-px h-5 bg-neutral-200"></div>
+        <span class="text-xs text-fg-tertiary tracking-wide">行政知識管理平台</span>
       </div>
 
       <!-- 中央表單（撐滿剩餘空間並置中） -->
@@ -329,6 +326,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
+import BrandLogo from '../../components/common/BrandLogo.vue'
 
 const router = useRouter()
 const route = useRoute()

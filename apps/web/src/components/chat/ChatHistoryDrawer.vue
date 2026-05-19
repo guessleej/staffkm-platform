@@ -4,7 +4,7 @@
     :class="collapsed ? 'w-[52px]' : 'w-[260px]'"
   >
     <!-- Brand + Toggle -->
-    <div class="h-12 flex items-center px-2 border-b border-neutral-100 gap-1.5">
+    <div class="h-[60px] flex items-center px-2.5 border-b border-neutral-100 gap-1.5">
       <button
         @click="$emit('toggle')"
         class="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition flex-shrink-0"
@@ -15,10 +15,12 @@
       <router-link
         v-if="!collapsed"
         to="/"
-        class="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition"
+        class="flex items-center gap-3 min-w-0 hover:opacity-80 transition group"
       >
-        <BrandLogo :size="34" />
-        <span class="font-bold text-base text-neutral-900 truncate tracking-tight">staffKM</span>
+        <div class="transition-transform duration-200 group-hover:scale-105">
+          <BrandLogo :size="42" />
+        </div>
+        <span class="font-bold text-[1.05rem] text-neutral-900 truncate tracking-[-0.02em]">staffKM</span>
       </router-link>
     </div>
 

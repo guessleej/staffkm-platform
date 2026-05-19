@@ -5,14 +5,16 @@
          頂部導覽列：Brand · 主導覽（置中）· 工具
     ════════════════════════════════════════ -->
     <header
-      class="h-16 px-6 flex items-center gap-5 bg-surface-raised border-b border-neutral-200 sticky top-0 z-20"
+      class="h-[72px] px-7 flex items-center gap-6 bg-surface-raised border-b border-neutral-200 sticky top-0 z-20"
     >
-      <!-- 左：品牌（v5.0.16：放大 logo + 升級字體） -->
-      <router-link to="/" class="flex items-center gap-3 flex-shrink-0 mr-3">
-        <BrandLogo :size="44" />
+      <!-- 左：品牌（v5.7.1：再放大一級，貼齊 modern SaaS 標準） -->
+      <router-link to="/" class="flex items-center gap-3.5 flex-shrink-0 mr-3 group">
+        <div class="transition-transform duration-200 group-hover:scale-105">
+          <BrandLogo :size="52" />
+        </div>
         <div class="hidden sm:block min-w-0 leading-tight">
-          <p class="font-bold text-neutral-900 text-base tracking-tight">staffKM</p>
-          <p class="text-[11px] text-neutral-500 tracking-wider uppercase mt-0.5">內部知識平台</p>
+          <p class="font-bold text-neutral-900 text-[1.25rem] tracking-[-0.02em]">staffKM</p>
+          <p class="text-xs text-neutral-500 tracking-[0.12em] uppercase mt-1 font-medium">內部知識平台</p>
         </div>
       </router-link>
 
