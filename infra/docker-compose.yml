@@ -511,6 +511,7 @@ services:
     logging: *default-logging
     networks:
       - backend
+      - frontend  # v5.0.15: Agent 需連外網呼叫 OpenAI/Anthropic/Moonshot/DeepSeek/... API
 
   # ══════════════════════════════════════════════════════════════
   #  Agent Worker（v4.0 P3：arq distributed worker — opt-in）

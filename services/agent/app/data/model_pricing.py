@@ -27,6 +27,34 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "llama3.1":            (0, 0),
     "llama3.2":            (0, 0),
     "qwen2.5":             (0, 0),
+    # v5.0.15 — 中國 / 國際 cloud LLM (USD per 1k tokens, 2026-05 snapshot)
+    # Moonshot (CNY 官價以 7.2 換算)
+    "moonshot-v1-8k":      (0.00167, 0.00167),
+    "moonshot-v1-32k":     (0.00333, 0.00333),
+    "moonshot-v1-128k":    (0.00833, 0.00833),
+    # DeepSeek
+    "deepseek-chat":       (0.00027, 0.00110),
+    "deepseek-reasoner":   (0.00055, 0.00219),
+    # Zhipu GLM
+    "glm-4-plus":          (0.00694, 0.00694),
+    "glm-4-air":           (0.00014, 0.00014),
+    "glm-4-flash":         (0, 0),
+    # Qwen DashScope
+    "qwen-max":            (0.00278, 0.00833),
+    "qwen-plus":           (0.000111, 0.000278),
+    "qwen-turbo":          (0.0000417, 0.000167),
+    # Groq
+    "llama-3.1-70b-versatile": (0.00059, 0.00079),
+    "llama-3.1-8b-instant":    (0.00005, 0.00008),
+    "mixtral-8x7b-32768":      (0.00024, 0.00024),
+    # Mistral
+    "mistral-large-latest":    (0.002, 0.006),
+    "mistral-small-latest":    (0.0002, 0.0006),
+    # xAI
+    "grok-beta":               (0.005, 0.015),
+    # Yi
+    "yi-large":                (0.00278, 0.00278),
+    "yi-medium":               (0.000347, 0.000347),
 }
 
 
@@ -111,5 +139,76 @@ PROVIDER_DEFAULT_MODELS: dict[str, list[tuple[str, str, str]]] = {
     "cohere": [
         ("rerank-multilingual-v3.0", "reranker", "Cohere Rerank v3 multilingual"),
         ("rerank-english-v3.0",      "reranker", "Cohere Rerank v3 English"),
+    ],
+    # v5.0.15: 中國 / 國際 cloud LLM（openai_compat 系，registry 已註冊但漏 seed）
+    "moonshot": [
+        ("moonshot-v1-8k",   "llm", "Moonshot v1 8K"),
+        ("moonshot-v1-32k",  "llm", "Moonshot v1 32K"),
+        ("moonshot-v1-128k", "llm", "Moonshot v1 128K"),
+    ],
+    "deepseek": [
+        ("deepseek-chat",     "llm", "DeepSeek Chat"),
+        ("deepseek-reasoner", "llm", "DeepSeek Reasoner"),
+    ],
+    "zhipu": [
+        ("glm-4-plus", "llm", "GLM-4 Plus"),
+        ("glm-4-air",  "llm", "GLM-4 Air"),
+        ("glm-4-flash","llm", "GLM-4 Flash"),
+    ],
+    "qwen": [
+        ("qwen-max",   "llm", "Qwen Max"),
+        ("qwen-plus",  "llm", "Qwen Plus"),
+        ("qwen-turbo", "llm", "Qwen Turbo"),
+    ],
+    "groq": [
+        ("llama-3.1-70b-versatile", "llm", "Llama 3.1 70B (Groq)"),
+        ("llama-3.1-8b-instant",    "llm", "Llama 3.1 8B (Groq)"),
+        ("mixtral-8x7b-32768",      "llm", "Mixtral 8x7B (Groq)"),
+    ],
+    "together": [
+        ("meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "llm", "Llama 3.1 70B Turbo"),
+        ("Qwen/Qwen2.5-72B-Instruct-Turbo",              "llm", "Qwen 2.5 72B Turbo"),
+    ],
+    "mistral": [
+        ("mistral-large-latest", "llm", "Mistral Large"),
+        ("mistral-small-latest", "llm", "Mistral Small"),
+    ],
+    "perplexity": [
+        ("llama-3.1-sonar-large-128k-online", "llm", "Sonar Large (online)"),
+        ("llama-3.1-sonar-small-128k-online", "llm", "Sonar Small (online)"),
+    ],
+    "openrouter": [
+        ("openai/gpt-4o",                         "llm", "GPT-4o (via OpenRouter)"),
+        ("anthropic/claude-3.5-sonnet",           "llm", "Claude 3.5 Sonnet (via OpenRouter)"),
+        ("meta-llama/llama-3.1-70b-instruct",     "llm", "Llama 3.1 70B (via OpenRouter)"),
+    ],
+    "xai": [
+        ("grok-beta", "llm", "Grok Beta"),
+    ],
+    "siliconflow": [
+        ("Qwen/Qwen2.5-72B-Instruct", "llm", "Qwen 2.5 72B (SiliconFlow)"),
+        ("deepseek-ai/DeepSeek-V2.5", "llm", "DeepSeek V2.5 (SiliconFlow)"),
+    ],
+    "yi": [
+        ("yi-large", "llm", "Yi Large"),
+        ("yi-medium","llm", "Yi Medium"),
+    ],
+    "fireworks": [
+        ("accounts/fireworks/models/llama-v3p1-70b-instruct", "llm", "Llama 3.1 70B (Fireworks)"),
+    ],
+    "azure_openai": [
+        ("gpt-4o",      "llm", "Azure GPT-4o"),
+        ("gpt-4o-mini", "llm", "Azure GPT-4o mini"),
+    ],
+    "doubao": [
+        ("doubao-pro-32k", "llm", "Doubao Pro 32K"),
+        ("doubao-lite-32k","llm", "Doubao Lite 32K"),
+    ],
+    "baichuan": [
+        ("Baichuan4",       "llm", "Baichuan 4"),
+        ("Baichuan3-Turbo", "llm", "Baichuan 3 Turbo"),
+    ],
+    "nvidia_nim": [
+        ("meta/llama-3.1-70b-instruct", "llm", "Llama 3.1 70B (NIM)"),
     ],
 }

@@ -647,6 +647,33 @@ async def _verify_connection(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    # v5.0.15: 30+ provider 都走 openai_compat adapter，verify 應沿用 /v1/models
+    # 預設 base_url 用 registry 對齊；只有 anthropic / azure / bedrock / gemini 等
+    # 非 openai_compat 才需要專屬驗證流程
+    _OPENAI_COMPAT_DEFAULT_BASE: dict[str, str] = {
+        "openai":       "https://api.openai.com/v1",
+        "custom":       "",  # 必須 user 自填
+        "moonshot":     "https://api.moonshot.cn/v1",
+        "deepseek":     "https://api.deepseek.com/v1",
+        "zhipu":        "https://open.bigmodel.cn/api/paas/v4",
+        "qwen":         "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "groq":         "https://api.groq.com/openai/v1",
+        "together":     "https://api.together.xyz/v1",
+        "mistral":      "https://api.mistral.ai/v1",
+        "perplexity":   "https://api.perplexity.ai",
+        "openrouter":   "https://openrouter.ai/api/v1",
+        "xai":          "https://api.x.ai/v1",
+        "siliconflow":  "https://api.siliconflow.cn/v1",
+        "yi":           "https://api.lingyiwanwu.com/v1",
+        "doubao":       "https://ark.cn-beijing.volces.com/api/v3",
+        "baichuan":     "https://api.baichuan-ai.com/v1",
+        "fireworks":    "https://api.fireworks.ai/inference/v1",
+        "nvidia_nim":   "https://integrate.api.nvidia.com/v1",
+        # 地端 self-host：沒填 base_url 直接報錯
+        "llama_cpp": "", "vllm": "", "sglang": "", "tgi": "", "lmstudio": "",
+        "xinference": "", "localai": "", "text_gen_webui": "", "gpt4all": "",
+    }
+
     try:
         if provider_type == "ollama":
             url = (base_url or "http://localhost:11434").rstrip("/") + "/api/tags"
@@ -656,12 +683,16 @@ async def _verify_connection(
                 return True, f"Ollama 連線正常（{url}）"
             return False, f"HTTP {resp.status_code}"
 
-        elif provider_type in ("openai", "custom"):
-            url = (base_url or "https://api.openai.com/v1").rstrip("/") + "/models"
+        elif provider_type in _OPENAI_COMPAT_DEFAULT_BASE:
+            default_base = _OPENAI_COMPAT_DEFAULT_BASE[provider_type]
+            effective_base = base_url or default_base
+            if not effective_base:
+                return False, f"{provider_type} 供應商需提供 base_url"
+            url = effective_base.rstrip("/") + "/models"
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
-                return True, "OpenAI 相容端點連線正常"
+                return True, f"OpenAI 相容端點連線正常（{provider_type}）"
             return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
         elif provider_type == "anthropic":
