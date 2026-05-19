@@ -230,6 +230,39 @@ export const knowledgeApi = {
     return data.data
   },
 
+  // — v5.x：MaxKB parity 段落編輯
+  async addParagraph(docId: string, body: { content: string; title?: string; order_index?: number }) {
+    const { data } = await http.post(`/knowledge/paragraphs/doc/${docId}/add`, body)
+    return data.data
+  },
+  async toggleParagraph(paragraphId: string) {
+    const { data } = await http.patch(`/knowledge/paragraphs/${paragraphId}/toggle`)
+    return data.data
+  },
+  async updateParagraph(paragraphId: string, body: { content?: string; title?: string; is_active?: boolean }) {
+    const { data } = await http.patch(`/knowledge/paragraphs/${paragraphId}`, body)
+    return data.data
+  },
+  async splitParagraph(paragraphId: string, body: { separator?: string; positions?: number[] }) {
+    const { data } = await http.post(`/knowledge/paragraphs/${paragraphId}/split`, body)
+    return data.data
+  },
+  async mergeParagraphs(paragraphIds: string[]) {
+    const { data } = await http.post(`/knowledge/paragraphs/merge`, { paragraph_ids: paragraphIds })
+    return data.data
+  },
+  async bulkParagraphAction(action: 'delete' | 'enable' | 'disable' | 'regen_embedding', paragraphIds: string[]) {
+    const { data } = await http.post(`/knowledge/paragraphs/bulk`, { action, paragraph_ids: paragraphIds })
+    return data.data
+  },
+  async hitTestParagraph(paragraphId: string, query: string) {
+    const { data } = await http.post(`/knowledge/paragraphs/${paragraphId}/hit-test`, { query })
+    return data.data
+  },
+  async deleteParagraph(paragraphId: string) {
+    await http.delete(`/knowledge/paragraphs/${paragraphId}`)
+  },
+
   // — Workflow KB inline-write（v2.1 11-1，給 SDK / 工具用）
   async inlineWrite(kbId: string, body: {
     content: string;
