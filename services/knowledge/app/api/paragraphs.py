@@ -78,14 +78,13 @@ async def list_paragraphs(
     # 查 has_embedding（一次查全 doc，避免 N+1）
     embedded_ids: set[str] = set()
     if paragraphs:
+        # asyncpg expects Python list for array bind, not pg array literal string
+        ids = [p.id for p in paragraphs]
         rows = await session.execute(
-            text(
-                "SELECT paragraph_id::text FROM paragraph_embeddings "
-                "WHERE paragraph_id = ANY(CAST(:ids AS uuid[]))"
-            ),
-            {"ids": "{" + ",".join(str(p.id) for p in paragraphs) + "}"},
+            text("SELECT paragraph_id FROM paragraph_embeddings WHERE paragraph_id = ANY(:ids)"),
+            {"ids": ids},
         )
-        embedded_ids = {r[0] for r in rows.fetchall()}
+        embedded_ids = {str(r[0]) for r in rows.fetchall()}
 
     return ApiResponse(data=[
         {
