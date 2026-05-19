@@ -178,6 +178,7 @@ docs/
 | Token expiry 多 request 並發 → N 次 /refresh | 用 module-scoped promise 去重 |
 | router-view + Transition mode='out-in' 連點 race | 改用 watch + CSS key toggle |
 | 跑了 v3-v5 十幾個 milestone 才發現 `/admin/users` 跟 `/admin/system` 一直是 `UnderConstructionView` placeholder（v5.0.1 才補）| 廣度做了、深度沒收尾的典型債 — 加進下面 release checklist |
+| NOT NULL JSONB / 陣列 column INSERT 帶 None → `NotNullViolationError` 被 starlette 吞、前端只看到 generic「儲存失敗」 | INSERT 時 fallback 用 `'{}'` / `'[]'` 字串，**不能傳 None**；v5.0.13 從 admin/models 新增 Moonshot provider 修出 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
@@ -201,6 +202,10 @@ grep -rnE ':[a-z_]+::(jsonb|vector|uuid|int|text|timestamptz|date|inet|bool)' \
 # 4. asyncpg array literal 也要禁
 grep -rnE "ANY\(['\"]\\\\?\{[a-z0-9_,\\-]+\}['\"]\)" services/ --include="*.py" 2>/dev/null
 # 預期：no matches。改用 Python list bind: {"ids": [u1, u2]} + ANY(:ids)
+
+# 5. 檢查 NOT NULL JSONB INSERT 沒有 None fallback（CLAUDE.md 踩雷集新加）
+grep -rnE "json\.dumps\([^)]+\) if [^)]+ else None" services/ --include="*.py" 2>/dev/null
+# 預期：no matches（應該是 else '{}' 或 else '[]'，避免 NotNullViolationError 被 starlette 吞）
 ```
 
 額外建議：

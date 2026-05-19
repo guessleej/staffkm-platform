@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
 from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync
-from app.middleware.legacy_bridge import LegacyURLBridge
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
@@ -111,8 +110,8 @@ instrument_fastapi(app, service_name="staffkm-knowledge")
 
 # ── Middleware（starlette 規則：後加 = 外層 = 先跑）──────────────────
 # 期望執行順序（request 進來時）：
-#   LegacyURLBridge → GatewayHeaders → TenantContext → endpoint
-# 因此「後加 = 先跑」的規則下，加入順序要顛倒：
+#   GatewayHeaders → TenantContext → endpoint
+# v4.0 P2: LegacyURLBridge 已移除（v3.1 sunset → v3.6 default 410 → v4.0 拔；knowledge service 同步於 v5.0.x 對齊）
 # Prometheus /metrics — v2.2
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
@@ -123,10 +122,7 @@ app.add_middleware(
     session_factory=lambda: _db._session_factory,
     user_id_getter=_user_id_from_request,
 )
-# GatewayHeaders 必須在 LegacyBridge 後跑（先確定 user 才檢查 workspace）
 app.add_middleware(GatewayHeadersMiddleware)
-# LegacyBridge 最外層、最先跑：重寫 v1 path，後續 middleware 才能正確匹配 workspace_id
-app.add_middleware(LegacyURLBridge)
 
 # ── Routes（v2：workspace-scoped）─────────────────────────────────────
 _PREFIX = "/api/v1/workspace/{workspace_id}/knowledge"
