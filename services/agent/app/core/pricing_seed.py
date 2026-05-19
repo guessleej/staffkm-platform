@@ -22,13 +22,13 @@ async def seed_model_pricing(session_factory):
         for prov in provider_rows:
             defaults = PROVIDER_DEFAULT_MODELS.get(prov.provider_type, [])
             for name, mtype, display in defaults:
+                # v5.0.x: 改 ON CONFLICT DO NOTHING（需要 alembic 0021 加的
+                # UNIQUE INDEX uq_ai_models_provider_model）— 比 WHERE NOT EXISTS
+                # 更原子、不會有 race 寫入重複列
                 r = await session.execute(text("""
                     INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default)
-                    SELECT CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM ai_models
-                        WHERE provider_id = CAST(:pid AS uuid) AND model_name = CAST(:n AS varchar)
-                    )
+                    VALUES (CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE)
+                    ON CONFLICT (provider_id, model_name) DO NOTHING
                 """), {"pid": str(prov.id), "n": name, "t": mtype, "d": display})
                 seeded += r.rowcount or 0
         await session.commit()
