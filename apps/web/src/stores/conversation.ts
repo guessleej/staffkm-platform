@@ -72,7 +72,16 @@ export const useConversationStore = defineStore('conversation', () => {
       title: title || '新對話',
       kb_ids: kbIds ?? [],
     })
-    const conv = data.data
+    // v5.9.11: 後端回 {conversation_id, title}，但前端到處用 conv.id
+    // → 統一 normalize 成 {id, scenario_id, ...} 補齊 Conversation interface
+    const raw = data.data || {}
+    const conv: Conversation = {
+      id: raw.id || raw.conversation_id,
+      title: raw.title || title || '新對話',
+      scenario_id: raw.scenario_id ?? scenarioId,
+      message_count: raw.message_count ?? 0,
+      updated_at: raw.updated_at || new Date().toISOString(),
+    }
     conversations.value.unshift(conv)
     currentConversation.value = conv
     messages.value = []
