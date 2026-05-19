@@ -31,6 +31,7 @@ from app.routers._generic_proxy import (
     admin_starter_pack_router,
     admin_plugins_router,
     workflow_gen_router,
+    resources_router,
     admin_regions_router,
     admin_conflicts_router,
     admin_workspaces_router,
@@ -103,6 +104,7 @@ app.include_router(media_providers_router, prefix="/api/v1/media-providers", tag
 app.include_router(usage_router,    prefix="/api/v1/usage",    tags=["Token 用量 + Quota"])
 app.include_router(triggers_router, prefix="/api/v1/triggers", tags=["Event Triggers"])
 app.include_router(mcp_router,      prefix="/api/v1/mcp",      tags=["MCP Servers"])
+app.include_router(resources_router, prefix="/api/v1/resources", tags=["Associated Resources (MaxKB v2.9)"])
 app.include_router(memories_router, prefix="/api/v1/memories", tags=["長期記憶"])
 app.include_router(app_templates_router, prefix="/api/v1/app-templates", tags=["Workspace App Templates"])
 app.include_router(audit_logs_router,    prefix="/api/v1/admin/audit-logs",   tags=["Audit Log (v3.0)"])

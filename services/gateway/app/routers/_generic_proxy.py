@@ -70,6 +70,8 @@ conversations_router = make_proxy_router("conversations")
 billing_router = make_proxy_router("billing")
 # v4.9 I：AI-generated workflow（自然語言 → workflow JSON）
 workflow_gen_router = make_proxy_router("workflow-gen")
+# MaxKB v2.9 對齊：Associated Resources — 雙向依賴查詢
+resources_router = make_proxy_router("resources")
 
 
 # v4.7 G：Stripe webhook — public path（不需 JWT；不需 workspace header）

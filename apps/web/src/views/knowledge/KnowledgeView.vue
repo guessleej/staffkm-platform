@@ -176,6 +176,15 @@
                 </svg>
               </button>
               <button
+                @click="relationsDrawerKb = kb"
+                class="px-2 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                title="關聯資源（誰在用 / 用了誰）"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 015.656 5.656l-1.414 1.414m-5.656-5.656l-1.414 1.414a4 4 0 105.656 5.656"/>
+                </svg>
+              </button>
+              <button
                 @click="deleteKB(kb.id)"
                 class="px-2 text-neutral-400 hover:text-danger-600 hover:bg-danger-50 rounded-md transition-colors"
                 title="刪除"
@@ -428,6 +437,34 @@
     :kb-name="aclKb.name"
     @update:open="(v: boolean) => (aclOpen = v)"
   />
+
+  <!-- MaxKB v2.9 對齊：關聯資源側邊抽屜 -->
+  <Teleport to="body">
+    <div
+      v-if="relationsDrawerKb"
+      class="fixed inset-0 z-50 flex justify-end"
+      @click.self="relationsDrawerKb = null"
+    >
+      <div class="absolute inset-0 bg-black/30" @click="relationsDrawerKb = null"></div>
+      <aside class="relative w-80 h-full bg-surface-raised shadow-xl flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-neutral-200">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-neutral-900 truncate">關聯資源</h3>
+            <p class="text-[11px] text-neutral-500 truncate">{{ relationsDrawerKb.name }}</p>
+          </div>
+          <button @click="relationsDrawerKb = null" class="p-1 rounded-md text-neutral-400 hover:bg-neutral-100">
+            <SIcon name="x" :size="16" />
+          </button>
+        </div>
+        <div class="flex-1 overflow-hidden p-3">
+          <ResourceRelationsPanel
+            resource-type="knowledge_base"
+            :resource-id="relationsDrawerKb.id"
+          />
+        </div>
+      </aside>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -440,6 +477,8 @@ import { SEmpty } from '@staffkm/ui-kit'
 import FolderTree, { type FolderNode } from '../../components/common/FolderTree.vue'
 import KbAccessDrawer from '../../components/knowledge/KbAccessDrawer.vue'
 import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
+import ResourceRelationsPanel from '../../components/common/ResourceRelationsPanel.vue'
+import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
 
 const kbs = ref<any[]>([])
@@ -621,6 +660,9 @@ async function deleteKB(id: string) {
 // ── v2.1 11-4：資源授權抽屜 + 轉換為工作流 KB ──────────────────────
 const aclOpen = ref(false)
 const aclKb = ref<{ id: string; name: string } | null>(null)
+
+// 關聯資源抽屜（MaxKB v2.9 對齊）
+const relationsDrawerKb = ref<{ id: string; name: string } | null>(null)
 
 function openAclDrawer(kb: any) {
   aclKb.value = { id: kb.id, name: kb.name }
