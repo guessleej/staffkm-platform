@@ -1,8 +1,8 @@
 <template>
   <div class="flex-1 flex flex-col overflow-hidden">
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-neutral-900">Token 用量 / Quota</h1>
+        <h1 class="heading-page heading-accent">Token 用量 / Quota</h1>
         <p class="text-sm text-neutral-500 mt-0.5">當前 workspace 當月模型用量與額度設定</p>
       </div>
       <button
@@ -14,6 +14,7 @@
       </button>
     </div>
 
+</div>
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
       <!-- 月度總覽卡（v2 SStatCard + SProgress）-->
       <section v-if="summary" aria-labelledby="usage-overview-h" class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -68,7 +69,7 @@
       </section>
 
       <!-- Quota 設定 -->
-      <section aria-labelledby="quota-h" class="bg-surface-raised rounded-xl border border-neutral-200 p-5">
+      <section aria-labelledby="quota-h" class="card-warm p-5">
         <h2 id="quota-h" class="text-sm font-semibold text-neutral-900">Quota 設定</h2>
         <p class="text-xs text-neutral-500 mt-0.5">留空表示無上限；超過上限時新請求回 429。</p>
         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -97,7 +98,7 @@
       </section>
 
       <!-- 最近用量 -->
-      <section aria-labelledby="logs-h" class="bg-surface-raised rounded-xl border border-neutral-200 overflow-hidden">
+      <section aria-labelledby="logs-h" class="card-warm overflow-hidden">
         <div class="px-5 py-3 border-b border-neutral-100 flex items-center justify-between">
           <h2 id="logs-h" class="text-sm font-semibold text-neutral-900">最近用量（最多 50 筆）</h2>
         </div>

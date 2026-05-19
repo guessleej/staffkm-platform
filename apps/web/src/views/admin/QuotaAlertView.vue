@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">配額告警</h1>
+        <h1 class="heading-page heading-accent">配額告警</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">設定 workspace / user 用量達閾值時的通知規則</p>
       </div>
       <div class="flex items-center gap-2">
@@ -23,6 +23,7 @@
     </div>
 
     <!-- table -->
+</div>
     <div class="flex-1 overflow-y-auto p-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
@@ -35,7 +36,7 @@
         <p class="text-fg-secondary font-medium">尚未設定任何告警規則</p>
       </div>
 
-      <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+      <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
         <thead>
           <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
             <th class="px-4 py-3 font-semibold">範圍</th>
@@ -83,7 +84,7 @@
     <!-- Create modal -->
     <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40"
          @click.self="closeCreate">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-md p-5">
+      <div class="card-warm shadow-xl w-full max-w-md p-5">
         <h3 class="text-base font-semibold text-fg">新增告警規則</h3>
 
         <div class="mt-4 space-y-3">

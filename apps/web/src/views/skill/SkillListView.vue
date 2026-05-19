@@ -1,28 +1,36 @@
 <template>
   <div class="flex flex-col h-full">
-    <div class="px-6 py-5 border-b border-neutral-200 bg-surface-raised flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-neutral-900">Skills（可重用 prompt 技能）</h1>
-        <p class="text-xs text-neutral-500 mt-0.5">共 {{ items.length }} 個</p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">Skills（可重用 prompt 技能）</h1>
+          <p class="text-xs text-fg-tertiary mt-1">共 {{ items.length }} 個</p>
+        </div>
+        <button
+          @click="showCreate = true"
+          class="btn btn-primary"
+        >
+          <IconPlus :size="14" :stroke-width="2.5" />
+          建立 Skill
+        </button>
       </div>
-      <button
-        @click="showCreate = true"
-        class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
-      >
-        <IconPlus :size="14" :stroke-width="2.5" />
-        建立 Skill
-      </button>
     </div>
 
-    <div class="flex-1 overflow-auto p-6">
-      <p v-if="loading" class="text-sm text-neutral-400">載入中…</p>
-      <div v-else-if="!items.length" class="text-center py-20 text-sm text-neutral-500">
-        尚未建立 Skill。Skill 是可重用的 prompt 範本，可在多個 Application 中呼叫。
-      </div>
+    <div class="flex-1 overflow-auto px-6 pb-6">
+      <p v-if="loading" class="text-sm text-fg-tertiary">載入中…</p>
+      <EmptyState
+        v-else-if="!items.length"
+        icon="sparkles"
+        title="尚未建立 Skill"
+        description="Skill 是可重用的 prompt 範本，可在多個 Application 中呼叫"
+        action-label="建立第一個 Skill"
+        @action="showCreate = true"
+      />
       <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
-          v-for="s in items" :key="s.id"
-          class="bg-surface-raised rounded-xl border border-neutral-200 hover:border-brand-300 hover:shadow-md transition-all p-5"
+          v-for="(s, idx) in items" :key="s.id"
+          class="card-warm fade-up p-5"
+          :style="`animation-delay: ${idx * 40}ms`"
         >
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold text-sm text-neutral-900 truncate">{{ s.name }}</h3>
@@ -75,6 +83,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { skillApi, type SkillEntity } from '../../api/extras'
 import { IconPlus } from '../../components/icons'
+import EmptyState from '../../components/common/EmptyState.vue'
 import { useDialog } from '../../composables/useDialog'
 import { useToast } from '../../composables/useToast'
 

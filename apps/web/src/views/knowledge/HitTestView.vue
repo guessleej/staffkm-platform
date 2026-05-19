@@ -11,7 +11,7 @@
           <span class="text-base">←</span>
         </button>
         <div>
-          <h2 class="text-base font-semibold text-fg">檢索測試</h2>
+          <h1 class="heading-section text-fg">檢索測試</h1>
           <p class="text-[11px] text-fg-secondary font-mono">{{ kbId }}</p>
         </div>
       </div>

@@ -1,43 +1,43 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">MCP Servers</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">
-          連接 Model Context Protocol 工具伺服器；註冊後 workflow / agent 都能調用其上工具。
-        </p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">MCP Servers</h1>
+          <p class="text-sm text-fg-tertiary mt-1">
+            連接 Model Context Protocol 工具伺服器；註冊後 workflow / agent 都能調用其上工具。
+          </p>
+        </div>
+        <button
+          @click="openCreate"
+          class="btn btn-primary"
+        >
+          <SIcon name="plus" :size="16" />
+          新增 Server
+        </button>
       </div>
-      <button
-        @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-      >
-        <SIcon name="plus" :size="16" />
-        新增 Server
-      </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto px-6 pb-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="28" />
       </div>
 
-      <div v-else-if="!servers.length" class="text-center py-20">
-        <div class="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <SIcon name="settings" :size="28" :stroke-width="1.5" class="text-brand-500" />
-        </div>
-        <p class="text-fg-secondary font-medium">尚未連接任何 MCP server</p>
-        <p class="text-fg-tertiary text-sm mt-1 mb-4">把外部 MCP 伺服器接進來，自動匯入它上面的工具</p>
-        <button
-          @click="openCreate"
-          class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-        >新增第一個 Server</button>
-      </div>
+      <EmptyState
+        v-else-if="!servers.length"
+        icon="settings"
+        title="尚未連接任何 MCP server"
+        description="把外部 MCP 伺服器接進來，自動匯入它上面的工具"
+        action-label="新增第一個 Server"
+        @action="openCreate"
+      />
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <div
-          v-for="s in servers" :key="s.id"
-          class="bg-surface-raised border border-neutral-200 rounded-2xl p-5 hover:shadow-md hover:border-brand-200 hover:-translate-y-0.5 transition-all"
+          v-for="(s, idx) in servers" :key="s.id"
+          class="card-warm fade-up p-5"
+          :style="`animation-delay: ${idx * 40}ms`"
         >
           <div class="flex items-start gap-3 mb-3">
             <div
@@ -245,6 +245,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { mcpApi, type McpServer, type McpTool } from '../../api/mcp'
+import EmptyState from '../../components/common/EmptyState.vue'
 
 const servers = ref<McpServer[]>([])
 const loading = ref(true)

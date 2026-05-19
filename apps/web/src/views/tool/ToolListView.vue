@@ -7,39 +7,47 @@
       @update:active-folder-id="(v) => (activeFolderId = v)"
     />
   <div class="flex-1 flex flex-col overflow-hidden">
-    <div class="px-6 py-5 border-b border-neutral-200 bg-surface-raised flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-neutral-900">工具</h1>
-        <p class="text-xs text-neutral-500 mt-0.5">共 {{ items.length }} 個</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <button
-          @click="showCodeGen = true"
-          class="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
-          title="用自然語言描述 → AI 自動生成 Python 程式碼（v2.8）"
-        >
-          <SIcon name="sparkles" :size="14" />
-          AI 生成程式碼
-        </button>
-        <button
-          @click="showCreate = true"
-          class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
-        >
-          <IconPlus :size="14" :stroke-width="2.5" />
-          建立工具
-        </button>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">工具</h1>
+          <p class="text-xs text-fg-tertiary mt-1">共 {{ items.length }} 個</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="showCodeGen = true"
+            class="btn btn-warm"
+            title="用自然語言描述 → AI 自動生成 Python 程式碼（v2.8）"
+          >
+            <SIcon name="sparkles" :size="14" />
+            AI 生成程式碼
+          </button>
+          <button
+            @click="showCreate = true"
+            class="btn btn-primary"
+          >
+            <IconPlus :size="14" :stroke-width="2.5" />
+            建立工具
+          </button>
+        </div>
       </div>
     </div>
 
-    <div class="flex-1 overflow-auto p-6">
-      <p v-if="loading" class="text-sm text-neutral-400">載入中…</p>
-      <div v-else-if="!items.length" class="text-center py-20 text-sm text-neutral-500">
-        尚未建立工具。Tool 可以是 HTTP API、MCP 連線、shell 指令等。
-      </div>
+    <div class="flex-1 overflow-auto px-6 pb-6">
+      <p v-if="loading" class="text-sm text-fg-tertiary">載入中…</p>
+      <EmptyState
+        v-else-if="!items.length"
+        icon="settings"
+        title="尚未建立工具"
+        description="Tool 可以是 HTTP API、MCP 連線、shell 指令等"
+        action-label="建立第一個工具"
+        @action="showCreate = true"
+      />
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <div
-          v-for="t in items" :key="t.id"
-          class="bg-surface-raised rounded-xl border border-neutral-200 hover:border-brand-300 hover:shadow-md transition-all p-5"
+          v-for="(t, idx) in items" :key="t.id"
+          class="card-warm fade-up p-5"
+          :style="`animation-delay: ${idx * 40}ms`"
         >
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold text-sm text-neutral-900 truncate">{{ t.name }}</h3>
@@ -268,6 +276,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { toolApi, type ToolEntity, type ToolExecResult } from '../../api/extras'
 import { IconPlus } from '../../components/icons'
 import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
 import { useDialog } from '../../composables/useDialog'
 import { useToast } from '../../composables/useToast'
 import { http } from '../../api'

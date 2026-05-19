@@ -1,49 +1,43 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">排程觸發</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">
-          設定 interval / cron / webhook 觸發應用，自動執行任務並寫紀錄
-        </p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">排程觸發</h1>
+          <p class="text-sm text-fg-tertiary mt-1">
+            設定 interval / cron / webhook 觸發應用，自動執行任務並寫紀錄
+          </p>
+        </div>
+        <button
+          @click="openCreate"
+          :disabled="!apps.length"
+          class="btn btn-primary"
+          :title="apps.length ? '' : '請先建立至少一個應用'"
+        >
+          <SIcon name="plus" :size="16" />
+          新增 Trigger
+        </button>
       </div>
-      <button
-        @click="openCreate"
-        :disabled="!apps.length"
-        class="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        :title="apps.length ? '' : '請先建立至少一個應用'"
-      >
-        <SIcon name="plus" :size="16" />
-        新增 Trigger
-      </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto px-6 pb-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="28" />
       </div>
 
-      <div v-else-if="!triggers.length" class="text-center py-20">
-        <div class="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <SIcon name="refresh" :size="28" :stroke-width="1.5" class="text-brand-500" />
-        </div>
-        <p class="text-fg-secondary font-medium">尚未建立任何 Trigger</p>
-        <p class="text-fg-tertiary text-sm mt-1 mb-4">
-          幫應用排個 interval、cron 表達式、或開 webhook 端點
-        </p>
-        <button
-          v-if="apps.length"
-          @click="openCreate"
-          class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-        >新增第一個 Trigger</button>
-        <p v-else class="text-fg-tertiary text-sm">
-          請先到「應用」建立至少一個應用
-        </p>
-      </div>
+      <EmptyState
+        v-else-if="!triggers.length"
+        icon="refresh"
+        title="尚未建立任何 Trigger"
+        :description="apps.length ? '幫應用排個 interval、cron 表達式、或開 webhook 端點' : '請先到「應用」建立至少一個應用'"
+        :action-label="apps.length ? '新增第一個 Trigger' : undefined"
+        @action="openCreate"
+      />
 
       <!-- 列表（table） -->
-      <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+      <div v-else class="card-warm overflow-hidden">
+      <table class="w-full text-sm">
         <thead>
           <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
             <th class="px-4 py-3 font-semibold">名稱 / 應用</th>
@@ -116,6 +110,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- 建立 / 編輯 modal -->
@@ -282,6 +277,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { triggerApi, type Trigger, type TriggerRun, type TriggerKind } from '../../api/trigger'
 import { applicationApi, type Application } from '../../api/application'
+import EmptyState from '../../components/common/EmptyState.vue'
 
 const loading = ref(true)
 const triggers = ref<Trigger[]>([])

@@ -11,7 +11,7 @@
           <SIcon name="arrow-left" :size="16" />
         </button>
         <div class="min-w-0">
-          <h1 class="text-base font-semibold text-fg truncate">{{ docName || '段落' }}</h1>
+          <h1 class="heading-section text-fg truncate">{{ docName || '段落' }}</h1>
           <p class="text-xs text-fg-secondary mt-0.5">
             共 {{ paragraphs.length }} 段
             <span v-if="filtered.length !== paragraphs.length"> · 顯示 {{ filtered.length }} 段</span>

@@ -95,10 +95,12 @@ onMounted(() => {
     </header>
 
     <section class="max-w-6xl mx-auto px-6 py-8">
-      <h1 class="text-2xl font-bold mb-2">探索公開 workflow 模板</h1>
-      <p class="text-fg-secondary mb-6">
-        跨組織共享的 workflow gallery — 瀏覽不需登入，登入後即可一鍵 install 到你的 workspace。
-      </p>
+      <div class="card-hero mb-6">
+        <h1 class="heading-page heading-accent">探索公開 workflow 模板</h1>
+        <p class="text-fg-secondary mt-2">
+          跨組織共享的 workflow gallery — 瀏覽不需登入，登入後即可一鍵 install 到你的 workspace。
+        </p>
+      </div>
 
       <div class="flex flex-wrap gap-3 mb-6">
         <input
@@ -136,9 +138,10 @@ onMounted(() => {
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <article
-          v-for="t in items"
+          v-for="(t, idx) in items"
           :key="t.id"
-          class="rounded-lg border border-bd bg-surface-raised hover:border-brand-300 cursor-pointer transition p-4 flex flex-col"
+          class="card-warm fade-up p-4 flex flex-col cursor-pointer"
+          :style="`animation-delay: ${idx * 40}ms`"
           @click="goDetail(t.id)"
         >
           <div

@@ -1,43 +1,43 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">Projects</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">把相關的知識庫 + 應用綁在一起，切換 Project 自動過濾顯示。</p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">Projects</h1>
+          <p class="text-sm text-fg-tertiary mt-1">把相關的知識庫 + 應用綁在一起，切換 Project 自動過濾顯示。</p>
+        </div>
+        <button
+          @click="openCreate"
+          class="btn btn-primary"
+        >
+          <SIcon name="plus" :size="16" />
+          建立 Project
+        </button>
       </div>
-      <button
-        @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-      >
-        <SIcon name="plus" :size="16" />
-        建立 Project
-      </button>
     </div>
 
     <!-- 列表 -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto px-6 pb-6">
       <div v-if="projects.loading" class="flex justify-center py-20">
         <SSpinner :size="28" />
       </div>
 
-      <div v-else-if="!projects.projects.length" class="text-center py-20">
-        <div class="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <SIcon name="folder" :size="28" :stroke-width="1.5" class="text-brand-500" />
-        </div>
-        <p class="text-fg-secondary font-medium">尚未建立任何 Project</p>
-        <p class="text-fg-tertiary text-sm mt-1 mb-4">建立一個 Project，把相關 KB / App 綁進去，切換時自動過濾</p>
-        <button
-          @click="openCreate"
-          class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-        >建立第一個 Project</button>
-      </div>
+      <EmptyState
+        v-else-if="!projects.projects.length"
+        icon="folder"
+        title="尚未建立任何 Project"
+        description="建立一個 Project，把相關 KB / App 綁進去，切換時自動過濾"
+        action-label="建立第一個 Project"
+        @action="openCreate"
+      />
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <div
-          v-for="p in projects.projects" :key="p.id"
-          class="bg-surface-raised rounded-2xl border border-neutral-200 p-5 hover:shadow-md hover:border-brand-200 hover:-translate-y-0.5 transition-all"
-          :class="projects.activeId === p.id ? 'border-brand-400 ring-1 ring-brand-200' : ''"
+          v-for="(p, idx) in projects.projects" :key="p.id"
+          class="card-warm fade-up p-5"
+          :style="`animation-delay: ${idx * 40}ms`"
+          :class="projects.activeId === p.id ? 'ring-1 ring-brand-300' : ''"
         >
           <div class="flex items-start gap-3 mb-3">
             <div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-xl flex-shrink-0">
@@ -176,6 +176,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { useProjectStore, type Project } from '../../stores/project'
+import EmptyState from '../../components/common/EmptyState.vue'
 
 const projects = useProjectStore()
 

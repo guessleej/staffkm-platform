@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">Stripe Billing</h1>
+        <h1 class="heading-page heading-accent">Stripe Billing</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">訂閱 / 預付額度 / 發票（v4.7 + v4.8）</p>
       </div>
       <button
@@ -14,6 +14,7 @@
       </button>
     </div>
 
+</div>
     <div class="flex-1 overflow-auto px-6 py-6 space-y-6">
       <!-- 當前方案卡片 -->
       <section class="bg-surface-raised border border-neutral-200 rounded-xl p-5">

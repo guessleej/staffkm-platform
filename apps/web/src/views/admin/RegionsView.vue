@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">Multi-Region (v5.0)</h1>
+        <h1 class="heading-page heading-accent">Multi-Region (v5.0)</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">
           Active-active 區域註冊與衝突檢視 — 預設未啟用（scaffolding only）。
           詳見 <code class="text-xs">docs/deploy/active-active.md</code>。
@@ -17,6 +17,7 @@
       </button>
     </div>
 
+</div>
     <div class="flex-1 overflow-y-auto p-6 space-y-8">
       <!-- ── Regions registry ─────────────────────────────────────── -->
       <section>
@@ -26,7 +27,7 @@
           </h2>
         </div>
 
-        <table class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
           <thead>
             <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
               <th class="px-4 py-3 font-semibold">ID</th>
@@ -119,7 +120,7 @@
           </div>
         </div>
 
-        <table class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
           <thead>
             <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
               <th class="px-4 py-3 font-semibold">偵測時間</th>

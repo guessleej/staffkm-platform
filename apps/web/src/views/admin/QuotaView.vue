@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">Workspace Quota 管理</h1>
+        <h1 class="heading-page heading-accent">Workspace Quota 管理</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">跨 workspace 的當月用量與額度（{{ month || '—' }}）</p>
       </div>
       <button
@@ -15,6 +15,7 @@
     </div>
 
     <!-- table -->
+</div>
     <div class="flex-1 overflow-y-auto p-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
@@ -27,7 +28,7 @@
         <p class="text-fg-secondary font-medium">沒有 workspace</p>
       </div>
 
-      <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+      <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
         <thead>
           <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
             <th class="px-4 py-3 font-semibold">Workspace</th>
@@ -86,7 +87,7 @@
     <!-- Modal -->
     <div v-if="editing" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40"
          @click.self="closeEdit">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-md p-5">
+      <div class="card-warm shadow-xl w-full max-w-md p-5">
         <h3 class="text-base font-semibold text-fg">設定 Quota</h3>
         <p class="text-xs text-fg-tertiary mt-0.5">{{ editing.workspace_name }}</p>
 

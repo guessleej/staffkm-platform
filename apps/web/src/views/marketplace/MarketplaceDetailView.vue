@@ -99,7 +99,7 @@ onMounted(load)
 
         <header class="flex items-start gap-4 mb-4">
           <div class="flex-1">
-            <h1 class="text-3xl font-bold mb-2 flex items-center gap-2">
+            <h1 class="heading-page heading-accent mb-2 flex items-center gap-2">
               {{ tpl.name }}
               <span
                 v-if="tpl.verified"
@@ -111,7 +111,7 @@ onMounted(load)
             </p>
           </div>
           <button
-            class="px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700"
+            class="btn btn-primary"
             @click="clickInstall"
           >
             {{ isLoggedIn ? 'Install to my workspace' : '登入後安裝' }}

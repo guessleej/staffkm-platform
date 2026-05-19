@@ -1,17 +1,19 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">當月用量</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">當前 workspace · {{ summary?.month || '—' }}</p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">當月用量</h1>
+          <p class="text-sm text-fg-tertiary mt-1">當前 workspace · {{ summary?.month || '—' }}</p>
+        </div>
+        <button
+          @click="load"
+          class="btn btn-warm"
+        >
+          <SIcon name="refresh" :size="12" /> 重新整理
+        </button>
       </div>
-      <button
-        @click="load"
-        class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:bg-neutral-50 transition flex items-center gap-1"
-      >
-        <SIcon name="refresh" :size="12" /> 重新整理
-      </button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
@@ -22,25 +24,25 @@
       <template v-else-if="summary">
         <!-- 4 個 stat card -->
         <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="bg-surface-raised rounded-xl border border-neutral-200 p-4">
+          <div class="card-warm p-4">
             <p class="text-xs text-fg-tertiary">本月 tokens</p>
             <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
               {{ fmtNum(summary.usage.tokens) }}
             </p>
           </div>
-          <div class="bg-surface-raised rounded-xl border border-neutral-200 p-4">
+          <div class="card-warm p-4">
             <p class="text-xs text-fg-tertiary">本月成本 (USD)</p>
             <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
               ${{ Number(summary.usage.cost_usd).toFixed(4) }}
             </p>
           </div>
-          <div class="bg-surface-raised rounded-xl border border-neutral-200 p-4">
+          <div class="card-warm p-4">
             <p class="text-xs text-fg-tertiary">請求數</p>
             <p class="text-2xl font-semibold text-fg mt-1 tabular-nums">
               {{ fmtNum(summary.usage.requests) }}
             </p>
           </div>
-          <div class="bg-surface-raised rounded-xl border border-neutral-200 p-4">
+          <div class="card-warm p-4">
             <p class="text-xs text-fg-tertiary">Quota 剩餘</p>
             <p class="text-2xl font-semibold mt-1 tabular-nums"
                :class="quotaRemainColor">
@@ -51,7 +53,7 @@
         </section>
 
         <!-- by_day bar chart -->
-        <section class="bg-surface-raised rounded-xl border border-neutral-200 p-5">
+        <section class="card-warm p-5">
           <h2 class="text-sm font-semibold text-fg mb-3">每日 tokens</h2>
           <div v-if="!summary.by_day?.length" class="text-xs text-fg-tertiary py-6 text-center">
             本月還沒有用量
@@ -74,9 +76,9 @@
         </section>
 
         <!-- by_model table -->
-        <section class="bg-surface-raised rounded-xl border border-neutral-200 overflow-hidden">
-          <div class="px-5 py-3 border-b border-neutral-100">
-            <h2 class="text-sm font-semibold text-fg">每模型用量</h2>
+        <section class="card-warm overflow-hidden">
+          <div class="px-5 py-3 border-b border-bd">
+            <h2 class="heading-section text-base">每模型用量</h2>
           </div>
           <table class="w-full text-sm">
             <thead class="bg-surface-sunken text-xs text-fg-tertiary uppercase">
