@@ -81,7 +81,7 @@ async def _snapshot_workflow(
                 id, application_id, workspace_id, version_number,
                 nodes, edges, note, created_at, created_by
             ) VALUES (
-                :id, :app_id, :ws, :ver, :nodes::jsonb, :edges::jsonb,
+                :id, :app_id, :ws, :ver, CAST(:nodes AS jsonb), CAST(:edges AS jsonb),
                 :note, :now, :by
             )
             """
@@ -190,7 +190,7 @@ async def restore_wf_version(
                     id, application_id, workspace_id, node_type, node_key,
                     label, config, position
                 ) VALUES (
-                    :id, :app, :ws, :type, :key, :label, :config::jsonb, :pos::jsonb
+                    :id, :app, :ws, :type, :key, :label, CAST(:config AS jsonb), CAST(:pos AS jsonb)
                 )
                 """
             ),
@@ -212,7 +212,7 @@ async def restore_wf_version(
                     id, application_id, workspace_id, source_node_key,
                     target_node_key, condition
                 ) VALUES (
-                    :id, :app, :ws, :src, :tgt, :cond::jsonb
+                    :id, :app, :ws, :src, :tgt, CAST(:cond AS jsonb)
                 )
                 """
             ),

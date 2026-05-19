@@ -207,7 +207,7 @@ async def create_provider(
             "INSERT INTO model_providers (id, name, provider_type, base_url, api_key_enc, "
             "status, config, tenant_id, created_by, updated_by) "
             "VALUES (:id, :name, :provider_type, :base_url, :api_key_enc, "
-            "'active', :config::jsonb, :tenant_id, :created_by, :updated_by)"
+            "'active', CAST(:config AS jsonb), :tenant_id, :created_by, :updated_by)"
         ),
         {
             "id": str(provider_id),
@@ -297,7 +297,7 @@ async def update_provider(
         updates.append("status = :status")
         params["status"] = body.status
     if body.config is not None:
-        updates.append("config = :config::jsonb")
+        updates.append("config = CAST(:config AS jsonb)")
         params["config"] = json.dumps(body.config)
 
     updates.append("updated_at = NOW()")
@@ -455,7 +455,7 @@ async def create_model(
             "INSERT INTO ai_models (id, provider_id, model_name, model_type, display_name, "
             "config, is_default, status) "
             "VALUES (:id, :provider_id, :model_name, :model_type, :display_name, "
-            ":config::jsonb, :is_default, 'active')"
+            "CAST(:config AS jsonb), :is_default, 'active')"
         ),
         {
             "id": str(model_id),
@@ -524,7 +524,7 @@ async def update_model(
         updates.append("display_name = :display_name")
         params["display_name"] = body.display_name
     if body.config is not None:
-        updates.append("config = :config::jsonb")
+        updates.append("config = CAST(:config AS jsonb)")
         params["config"] = json.dumps(body.config)
     if body.is_default is not None:
         updates.append("is_default = :is_default")

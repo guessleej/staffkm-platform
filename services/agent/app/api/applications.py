@@ -196,7 +196,7 @@ async def create_application(
             ) VALUES (
                 :id, :workspace_id, :name, :description, :icon, :type, :status,
                 :llm_model_id, :system_prompt, :welcome_message,
-                :suggested_questions::jsonb, :knowledge_base_ids::jsonb, :skill_ids::jsonb, :config::jsonb,
+                CAST(:suggested_questions AS jsonb), CAST(:knowledge_base_ids AS jsonb), CAST(:skill_ids AS jsonb), CAST(:config AS jsonb),
                 :is_public, :tenant_id, :workflow_manager,
                 :created_at, :updated_at, :created_by
             )
