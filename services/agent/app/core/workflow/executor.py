@@ -325,6 +325,21 @@ class WorkflowExecutor:
                 elif node_type == "image_generate":
                     await self._exec_image_generate(config, context)
 
+                # ── MaxKB v2 多模態擴充（v5.3 prep）────────────────
+                elif node_type == "video_understand":
+                    async for token in self._exec_video_understand(config, context):
+                        yield {"event": "token", "data": token}
+
+                elif node_type == "text_to_video":
+                    await self._exec_text_to_video(config, context)
+
+                elif node_type == "image_to_video":
+                    await self._exec_image_to_video(config, context)
+
+                elif node_type == "document_tag_retrieval":
+                    results = await self._exec_document_tag_retrieval(config, context)
+                    context["knowledge_results"] = results
+
                 elif node_type == "document_extract":
                     await self._exec_document_extract(config, context)
 
@@ -860,10 +875,24 @@ class WorkflowExecutor:
             return value in actual
         elif operator == "equals":
             return actual == value
+        elif operator == "not_equal":
+            # MaxKB v2：!= 反向
+            return actual != value
         elif operator == "not_empty":
             return bool(actual.strip())
         elif operator == "is_empty":
             return not bool(actual.strip())
+        elif operator == "regex_match":
+            # MaxKB v2：re.search 半匹配；pattern invalid 視為不匹配
+            try:
+                return bool(re.search(str(value), actual))
+            except re.error as e:
+                log.warning("condition_regex_invalid", pattern=str(value), error=str(e))
+                return False
+        elif operator == "wildcard_match":
+            # MaxKB v2：fnmatch（* / ? / [seq]）— lazy import 避免污染 module level
+            import fnmatch
+            return fnmatch.fnmatch(actual, str(value))
         return False
 
     async def _exec_document_extract(self, config: dict, context: dict) -> None:
@@ -991,14 +1020,38 @@ class WorkflowExecutor:
         context[output_var] = json.dumps(chunks, ensure_ascii=False)
 
     async def _exec_form(self, config: dict, context: dict) -> AsyncIterator[dict]:
-        """表單節點：填入預設值並發送 form_request 事件，使前端可渲染表單。"""
+        """表單節點：填入預設值並發送 form_request 事件，使前端可渲染表單。
+
+        v2.9：field.type 接受 'tree_select'（schema: options=[{value,label,children:[…]}]）。
+        runtime 不做特別處理（前端 render + 收 leaf value），但 schema validation
+        通過 — 即 unknown type 不再 reject。
+        """
         fields: list[dict] = config.get("fields", [])
+        _ALLOWED_FIELD_TYPES = {
+            "text", "textarea", "number", "select", "checkbox", "radio",
+            "date", "tree_select",  # v2.9
+        }
         missing: list[str] = []
 
         for field in fields:
             name = field.get("name", "")
             if not name:
                 continue
+            ftype = field.get("type", "text")
+            if ftype not in _ALLOWED_FIELD_TYPES:
+                log.warning(
+                    "form_field_unknown_type", field=name, type=ftype,
+                    **self._audit_fields(context),
+                )
+            if ftype == "tree_select":
+                # tree_select 的 options 是遞迴 list[{value,label,children:[]}]；
+                # 此處只做 schema 在場性檢查（前端負責 render + 收 leaf value）
+                opts = field.get("options", [])
+                if not isinstance(opts, list):
+                    log.warning(
+                        "form_tree_select_invalid_options", field=name,
+                        **self._audit_fields(context),
+                    )
             if name not in context or context[name] == "":
                 default = field.get("default", "")
                 if default != "":
@@ -1218,6 +1271,286 @@ class WorkflowExecutor:
             if isinstance(e, QuotaExceeded):
                 raise
             log.error("image_generate_failed", error=str(e), **self._audit_fields(context))
+
+    # ─────────────────────────────────────────────────────────────────
+    # MaxKB v2 多模態擴充（v5.3 prep）：video understand / t2v / i2v / tag retrieval
+    # ─────────────────────────────────────────────────────────────────
+
+    async def _exec_video_understand(self, config: dict, context: dict) -> AsyncIterator[str]:
+        """影片理解：類 image_understand，差別在 input 是 video URL。
+
+        - 用 OpenAI vision messages 格式但 part type='video_url'（Gemini 支援）。
+        - 若 provider 不接受（exception / 4xx），fallback 改傳 text 'video at {url}'。
+        - thinking_process=True 時 system prompt 多帶 step-by-step instruction（v2.8）。
+        - 走 meter_llm_call。
+        """
+        input_var = config.get("input_variable", "video_url")
+        output_var = config.get("output_variable", "video_description")
+        video_url = str(context.get(input_var, ""))
+        if not video_url:
+            return
+
+        api_key = config.get("api_key", "") or settings.OPENAI_API_KEY
+        model = config.get("model", "gemini-1.5-pro")
+        base_system = config.get("system_prompt", "你是一個影片分析助手。")
+        if config.get("thinking_process", False):
+            # MaxKB v2.8：step-by-step thinking
+            base_system = base_system + "\n請以 step-by-step 的方式逐步分析後再給結論。"
+        prompt = self._render_template(config.get("prompt", "請詳細描述這部影片的內容。"), context)
+        max_tokens = int(config.get("max_tokens", 1024))
+        temperature = float(config.get("temperature", 0.1))
+
+        base_url = (config.get("base_url") or "").rstrip("/") or None
+        provider = OpenAICompatProvider(api_key=api_key, base_url=base_url)
+
+        def _build_messages(use_video_url: bool) -> list[dict]:
+            if use_video_url:
+                return [
+                    {"role": "system", "content": base_system},
+                    {"role": "user", "content": [
+                        {"type": "video_url", "video_url": {"url": video_url}},
+                        {"type": "text", "text": prompt},
+                    ]},
+                ]
+            # fallback：純 text
+            return [
+                {"role": "system", "content": base_system},
+                {"role": "user", "content": f"{prompt}\n\nvideo at {video_url}"},
+            ]
+
+        messages = _build_messages(use_video_url=True)
+        req = ChatRequest(
+            model=model, messages=messages, stream=True,
+            temperature=temperature, max_tokens=max_tokens,
+        )
+        prompt_tokens_est = self._estimate_tokens_messages(messages)
+        full_response = ""
+
+        async def _stream_with_fallback() -> AsyncIterator[str]:
+            """嘗試 video_url；若 provider 不支援，改 fallback messages 重跑。"""
+            nonlocal full_response, messages, req
+            try:
+                async for delta in provider.chat_stream(req):
+                    if delta:
+                        full_response += delta
+                        yield delta
+            except Exception as primary_err:
+                # 多數 OpenAI-compat 端點還不認 video_url；fallback 用 text
+                log.warning(
+                    "video_understand_fallback_to_text",
+                    error=str(primary_err), **self._audit_fields(context),
+                )
+                messages = _build_messages(use_video_url=False)
+                req2 = ChatRequest(
+                    model=model, messages=messages, stream=True,
+                    temperature=temperature, max_tokens=max_tokens,
+                )
+                async for delta in provider.chat_stream(req2):
+                    if delta:
+                        full_response += delta
+                        yield delta
+
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                async for delta in _stream_with_fallback():
+                    yield delta
+            except Exception as e:
+                log.error("video_understand_failed", error=str(e), **self._audit_fields(context))
+                yield f"\n\n錯誤：影片分析失敗：{e}"
+            context[output_var] = full_response
+            return
+
+        async with sess_factory() as meter_session:
+            try:
+                async with meter_llm_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="openai_compat",
+                    model=model,
+                    feature="workflow",
+                    conversation_id=self.conversation_id,
+                ) as meter:
+                    try:
+                        async for delta in _stream_with_fallback():
+                            yield delta
+                    finally:
+                        meter.record(
+                            prompt_tokens=prompt_tokens_est,
+                            completion_tokens=self._estimate_tokens_text(full_response),
+                        )
+            except Exception as e:
+                from app.core.usage import QuotaExceeded
+                if isinstance(e, QuotaExceeded):
+                    raise
+                log.error("video_understand_failed", error=str(e), **self._audit_fields(context))
+                yield f"\n\n錯誤：影片分析失敗：{e}"
+        context[output_var] = full_response
+
+    async def _exec_text_to_video(self, config: dict, context: dict) -> None:
+        """文生影片：Bailian Wan 2.1（dashscope async API）。
+
+        OpenAI-compat 端點不支援 video gen，需走 dashscope native：
+          POST /api/v1/services/aigc/video-generation/video-synthesis
+          (X-DashScope-Async: enable) → task_id → 輪詢 /api/v1/tasks/{task_id}
+        走 meter_media_call(provider_type='bailian', unit_type='call')。
+        """
+        await self._exec_bailian_video(config, context, mode="t2v")
+
+    async def _exec_image_to_video(self, config: dict, context: dict) -> None:
+        """圖生影片：Bailian Wan 2.1 i2v-turbo；input 加 image_url 起始幀 + 可選 last_frame_url。"""
+        await self._exec_bailian_video(config, context, mode="i2v")
+
+    async def _exec_bailian_video(self, config: dict, context: dict, *, mode: str) -> None:
+        """Bailian Wan video generation 共用 dispatcher（t2v / i2v）。"""
+        output_var = config.get("output_variable", "generated_video_url")
+        prompt = self._render_template(config.get("prompt_template", "{{user_input}}"), context)
+        api_key = config.get("api_key", "") or getattr(settings, "DASHSCOPE_API_KEY", "") or ""
+        if not api_key:
+            log.error("bailian_video_no_api_key", mode=mode, **self._audit_fields(context))
+            context[output_var] = ""
+            return
+
+        size = config.get("size", "1280*720")
+        timeout_total = float(config.get("timeout", 300.0))
+        poll_interval = float(config.get("poll_interval", 5.0))
+
+        if mode == "t2v":
+            model = config.get("model", "wan2.1-t2v-turbo")
+            input_payload: dict = {"prompt": prompt}
+        else:  # i2v
+            model = config.get("model", "wan2.1-i2v-turbo")
+            image_url_var = config.get("image_variable", "image_url")
+            image_url = str(context.get(image_url_var, "") or config.get("image_url", ""))
+            if not image_url:
+                log.error("bailian_i2v_no_image", **self._audit_fields(context))
+                context[output_var] = ""
+                return
+            input_payload = {"prompt": prompt, "image_url": image_url}
+            last_frame_var = config.get("last_frame_variable", "last_frame_url")
+            last_frame = str(context.get(last_frame_var, "") or config.get("last_frame_url", ""))
+            if last_frame:
+                input_payload["last_frame_url"] = last_frame
+
+        submit_url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis"
+        submit_headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-DashScope-Async": "enable",
+        }
+        payload = {
+            "model": model,
+            "input": input_payload,
+            "parameters": {"size": size},
+        }
+
+        async def _do_generate() -> None:
+            import asyncio
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.post(submit_url, headers=submit_headers, json=payload)
+                r.raise_for_status()
+                data = r.json()
+                task_id = (data.get("output", {}) or {}).get("task_id") or data.get("task_id")
+                if not task_id:
+                    raise RuntimeError(f"bailian video submit no task_id: {data}")
+
+                poll_url = f"https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}"
+                poll_headers = {"Authorization": f"Bearer {api_key}"}
+                start = time.monotonic()
+                while True:
+                    if time.monotonic() - start > timeout_total:
+                        raise TimeoutError(f"bailian video task {task_id} timeout > {timeout_total}s")
+                    pr = await client.get(poll_url, headers=poll_headers)
+                    pr.raise_for_status()
+                    pdata = pr.json()
+                    output = pdata.get("output", {}) or {}
+                    status = (output.get("task_status") or "").upper()
+                    if status == "SUCCEEDED":
+                        video_url = output.get("video_url") or output.get("results", [{}])[0].get("url", "")
+                        context[output_var] = video_url
+                        return
+                    if status in ("FAILED", "CANCELED", "UNKNOWN"):
+                        raise RuntimeError(f"bailian video task {task_id} {status}: {output}")
+                    await asyncio.sleep(poll_interval)
+
+        sess_factory = _db._session_factory
+        if sess_factory is None or not self.workspace_id:
+            try:
+                await _do_generate()
+            except Exception as e:
+                log.error("bailian_video_failed", mode=mode, error=str(e), **self._audit_fields(context))
+                context[output_var] = ""
+            return
+
+        try:
+            async with sess_factory() as meter_session:
+                async with meter_media_call(
+                    meter_session,
+                    workspace_id=self.workspace_id,
+                    user_id=context.get("_user_id") or self.user_id,
+                    application_id=self.application_id,
+                    provider_type="bailian",
+                    model=model,
+                    unit_type="call",
+                    feature="video",
+                    conversation_id=self.conversation_id,
+                ) as meter:
+                    try:
+                        await _do_generate()
+                    finally:
+                        meter.record(unit_count=1)
+        except Exception as e:
+            from app.core.usage import QuotaExceeded
+            if isinstance(e, QuotaExceeded):
+                raise
+            log.error("bailian_video_failed", mode=mode, error=str(e), **self._audit_fields(context))
+            context[output_var] = ""
+
+    async def _exec_document_tag_retrieval(self, config: dict, context: dict) -> list[dict]:
+        """tag-filtered 知識庫檢索：在 _exec_knowledge 基礎上多帶 tags + tag_match_mode。
+
+        假設 knowledge service /search 已支援 tags / tag_match_mode（'any' | 'all'）。
+        若 service 不支援（400 / 422），TODO 後續可加 fallback：先普通 retrieve 再 post-filter。
+        """
+        kb_ids = config.get("kb_ids", [])
+        if not kb_ids:
+            return []
+        tags = config.get("tags", []) or []
+        match_mode = config.get("match_mode", "any")
+        if match_mode not in ("any", "all"):
+            match_mode = "any"
+        try:
+            payload = {
+                "query": context.get("user_input", ""),
+                "kb_ids": kb_ids,
+                "top_k": config.get("top_k", 5),
+                "similarity_threshold": config.get("similarity_threshold", 0.45),
+                "tags": tags,
+                "tag_match_mode": match_mode,
+            }
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    self._knowledge_url(context, "search"),
+                    json=payload,
+                    headers=self._downstream_headers(context),
+                )
+                if resp.status_code == 200:
+                    return resp.json().get("data", {}).get("citations", [])
+                # TODO: 若 knowledge service 還沒支援 tag filter（400/422），改 fallback：
+                # 先 _exec_knowledge 普通 retrieve、再用 citation.tags 做 post-filter。
+                log.warning(
+                    "workflow_document_tag_retrieval_non_200",
+                    status=resp.status_code, body=resp.text[:200],
+                    **self._audit_fields(context),
+                )
+        except Exception as e:
+            log.warning(
+                "workflow_document_tag_retrieval_failed",
+                error=str(e), **self._audit_fields(context),
+            )
+        return []
 
     async def _exec_stt(self, config: dict, context: dict) -> None:
         """Speech-to-Text：呼叫 Whisper 相容 API，轉錄音訊後寫入 context.
@@ -1631,27 +1964,40 @@ class WorkflowExecutor:
         return "default", default_key
 
     async def _exec_loop(self, config: dict, context: dict) -> AsyncIterator[dict]:
-        """執行 loop 節點：支援 count / list / while 三種模式。"""
+        """執行 loop 節點：支援 count / list / while 三種模式。
+
+        v2.9 新增 infinite 模式：config.infinite=True 時跑到 break condition 或達
+        config.max_iterations（safety limit，預設 100）。為了 backward compat，
+        非 infinite 走原邏輯（max_iter clamp 在 50）。
+        """
         loop_type = config.get("loop_type", "count")
-        max_iter = min(int(config.get("max_iterations", 10)), 50)
+        infinite = bool(config.get("infinite", False))
         body_nodes = config.get("body_nodes", [])
         item_var = config.get("item_variable", "item")
 
-        if loop_type == "list":
-            raw = context.get(config.get("list_variable", "items"), [])
-            if isinstance(raw, str):
-                try:
-                    raw = json.loads(raw)
-                except Exception:
-                    raw = [s.strip() for s in raw.split(",") if s.strip()]
-            items: list = raw if isinstance(raw, list) else []
-            iter_count = min(len(items), max_iter)
-        elif loop_type == "count":
-            iter_count = min(int(config.get("count", 1)), max_iter)
+        if infinite:
+            # MaxKB v2.9：infinite mode — 由 break condition 終止，safety limit 預設 100
+            safety_limit = max(1, int(config.get("max_iterations", 100)))
+            iter_count = safety_limit
             items = []
-        else:  # while
-            iter_count = max_iter
-            items = []
+        else:
+            max_iter = min(int(config.get("max_iterations", 10)), 50)
+            if loop_type == "list":
+                raw = context.get(config.get("list_variable", "items"), [])
+                if isinstance(raw, str):
+                    try:
+                        raw = json.loads(raw)
+                    except Exception:
+                        raw = [s.strip() for s in raw.split(",") if s.strip()]
+                items: list = raw if isinstance(raw, list) else []
+                iter_count = min(len(items), max_iter)
+            elif loop_type == "count":
+                iter_count = min(int(config.get("count", 1)), max_iter)
+                items = []
+            else:  # while
+                iter_count = max_iter
+                items = []
+            safety_limit = iter_count
 
         for i in range(iter_count):
             context["__loop_index__"] = i
@@ -1700,6 +2046,15 @@ class WorkflowExecutor:
 
             if context.get("__break__"):
                 break
+        else:
+            # for/else：未 break 跑完所有 iter → infinite 模式時觸碰 safety limit
+            if infinite:
+                log.warning(
+                    "workflow_loop_safety_limit_reached",
+                    safety_limit=safety_limit,
+                    **self._audit_fields(context),
+                )
+                yield {"event": "loop_safety_limit", "data": json.dumps({"limit": safety_limit})}
 
     async def _exec_http(self, config: dict, context: dict) -> dict:
         """通用 HTTP 請求節點。
@@ -1941,9 +2296,25 @@ class WorkflowExecutor:
 
     async def _exec_transform(self, config: dict, context: dict) -> None:
         """資料轉換：把 input_variable 套用 expression 模板後寫 output_variable。
-        expression 是 {{var}} 模板（沿用 _render_template），不執行 eval。"""
+        expression 是 {{var}} 模板（沿用 _render_template），不執行 eval。
+
+        v2.9：新增 output_type='dict' — 用 keys + values（變數名 list）zip 成 dict 直接寫 output_var；
+        預設 output_type='list' 走既有 expression 模板邏輯保 backward compat。
+        """
         input_var = config.get("input_variable", "input")
         output_var = config.get("output_variable", "transformed")
+        output_type = config.get("output_type", "list")  # MaxKB v2.9: "list" | "dict"
+
+        if output_type == "dict":
+            keys = config.get("keys", []) or []
+            value_vars = config.get("values", []) or []
+            result: dict = {}
+            for k, v in zip(keys, value_vars):
+                if k:
+                    result[str(k)] = context.get(v) if isinstance(v, str) else v
+            context[output_var] = result
+            return
+
         expression = config.get("expression", "{{" + input_var + "}}")
         # 暫時把 input_var 值 alias 為 'input' 供 expression 引用
         bak = context.get("input")
@@ -1960,9 +2331,25 @@ class WorkflowExecutor:
         """合併多個 source_variables 的值（list / dict / 字串都支援）到 output_variable。
         - 全 list → concat
         - 全 dict → 後者覆蓋前者（淺合併）
-        - 其他 → 用 \\n 串接字串化值"""
+        - 其他 → 用 \\n 串接字串化值
+
+        v2.9：當 output_type='dict' 時走 keys + source_variables zip 模式：
+        產出 {keys[i]: context[source_variables[i]]}，覆寫上述 auto 邏輯。
+        預設 'list' 保 backward compat。
+        """
         sources: list[str] = config.get("source_variables", []) or []
         output_var = config.get("output_variable", "merged")
+        output_type = config.get("output_type", "list")
+
+        if output_type == "dict":
+            keys = config.get("keys", []) or []
+            result: dict = {}
+            for k, src in zip(keys, sources):
+                if k:
+                    result[str(k)] = context.get(src)
+            context[output_var] = result
+            return
+
         values = [context.get(s) for s in sources]
         values_nn = [v for v in values if v is not None]
         if not values_nn:
