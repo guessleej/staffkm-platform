@@ -200,7 +200,8 @@ async def create_provider(
     api_key_enc = _encode_api_key(body.api_key) if body.api_key else None
 
     import json
-    config_json = json.dumps(body.config) if body.config else None
+    # config column 是 NOT NULL DEFAULT '{}'，所以 None 改成 '{}' 明確帶
+    config_json = json.dumps(body.config) if body.config else '{}'
 
     await session.execute(
         text(
@@ -438,7 +439,8 @@ async def create_model(
         raise HTTPException(status_code=404, detail="供應商不存在")
 
     model_id = uuid.uuid4()
-    config_json = json.dumps(body.config) if body.config else None
+    # ai_models.config 也是 NOT NULL DEFAULT '{}'
+    config_json = json.dumps(body.config) if body.config else '{}'
 
     # 若設為預設，先取消同類型的其他預設
     if body.is_default:
