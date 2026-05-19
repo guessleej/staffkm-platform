@@ -91,11 +91,11 @@
           <div class="px-5 py-4 space-y-3">
             <div>
               <label class="block text-xs text-neutral-500 mb-1">名稱</label>
-              <input v-model="draft.name" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400" />
+              <input v-model="draft.name" class="form-input" />
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">類型</label>
-              <select v-model="draft.kind" class="w-full h-9 px-2 text-sm rounded-md border border-neutral-200">
+              <select v-model="draft.kind" class="form-input">
                 <option value="http">HTTP API</option>
                 <option value="mcp">MCP</option>
                 <option value="shell">Shell 指令</option>
@@ -106,7 +106,7 @@
             <!-- Workflow type 才顯示 application picker -->
             <div v-if="draft.kind === 'workflow'">
               <label class="block text-xs text-neutral-500 mb-1">關聯 Application（workflow）</label>
-              <select v-model="draft.application_id" class="w-full h-9 px-2 text-sm rounded-md border border-neutral-200">
+              <select v-model="draft.application_id" class="form-input">
                 <option value="">— 請選擇 —</option>
                 <option v-for="a in applications" :key="a.id" :value="a.id">{{ a.name }}</option>
               </select>
@@ -116,7 +116,7 @@
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">說明</label>
-              <textarea v-model="draft.description" rows="2" class="w-full px-3 py-2 text-sm rounded-md border border-neutral-200 resize-none focus:outline-none focus:ring-1 focus:ring-brand-400" />
+              <textarea v-model="draft.description" rows="2" class="form-textarea" />
             </div>
           </div>
           <div class="px-5 py-3 border-t border-neutral-100 bg-neutral-50 flex justify-end gap-2">
@@ -151,7 +151,7 @@
                 v-model="execInput"
                 rows="6"
                 placeholder='{"key": "value"}'
-                class="w-full px-3 py-2 text-sm font-mono rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400 resize-y"
+                class="form-textarea font-mono"
               />
               <p v-if="execInputErr" class="text-[11px] text-danger-600 mt-1">{{ execInputErr }}</p>
             </div>
@@ -208,7 +208,7 @@
               <label class="block text-xs text-neutral-500 mb-1">描述</label>
               <textarea v-model="codeGen.description" rows="3"
                 placeholder="例：呼叫第三方 API 把攝氏轉華氏並回傳"
-                class="w-full px-3 py-2 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400 resize-y" />
+                class="form-textarea" />
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
@@ -216,15 +216,15 @@
                 <button @click="addCodeGenInput" class="text-[11px] text-brand-600 hover:underline">+ 新增</button>
               </div>
               <div v-for="(f, i) in codeGen.inputs" :key="'in-' + i" class="flex gap-2 mb-1">
-                <input v-model="f.name" placeholder="name" class="flex-1 h-8 px-2 text-xs rounded-md border border-neutral-200" />
-                <select v-model="f.type" class="h-8 px-2 text-xs rounded-md border border-neutral-200">
+                <input v-model="f.name" placeholder="name" class="form-input h-9 text-xs flex-1" />
+                <select v-model="f.type" class="form-input h-9 text-xs">
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
                   <option value="object">object</option>
                   <option value="array">array</option>
                 </select>
-                <input v-model="f.description" placeholder="描述" class="flex-[2] h-8 px-2 text-xs rounded-md border border-neutral-200" />
+                <input v-model="f.description" placeholder="描述" class="form-input h-9 text-xs flex-[2]" />
                 <button @click="rmCodeGenInput(i)" class="text-neutral-400 hover:text-danger-600 text-xs px-1">×</button>
               </div>
             </div>
@@ -234,15 +234,15 @@
                 <button @click="addCodeGenOutput" class="text-[11px] text-brand-600 hover:underline">+ 新增</button>
               </div>
               <div v-for="(f, i) in codeGen.outputs" :key="'out-' + i" class="flex gap-2 mb-1">
-                <input v-model="f.name" placeholder="name" class="flex-1 h-8 px-2 text-xs rounded-md border border-neutral-200" />
-                <select v-model="f.type" class="h-8 px-2 text-xs rounded-md border border-neutral-200">
+                <input v-model="f.name" placeholder="name" class="form-input h-9 text-xs flex-1" />
+                <select v-model="f.type" class="form-input h-9 text-xs">
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
                   <option value="object">object</option>
                   <option value="array">array</option>
                 </select>
-                <input v-model="f.description" placeholder="描述" class="flex-[2] h-8 px-2 text-xs rounded-md border border-neutral-200" />
+                <input v-model="f.description" placeholder="描述" class="form-input h-9 text-xs flex-[2]" />
                 <button @click="rmCodeGenOutput(i)" class="text-neutral-400 hover:text-danger-600 text-xs px-1">×</button>
               </div>
             </div>

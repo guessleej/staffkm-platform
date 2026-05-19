@@ -26,7 +26,7 @@
               <select
                 v-model="defaults[kind.key]"
                 @change="saveDefault(kind.key)"
-                class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised text-fg
+                class="form-input text-fg
                        focus:outline-none focus:ring-1 focus:ring-brand-400"
               >
                 <option value="">未選擇</option>
@@ -181,22 +181,22 @@
         <div class="px-6 py-4 space-y-4">
           <div>
             <label class="block text-sm text-fg-secondary mb-1">名稱</label>
-            <input v-model="providerForm.name" placeholder="如：OpenAI 正式環境" class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised" />
+            <input v-model="providerForm.name" placeholder="如：OpenAI 正式環境" class="form-input" />
           </div>
           <div>
             <label class="block text-sm text-fg-secondary mb-1">類型</label>
-            <select v-model="providerForm.provider_type" @change="onProviderTypeChange" class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised">
+            <select v-model="providerForm.provider_type" @change="onProviderTypeChange" class="form-input">
               <option v-for="r in registry" :key="r.type" :value="r.type">{{ r.label }}</option>
               <option value="custom">自訂</option>
             </select>
           </div>
           <div>
             <label class="block text-sm text-fg-secondary mb-1">Base URL（選填）</label>
-            <input v-model="providerForm.base_url" placeholder="https://api.openai.com/v1" class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised" />
+            <input v-model="providerForm.base_url" placeholder="https://api.openai.com/v1" class="form-input" />
           </div>
           <div>
             <label class="block text-sm text-fg-secondary mb-1">API Key</label>
-            <input v-model="providerForm.api_key" type="password" placeholder="sk-..." class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised" />
+            <input v-model="providerForm.api_key" type="password" placeholder="sk-..." class="form-input" />
             <p v-if="editingProvider" class="text-xs text-fg-tertiary mt-1">留空 = 不變更現有 API Key</p>
           </div>
         </div>
@@ -218,7 +218,7 @@
         <div class="px-6 py-4 space-y-4">
           <div>
             <label class="block text-sm text-fg-secondary mb-1">Model Name</label>
-            <input v-model="modelForm.model_name" :placeholder="recommendedModelsForCurrent[0] || 'gpt-4o-mini'" class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised" />
+            <input v-model="modelForm.model_name" :placeholder="recommendedModelsForCurrent[0] || 'gpt-4o-mini'" class="form-input" />
             <div v-if="recommendedModelsForCurrent.length" class="flex flex-wrap gap-1 mt-1.5">
               <button
                 v-for="rec in recommendedModelsForCurrent" :key="rec"
@@ -229,7 +229,7 @@
           </div>
           <div>
             <label class="block text-sm text-fg-secondary mb-1">類型</label>
-            <select v-model="modelForm.model_type" class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised">
+            <select v-model="modelForm.model_type" class="form-input">
               <option value="llm">LLM</option>
               <option value="embedding">Embedding</option>
               <option value="reranker">Reranker</option>
@@ -241,7 +241,7 @@
           </div>
           <div>
             <label class="block text-sm text-fg-secondary mb-1">顯示名稱（選填）</label>
-            <input v-model="modelForm.display_name" class="w-full px-3 py-2 text-sm rounded-md border border-bd bg-surface-raised" />
+            <input v-model="modelForm.display_name" class="form-input" />
           </div>
         </div>
         <div class="px-6 pb-6 flex justify-end gap-2">

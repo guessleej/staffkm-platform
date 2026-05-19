@@ -74,7 +74,7 @@
             <input
               v-model.number="draft.monthly_token_cap"
               type="number" min="0"
-              class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400 bg-surface-raised text-fg"
+              class="form-input"
               placeholder="留空 = 不限"
             />
           </div>
@@ -83,7 +83,7 @@
             <input
               v-model.number="draft.monthly_cost_cap_usd"
               type="number" min="0" step="0.01"
-              class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400 bg-surface-raised text-fg"
+              class="form-input"
               placeholder="留空 = 不限"
             />
           </div>

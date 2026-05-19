@@ -13,7 +13,7 @@
             v-model="search"
             @keyup.enter="reload"
             placeholder="搜尋使用者名稱 / email…"
-            class="h-9 pl-9 pr-3 text-sm w-72 rounded-md border border-neutral-200 bg-surface-raised text-fg
+            class="form-input h-9 pl-9 pr-3 w-72
                    focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
         </div>
@@ -113,15 +113,15 @@
         <div class="mt-4 space-y-3">
           <div>
             <label class="block text-xs text-fg-secondary mb-1">使用者名稱 *</label>
-            <input v-model="inviteForm.username" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400" />
+            <input v-model="inviteForm.username" class="form-input" />
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">Email</label>
-            <input v-model="inviteForm.email" type="email" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400" />
+            <input v-model="inviteForm.email" type="email" class="form-input" />
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">顯示名稱</label>
-            <input v-model="inviteForm.display_name" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400" />
+            <input v-model="inviteForm.display_name" class="form-input" />
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">初始密碼 *（至少 8 字元）</label>
@@ -129,7 +129,7 @@
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">角色</label>
-            <select v-model="inviteForm.role" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400">
+            <select v-model="inviteForm.role" class="form-input">
               <option value="user">user</option>
               <option value="admin">admin</option>
               <option value="viewer">viewer</option>
@@ -152,7 +152,7 @@
         <p class="text-xs text-fg-tertiary mt-0.5">{{ editingRole.username }}</p>
         <div class="mt-4">
           <label class="block text-xs text-fg-secondary mb-1">角色</label>
-          <select v-model="roleDraft" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400">
+          <select v-model="roleDraft" class="form-input">
             <option value="user">user</option>
             <option value="admin">admin</option>
             <option value="viewer">viewer</option>

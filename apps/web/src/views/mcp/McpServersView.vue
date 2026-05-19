@@ -136,7 +136,7 @@
               <input
                 v-model="draft.name"
                 placeholder="例：本地 GitHub MCP"
-                class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none"
+                class="form-input"
               />
             </div>
             <div>
@@ -145,7 +145,7 @@
                 v-model="draft.description"
                 rows="2"
                 placeholder="這個 server 提供什麼工具？"
-                class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none resize-none"
+                class="form-textarea"
               />
             </div>
             <div class="grid grid-cols-3 gap-2">
@@ -153,7 +153,7 @@
                 <label class="block text-xs font-semibold text-fg-secondary mb-1.5">Transport</label>
                 <select
                   v-model="draft.transport"
-                  class="w-full h-10 px-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none bg-surface-raised"
+                  class="form-input"
                 >
                   <option value="http">http</option>
                   <option value="sse">sse</option>
@@ -165,7 +165,7 @@
                   v-model="draft.url"
                   type="url"
                   placeholder="https://mcp.example.com/mcp"
-                  class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none font-mono"
+                  class="form-input font-mono"
                 />
               </div>
             </div>
