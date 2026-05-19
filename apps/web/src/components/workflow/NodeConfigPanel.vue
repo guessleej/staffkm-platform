@@ -25,8 +25,28 @@
       </div>
     </div>
 
+    <!-- v2.9：啟用 / 停用 toggle -->
+    <div class="px-4 py-2.5 border-b border-neutral-100 bg-surface-raised flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-2">
+        <SIcon :name="node.disabled ? 'ban' : 'power'" :size="14"
+               :class="node.disabled ? 'text-neutral-400' : 'text-emerald-600'" />
+        <span class="text-xs font-medium" :class="node.disabled ? 'text-fg-tertiary' : 'text-fg-secondary'">
+          {{ node.disabled ? '已停用（執行時略過）' : '啟用中' }}
+        </span>
+      </div>
+      <button @click="node.disabled = !node.disabled"
+              :aria-label="node.disabled ? '啟用此節點' : '停用此節點'"
+              :title="node.disabled ? '啟用此節點' : '停用此節點（執行時略過）'"
+              class="relative inline-flex h-5 w-9 items-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              :class="node.disabled ? 'bg-neutral-300' : 'bg-emerald-500'">
+        <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition"
+              :class="node.disabled ? 'translate-x-0.5' : 'translate-x-[18px]'"></span>
+      </button>
+    </div>
+
     <!-- Scrollable form body -->
-    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+    <div class="flex-1 overflow-y-auto p-4 space-y-4"
+         :class="node.disabled ? 'opacity-60' : ''">
       <!-- 共用：節點標籤 -->
       <div>
         <label class="form-label">節點名稱</label>
@@ -92,6 +112,14 @@
               串流輸出
             </label>
           </div>
+        </div>
+        <!-- v2.8/v2.9：思考過程 toggle（reasoning models）-->
+        <div class="flex items-start gap-2 p-2.5 rounded-xl border border-neutral-200 bg-neutral-50">
+          <input id="llm_thinking" type="checkbox" v-model="node.config.thinking_process" class="rounded mt-0.5"/>
+          <label for="llm_thinking" class="flex-1 cursor-pointer">
+            <div class="text-sm font-medium text-fg-secondary">顯示思考過程</div>
+            <div class="text-[11px] text-fg-tertiary mt-0.5">開啟後 LLM 會輸出推理步驟（適合 reasoning models）</div>
+          </label>
         </div>
         <div>
           <label class="form-label">API Key <span class="text-fg-tertiary font-normal ml-1">（留空使用環境變數）</span></label>
@@ -472,6 +500,14 @@
           <label class="form-label">Prompt</label>
           <textarea v-model="node.config.prompt" rows="3" class="form-input resize-none" placeholder="請詳細描述這張圖片的內容。"/>
         </div>
+        <!-- v2.8/v2.9：思考過程 toggle -->
+        <div class="flex items-start gap-2 p-2.5 rounded-xl border border-neutral-200 bg-neutral-50">
+          <input id="iu_thinking" type="checkbox" v-model="node.config.thinking_process" class="rounded mt-0.5"/>
+          <label for="iu_thinking" class="flex-1 cursor-pointer">
+            <div class="text-sm font-medium text-fg-secondary">顯示思考過程</div>
+            <div class="text-[11px] text-fg-tertiary mt-0.5">開啟後模型會輸出推理步驟（適合 reasoning models）</div>
+          </label>
+        </div>
       </template>
 
       <!-- ── Image Generate ── -->
@@ -483,9 +519,8 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="form-label">Model</label>
-            <select v-model="node.config.model" class="form-input">
-              <option value="dall-e-3">DALL-E 3</option><option value="dall-e-2">DALL-E 2</option>
-            </select>
+            <!-- v2.7：searchable model dropdown -->
+            <SearchableModelSelect v-model="node.config.model" :options="IMAGE_GEN_MODELS" />
           </div>
           <div>
             <label class="form-label">尺寸</label>
@@ -637,12 +672,44 @@
       <template v-if="node.node_type === 'kb_writer'">
         <div>
           <label class="form-label">目標知識庫</label>
-          <select v-model="node.config.kb_id" class="form-input font-mono text-xs">
-            <option value="" disabled>請選擇（必須為 workflow KB）</option>
-            <option v-for="kb in workflowKbs" :key="kb.id" :value="kb.id">
-              {{ kb.name }}
-            </option>
-          </select>
+          <!-- v2.7：searchable dropdown + hover tooltip 顯示 KB metadata -->
+          <div class="relative" v-click-outside="() => (kbDropdownOpen = false)">
+            <button type="button"
+                    @click="kbDropdownOpen = !kbDropdownOpen; $nextTick(() => kbSearchInputRef?.focus())"
+                    class="form-input font-mono text-xs text-left flex items-center justify-between"
+                    :aria-expanded="kbDropdownOpen">
+              <span class="truncate" :class="!selectedKbName ? 'text-fg-tertiary' : ''">
+                {{ selectedKbName || '請選擇（必須為 workflow KB）' }}
+              </span>
+              <SIcon name="chevron-down" :size="12" class="text-fg-tertiary flex-shrink-0 ml-1"/>
+            </button>
+            <div v-if="kbDropdownOpen"
+                 class="absolute z-20 top-full left-0 right-0 mt-1 bg-surface-raised border border-neutral-200 rounded-xl shadow-lg max-h-64 overflow-hidden flex flex-col">
+              <div class="p-2 border-b border-neutral-100">
+                <input ref="kbSearchInputRef" v-model="kbSearch"
+                       class="w-full text-xs border border-neutral-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400"
+                       placeholder="搜尋知識庫…" aria-label="搜尋知識庫" />
+              </div>
+              <div class="flex-1 overflow-y-auto py-1">
+                <p v-if="!filteredKbs.length" class="text-xs text-fg-tertiary text-center py-3">無符合結果</p>
+                <button v-for="kb in filteredKbs" :key="kb.id" type="button"
+                        @click="node.config.kb_id = kb.id; kbDropdownOpen = false; kbSearch = ''"
+                        @mouseenter="kbHover = kb.id" @mouseleave="kbHover = null"
+                        class="relative w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex items-center justify-between gap-2"
+                        :class="node.config.kb_id === kb.id ? 'bg-indigo-50 text-indigo-700' : 'text-fg-secondary'">
+                  <span class="truncate" v-html="highlightMatch(kb.name, kbSearch)"></span>
+                  <SIcon v-if="node.config.kb_id === kb.id" name="check" :size="12" class="text-indigo-600 flex-shrink-0"/>
+                  <!-- hover tooltip: KB metadata -->
+                  <div v-if="kbHover === kb.id"
+                       class="absolute left-full top-0 ml-2 z-30 w-56 bg-fg text-white text-[11px] rounded-lg shadow-xl p-2.5 pointer-events-none">
+                    <div class="font-semibold mb-1">{{ kb.name }}</div>
+                    <div class="opacity-80 font-mono text-[10px] break-all">{{ kb.id }}</div>
+                    <div class="opacity-80 mt-1">類型：工作流知識庫</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
           <p class="text-[10px] text-neutral-400 mt-1">
             僅顯示已標記為「工作流知識庫」的 KB；可在 /knowledge 該 KB 卡片按閃電鍵轉換。
           </p>
@@ -692,9 +759,145 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch, defineComponent } from 'vue'
+import type { Directive } from 'vue'
 import { NODE_META } from './lf-nodes'
 import { knowledgeApi } from '../../api/knowledge'
+import { SIcon } from '@staffkm/ui-kit'
+
+// v2.7：點外面關閉 dropdown
+const vClickOutside: Directive<HTMLElement, () => void> = {
+  mounted(el, binding) {
+    ;(el as any).__cob__ = (ev: MouseEvent) => {
+      if (!el.contains(ev.target as Node)) binding.value?.()
+    }
+    document.addEventListener('mousedown', (el as any).__cob__)
+  },
+  unmounted(el) {
+    document.removeEventListener('mousedown', (el as any).__cob__)
+  },
+}
+
+// v2.7：泛用 searchable model dropdown
+const SearchableModelSelect = defineComponent({
+  props: {
+    modelValue: { type: String, default: '' },
+    options: { type: Array as () => { value: string; label: string; hint?: string }[], required: true },
+  },
+  emits: ['update:modelValue'],
+  setup(p, { emit }) {
+    const open = ref(false)
+    const q = ref('')
+    const inputRef = ref<HTMLInputElement | null>(null)
+    const hover = ref<string | null>(null)
+    const filtered = computed(() => {
+      const k = q.value.trim().toLowerCase()
+      if (!k) return p.options
+      return p.options.filter((o) => o.value.toLowerCase().includes(k) || o.label.toLowerCase().includes(k))
+    })
+    const selectedLabel = computed(() => p.options.find((o) => o.value === p.modelValue)?.label || p.modelValue || '請選擇模型')
+    function hl(s: string, kw: string) {
+      if (!kw.trim()) return s
+      const i = s.toLowerCase().indexOf(kw.trim().toLowerCase())
+      if (i < 0) return s
+      return s.slice(0, i) + '<mark class="bg-yellow-200 text-fg">' + s.slice(i, i + kw.length) + '</mark>' + s.slice(i + kw.length)
+    }
+    function pick(v: string) {
+      emit('update:modelValue', v)
+      open.value = false
+      q.value = ''
+    }
+    function toggle() {
+      open.value = !open.value
+      if (open.value) nextTick(() => inputRef.value?.focus())
+    }
+    const closeFn = () => (open.value = false)
+    return () =>
+      h('div', { class: 'relative', directives: undefined }, [
+        h(
+          'button',
+          {
+            type: 'button',
+            onClick: toggle,
+            class: 'w-full text-sm border border-neutral-200 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400 text-left flex items-center justify-between',
+            'aria-expanded': open.value,
+          },
+          [
+            h('span', { class: 'truncate' }, selectedLabel.value),
+            h(SIcon, { name: 'chevron-down', size: 12, class: 'text-fg-tertiary flex-shrink-0 ml-1' }),
+          ],
+        ),
+        open.value &&
+          h(
+            'div',
+            {
+              class: 'absolute z-20 top-full left-0 right-0 mt-1 bg-surface-raised border border-neutral-200 rounded-xl shadow-lg max-h-64 overflow-hidden flex flex-col',
+            },
+            [
+              h('div', { class: 'p-2 border-b border-neutral-100' }, [
+                h('input', {
+                  ref: inputRef,
+                  value: q.value,
+                  onInput: (e: Event) => (q.value = (e.target as HTMLInputElement).value),
+                  class: 'w-full text-xs border border-neutral-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400',
+                  placeholder: '搜尋模型…',
+                  'aria-label': '搜尋模型',
+                }),
+              ]),
+              h(
+                'div',
+                { class: 'flex-1 overflow-y-auto py-1' },
+                filtered.value.length
+                  ? filtered.value.map((opt) =>
+                      h(
+                        'button',
+                        {
+                          key: opt.value,
+                          type: 'button',
+                          onClick: () => pick(opt.value),
+                          onMouseenter: () => (hover.value = opt.value),
+                          onMouseleave: () => (hover.value = null),
+                          class:
+                            'relative w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex items-center justify-between gap-2 ' +
+                            (p.modelValue === opt.value ? 'bg-indigo-50 text-indigo-700' : 'text-fg-secondary'),
+                        },
+                        [
+                          h('span', { class: 'truncate', innerHTML: hl(opt.label, q.value) }),
+                          p.modelValue === opt.value &&
+                            h(SIcon, { name: 'check', size: 12, class: 'text-indigo-600 flex-shrink-0' }),
+                          hover.value === opt.value && opt.hint
+                            ? h(
+                                'div',
+                                {
+                                  class:
+                                    'absolute left-full top-0 ml-2 z-30 w-56 bg-fg text-white text-[11px] rounded-lg shadow-xl p-2.5 pointer-events-none',
+                                },
+                                opt.hint,
+                              )
+                            : null,
+                        ],
+                      ),
+                    )
+                  : [h('p', { class: 'text-xs text-fg-tertiary text-center py-3' }, '無符合結果')],
+              ),
+            ],
+          ),
+        // click-outside via window listener
+        h('span', {
+          style: 'display:none',
+          ref: (el: any) => {
+            if (!el) return
+            ;(el as any).__close = closeFn
+          },
+        }),
+      ])
+  },
+})
+
+const IMAGE_GEN_MODELS = [
+  { value: 'dall-e-3', label: 'DALL-E 3', hint: 'OpenAI · 高品質 · 支援 HD' },
+  { value: 'dall-e-2', label: 'DALL-E 2', hint: 'OpenAI · 較舊版本 · 速度較快' },
+]
 
 const props = defineProps<{
   node: {
@@ -703,8 +906,14 @@ const props = defineProps<{
     node_type: string
     label: string
     config: Record<string, any>
+    disabled?: boolean
   }
 }>()
+
+// v2.9：確保 disabled 欄位存在（向下相容舊 workflow）
+if (props.node.disabled === undefined) {
+  ;(props.node as any).disabled = false
+}
 
 defineEmits<{
   close: []
@@ -712,6 +921,24 @@ defineEmits<{
 }>()
 
 const meta = computed(() => NODE_META[props.node.node_type])
+
+// ── v2.7：kb_writer 的 searchable + hover tooltip dropdown state ─────────
+const kbDropdownOpen = ref(false)
+const kbSearch = ref('')
+const kbSearchInputRef = ref<HTMLInputElement | null>(null)
+const kbHover = ref<string | null>(null)
+const filteredKbs = computed(() => {
+  const k = kbSearch.value.trim().toLowerCase()
+  if (!k) return workflowKbs.value
+  return workflowKbs.value.filter((kb) => kb.name.toLowerCase().includes(k) || kb.id.toLowerCase().includes(k))
+})
+const selectedKbName = computed(() => workflowKbs.value.find((kb) => kb.id === props.node.config.kb_id)?.name || '')
+function highlightMatch(text: string, kw: string) {
+  if (!kw.trim()) return text
+  const i = text.toLowerCase().indexOf(kw.trim().toLowerCase())
+  if (i < 0) return text
+  return text.slice(0, i) + '<mark class="bg-yellow-200 text-fg">' + text.slice(i, i + kw.length) + '</mark>' + text.slice(i + kw.length)
+}
 
 // ── v2.1：kb_writer node — 載入 workspace 內所有「workflow KB」供下拉 ──
 const workflowKbs = ref<{ id: string; name: string }[]>([])

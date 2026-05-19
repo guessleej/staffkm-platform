@@ -7,6 +7,8 @@ export interface WorkflowNode {
   label: string
   config: Record<string, any>
   position: { x: number; y: number }
+  // v2.9：節點啟用/停用 — disabled=true 時 executor 在 dispatch 階段自動跳過
+  disabled?: boolean
 }
 
 export interface WorkflowEdge {

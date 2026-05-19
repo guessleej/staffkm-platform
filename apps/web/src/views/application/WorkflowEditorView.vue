@@ -95,6 +95,33 @@
       <div class="flex-1 relative overflow-hidden">
         <div ref="canvasRef" class="w-full h-full" />
 
+        <!-- v2.7：Ctrl+F 搜尋節點 overlay -->
+        <div v-if="showSearch"
+             class="absolute top-3 right-3 z-20 w-80 bg-surface-raised border border-neutral-200 rounded-xl shadow-xl flex flex-col overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-2 border-b border-neutral-100">
+            <SIcon name="search" :size="14" class="text-fg-tertiary"/>
+            <input ref="searchInputRef" v-model="searchQuery"
+                   class="flex-1 text-xs bg-transparent focus:outline-none"
+                   placeholder="搜尋節點名稱 / 類型 / key…"
+                   aria-label="搜尋節點"
+                   @keydown.esc.prevent="closeSearch"/>
+            <span class="text-[10px] text-fg-tertiary tabular-nums">{{ searchResults.length }}</span>
+            <button @click="closeSearch" class="text-fg-tertiary hover:text-fg-secondary p-0.5" aria-label="關閉搜尋">
+              <SIcon name="x" :size="12"/>
+            </button>
+          </div>
+          <div v-if="searchQuery && searchResults.length" class="max-h-64 overflow-y-auto py-1">
+            <button v-for="r in searchResults" :key="r.id"
+                    @click="focusSearchNode(r.id)"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-indigo-50 flex items-center gap-2 text-fg-secondary">
+              <span class="px-1.5 py-0.5 rounded bg-neutral-100 text-fg-tertiary text-[10px] font-mono flex-shrink-0">{{ r.type }}</span>
+              <span class="truncate">{{ r.properties?.label || r.properties?.node_key || r.id }}</span>
+            </button>
+          </div>
+          <div v-else-if="searchQuery" class="px-3 py-3 text-xs text-fg-tertiary text-center">無符合結果</div>
+          <div v-else class="px-3 py-2 text-[10px] text-fg-tertiary">輸入關鍵字搜尋畫布上的節點（Esc 關閉）</div>
+        </div>
+
         <!-- 無節點提示 -->
         <div v-if="nodeCount === 0"
              class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -253,7 +280,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import LogicFlow from '@logicflow/core'
 import '@logicflow/core/dist/style/index.css'
@@ -397,7 +424,48 @@ const selectedNode = ref<{
   node_type: string
   label: string
   config: Record<string, any>
+  disabled: boolean
 } | null>(null)
+
+// v2.7：Ctrl+F search overlay state
+const showSearch = ref(false)
+const searchQuery = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const searchResults = computed(() => {
+  if (!lf || !searchQuery.value.trim()) return []
+  const k = searchQuery.value.trim().toLowerCase()
+  const nodes = (lf.graphModel as any).nodes as any[]
+  return nodes
+    .filter((n) => {
+      const label = (n.properties?.label || '').toLowerCase()
+      const type = (n.type || '').toLowerCase()
+      const key = (n.properties?.node_key || '').toLowerCase()
+      return label.includes(k) || type.includes(k) || key.includes(k)
+    })
+    .slice(0, 20)
+})
+function focusSearchNode(nodeId: string) {
+  if (!lf) return
+  const model = (lf.graphModel as any).getNodeModelById(nodeId)
+  if (!model) return
+  // pan to centre
+  ;(lf.graphModel as any).focusOn?.({ id: nodeId })
+  // 高亮
+  model.setProperties({ ...model.getProperties(), _searchHighlight: true })
+  setTimeout(() => model.setProperties({ ...model.getProperties(), _searchHighlight: false }), 1600)
+}
+function closeSearch() {
+  showSearch.value = false
+  searchQuery.value = ''
+}
+
+// v2.9：批次剪貼簿（多選複製貼上）
+const batchClipboard = ref<any[]>([])
+function getSelectedNodeModels(): any[] {
+  if (!lf) return []
+  const nodes = (lf.graphModel as any).nodes as any[]
+  return nodes.filter((n) => n.isSelected)
+}
 
 // ─── LogicFlow 實例 ────────────────────────────────────────────────────────────
 let lf: LogicFlow | null = null
@@ -430,6 +498,7 @@ onMounted(async () => {
       node_type: data.type,
       label:     props.label || '',
       config:    props.config ? JSON.parse(JSON.stringify(props.config)) : getDefaultConfig(data.type),
+      disabled:  !!props.disabled,
     }
   })
 
@@ -486,11 +555,27 @@ onMounted(async () => {
 })
 
 function onKeydown(e: KeyboardEvent) {
-  // 避免在輸入框 / textarea 內攔截
+  // Esc 永遠關閉 search overlay（即便在 input 內）
+  if (e.key === 'Escape' && showSearch.value) {
+    e.preventDefault(); closeSearch(); return
+  }
+
+  // 避免在輸入框 / textarea 內攔截（但 Ctrl+F 在搜尋框內仍要攔截）
   const tag = (e.target as HTMLElement)?.tagName?.toLowerCase()
-  if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return
+  const inEditable = tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable
 
   const meta = e.metaKey || e.ctrlKey
+
+  // v2.7：Ctrl+F / Cmd+F 搜尋（即便在 editable 內也響應）
+  if (meta && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    showSearch.value = true
+    nextTick(() => searchInputRef.value?.focus())
+    return
+  }
+
+  if (inEditable) return
+
   if (meta && e.key.toLowerCase() === 's') {
     e.preventDefault()
     saveWorkflow()
@@ -498,13 +583,53 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault(); onUndo()
   } else if (meta && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
     e.preventDefault(); onRedo()
-  } else if (meta && e.key.toLowerCase() === 'c' && selectedNode.value) {
-    clipboardNode.value = JSON.parse(JSON.stringify(selectedNode.value))
-  } else if (meta && e.key.toLowerCase() === 'v' && clipboardNode.value) {
-    e.preventDefault(); pasteClipboard()
+  } else if (meta && e.key.toLowerCase() === 'c') {
+    // v2.9 批次複製：若多選則複製全部，否則 fallback 到單選
+    const sel = getSelectedNodeModels()
+    if (sel.length > 1) {
+      batchClipboard.value = sel.map((m) => ({
+        type:     m.type,
+        x:        m.x,
+        y:        m.y,
+        label:    m.properties?.label || '',
+        config:   JSON.parse(JSON.stringify(m.properties?.config || {})),
+        disabled: !!m.properties?.disabled,
+      }))
+      clipboardNode.value = null
+    } else if (selectedNode.value) {
+      clipboardNode.value = JSON.parse(JSON.stringify(selectedNode.value))
+      batchClipboard.value = []
+    }
+  } else if (meta && e.key.toLowerCase() === 'v') {
+    if (batchClipboard.value.length > 1) {
+      e.preventDefault(); pasteBatchClipboard()
+    } else if (clipboardNode.value) {
+      e.preventDefault(); pasteClipboard()
+    }
   } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode.value) {
     e.preventDefault(); deleteSelectedNode()
   }
+}
+
+// v2.9：批次貼上（多選複製）— 相對保留原始 layout，整體偏移 +20px
+function pasteBatchClipboard() {
+  if (!lf || !batchClipboard.value.length) return
+  const ts = Date.now()
+  batchClipboard.value.forEach((src, i) => {
+    lf!.addNode({
+      type: src.type,
+      x: snapToGrid(src.x + 20),
+      y: snapToGrid(src.y + 20),
+      properties: {
+        node_key: `${src.type}_${ts}_${i}`,
+        label:    src.label || '',
+        config:   JSON.parse(JSON.stringify(src.config || {})),
+        disabled: !!src.disabled,
+      },
+    } as any)
+  })
+  refreshHistoryState()
+  countNodes()
 }
 
 function pasteClipboard() {
@@ -596,6 +721,7 @@ watch(
       node_key: node.node_key,
       label:    node.label,
       config:   node.config,
+      disabled: node.disabled,
     })
   },
   { deep: true },
@@ -616,6 +742,7 @@ function apiToLf(data: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) {
         node_key: n.node_key,
         label:    n.label || '',
         config:   n.config || {},
+        disabled: !!n.disabled,
       },
       text: { value: '' },
     }
@@ -655,6 +782,7 @@ function lfToApi(): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } {
       node_type: n.type,
       label:     n.properties?.label || '',
       config:    n.properties?.config || {},
+      disabled:  !!n.properties?.disabled,
       position:  { x: Math.round(n.x), y: Math.round(n.y) },
     }
   })

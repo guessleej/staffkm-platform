@@ -165,7 +165,7 @@ export const PALETTE_GROUPS = [
 ]
 
 // ─── 節點 HTML 渲染 ────────────────────────────────────────────────────────────
-function renderNodeHtml(meta: NodeMeta, label: string, nodeType: string): string {
+function renderNodeHtml(meta: NodeMeta, label: string, _nodeType: string, disabled = false, highlight = false): string {
   const extraBottom = meta.dualOutput
     ? `<div style="display:flex;justify-content:space-between;padding:4px 10px 6px;background:#f9fafb;border-top:1px solid ${meta.color}22;">
          <span style="font-size:10px;color:#059669;font-weight:600;">▼ True</span>
@@ -173,18 +173,36 @@ function renderNodeHtml(meta: NodeMeta, label: string, nodeType: string): string
        </div>`
     : ''
 
+  // v2.9：disabled 視覺 — opacity 50% + 灰色 outline + 🚫 角標
+  const borderColor = disabled ? '#9ca3af' : meta.color
+  const headerColor = disabled ? '#9ca3af' : meta.color
+  const opacity = disabled ? '0.5' : '1'
+  const filter = disabled ? 'grayscale(0.8)' : 'none'
+  // v2.7：search 高亮（短暫脈衝光暈）
+  const ring = highlight ? '0 0 0 3px #fde68a, 0 0 0 6px #f59e0b' : ''
+  const shadow = ring || '0 2px 8px rgba(0,0,0,0.08)'
+
+  const disabledBadge = disabled
+    ? `<div title="此節點已停用，執行時將略過" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid #dc2626;color:#dc2626;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,0.15);z-index:2;">🚫</div>`
+    : ''
+
   return `
     <div style="
+      position:relative;
       width:${meta.w}px;
       background:${meta.bg};
-      border:2px solid ${meta.color};
+      border:2px solid ${borderColor};
       border-radius:10px;
-      overflow:hidden;
-      box-shadow:0 2px 8px rgba(0,0,0,0.08);
+      overflow:visible;
+      box-shadow:${shadow};
       font-family:ui-sans-serif,system-ui,sans-serif;
       user-select:none;
+      opacity:${opacity};
+      filter:${filter};
+      transition:box-shadow .2s ease;
     ">
-      <div style="background:${meta.color};padding:7px 10px;display:flex;align-items:center;gap:7px;">
+      ${disabledBadge}
+      <div style="background:${headerColor};padding:7px 10px;display:flex;align-items:center;gap:7px;border-radius:8px 8px 0 0;">
         <span style="font-size:14px;line-height:1;">${meta.icon}</span>
         <span style="color:white;font-size:11px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;">${meta.label}</span>
       </div>
@@ -206,7 +224,7 @@ function createWorkflowNodeClass(nodeType: string) {
   class WorkflowNodeView extends (LogicFlow as any).HtmlNode {
     setHtml(rootEl: HTMLElement) {
       const props = (this as any).props.model.properties || {}
-      rootEl.innerHTML = renderNodeHtml(meta, props.label || '', nodeType)
+      rootEl.innerHTML = renderNodeHtml(meta, props.label || '', nodeType, !!props.disabled, !!props._searchHighlight)
     }
   }
 
