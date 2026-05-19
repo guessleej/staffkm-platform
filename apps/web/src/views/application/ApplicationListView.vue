@@ -140,6 +140,9 @@
             <div class="flex items-center justify-center flex-1">
               <AttachToProjectButton kind="app" :resource-id="app.id" />
             </div>
+            <button @click.stop="openRelationsDrawer(app)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-brand-600 py-1 rounded-lg hover:bg-brand-50 transition" title="查看相依 / 被誰使用">
+              關聯資源
+            </button>
             <button @click.stop="deleteApp(app.id)" class="flex-1 text-center text-xs text-fg-tertiary hover:text-rose-600 py-1 rounded-lg hover:bg-rose-50 transition">
               刪除
             </button>
@@ -560,6 +563,34 @@
     </div>
   </Teleport>
 
+  <!-- 關聯資源側邊抽屜（MaxKB v2.9 對齊） -->
+  <Teleport to="body">
+    <div
+      v-if="relationsDrawerApp"
+      class="fixed inset-0 z-50 flex justify-end"
+      @click.self="relationsDrawerApp = null"
+    >
+      <div class="absolute inset-0 bg-black/30" @click="relationsDrawerApp = null"></div>
+      <aside class="relative w-80 h-full bg-surface-raised shadow-xl flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-bd">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-fg truncate">關聯資源</h3>
+            <p class="text-[11px] text-fg-secondary truncate">{{ relationsDrawerApp.name }}</p>
+          </div>
+          <button @click="relationsDrawerApp = null" class="p-1 rounded-md text-fg-secondary hover:bg-neutral-100">
+            <SIcon name="x" :size="16" />
+          </button>
+        </div>
+        <div class="flex-1 overflow-hidden p-3">
+          <ResourceRelationsPanel
+            resource-type="application"
+            :resource-id="relationsDrawerApp.id"
+          />
+        </div>
+      </aside>
+    </div>
+  </Teleport>
+
   <!-- 批量選擇浮動工具列 -->
   <BatchSelectToolbar :count="batch.count" @clear="batch.clear()">
     <button
@@ -587,6 +618,7 @@ import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { APP_TEMPLATES, TEMPLATE_CATEGORIES, type AppTemplate } from '../../data/appTemplates'
 import { appTemplateApi, type WorkspaceAppTemplate } from '../../api/appTemplate'
 import AttachToProjectButton from '../../components/project/AttachToProjectButton.vue'
+import ResourceRelationsPanel from '../../components/common/ResourceRelationsPanel.vue'
 import TemplateTryModal from '../../components/application/TemplateTryModal.vue'
 
 const router = useRouter()
@@ -631,6 +663,12 @@ const knowledgeBases = ref<any[]>([])
 const rerankerModels = ref<AiModel[]>([])
 const showDialog = ref(false)
 const editingApp = ref<Application | null>(null)
+
+// 關聯資源抽屜（MaxKB v2.9 對齊）
+const relationsDrawerApp = ref<Application | null>(null)
+function openRelationsDrawer(app: Application) {
+  relationsDrawerApp.value = app
+}
 
 // ── 分享連結狀態 ─────────────────────────────────────────────────────────────
 const showShareDialog = ref(false)

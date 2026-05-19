@@ -14,7 +14,7 @@ from app.core.usage import QuotaExceeded
 
 import asyncio
 
-from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace, admin_regions, system_settings
+from app.api import agents, chat_stream, applications, api_keys, workflows, public, projects, tools, skills, data_sources, tool_exec, datasource_test, entity_folders, app_versions, workflow_versions, model_providers, usage, media_providers, memories, triggers, mcp_servers, app_templates, audit, admin_quota, user_quotas, quota_alerts, run_history, approvals, webhook_outbox, heartbeats, conv_cost, admin_billing, slow_queries, admin_workers, starter_pack, plugins as plugins_api, marketplace, admin_regions, system_settings, resource_relations
 from app.core.trigger_worker import trigger_worker_loop
 from app.core.trigger_dispatcher import trigger_dispatcher_loop
 from app.core.quota_alert_worker import alert_worker_loop
@@ -212,6 +212,7 @@ app.include_router(usage.router,             prefix=f"{_PREFIX}/usage",        t
 app.include_router(memories.router,          prefix=f"{_PREFIX}/memories",     tags=["Long-term Memory（M4）"])
 app.include_router(triggers.router,          prefix=f"{_PREFIX}/triggers",     tags=["Event Triggers（M4）"])
 app.include_router(mcp_servers.router,       prefix=f"{_PREFIX}/mcp",          tags=["MCP Hub（M4）"])
+app.include_router(resource_relations.router, prefix=f"{_PREFIX}/resources",    tags=["Associated Resources（MaxKB v2.9 對齊）"])
 app.include_router(app_templates.router,     prefix=f"{_PREFIX}/app-templates",tags=["Workspace App Templates（Sprint 19.x）"])
 app.include_router(audit.router,             prefix=f"{_PREFIX}/admin/audit-logs", tags=["Audit Log (v3.0)"])
 app.include_router(user_quotas.router,        prefix=f"{_PREFIX}/user-quotas",      tags=["User Quota (v3.3)"])
