@@ -569,6 +569,7 @@ services:
     logging: *default-logging
     networks:
       - backend
+      - frontend  # v5.9.1: arq Worker 需連外網呼叫 LLM API (跟 agent 對齊)
 
   # ══════════════════════════════════════════════════════════════
   #  Auth Service（身分驗證 / LDAP）
@@ -627,6 +628,7 @@ services:
     logging: *default-logging
     networks:
       - backend
+      - frontend  # v5.9.1: verify provider 連線 (Moonshot/OpenAI/Anthropic 各家 /v1/models) + OAuth callback 需外網
 
   # ══════════════════════════════════════════════════════════════
   #  Integration Service（LINE / Teams）
@@ -665,6 +667,7 @@ services:
     logging: *default-logging
     networks:
       - backend
+      - frontend  # v5.9.1: integration 需外網回覆 LINE/Teams webhook
 
   # ══════════════════════════════════════════════════════════════
   #  Chat Service（對話管理）
