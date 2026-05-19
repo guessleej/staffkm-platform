@@ -118,6 +118,15 @@ async def stream_message(
     messages = [{"role": m.role, "content": m.content} for m in history]
     await session.commit()
 
+    # v5.9.10: agent service 自 v4.0 起只接 workspace-scoped 路徑
+    # 從 gateway 注入的 X-Workspace-ID / X-User-ID / X-User-Roles 等都要轉發
+    ws_id = request.headers.get("X-Workspace-ID", "")
+    upstream_headers = {"Content-Type": "application/json"}
+    for h in ("Authorization", "X-User-ID", "X-User-Roles", "X-Tenant-ID", "X-Workspace-ID"):
+        v = request.headers.get(h)
+        if v:
+            upstream_headers[h] = v
+
     async def event_generator():
         full_response = ""
         citations = []
@@ -132,10 +141,16 @@ async def stream_message(
                 }
                 if body.model_override:
                     upstream_body["model_override"] = body.model_override
+                # workspace-scoped URL (v4.0 之後唯一可接的路徑)
+                ws_prefix = f"/workspace/{ws_id}" if ws_id else ""
+                upstream_url = (
+                    f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}"
+                    f"/agents/{conv.scenario_id}/chat"
+                )
                 async with client.stream(
-                    "POST",
-                    f"{settings.AGENT_SERVICE_URL}/api/v1/agents/{conv.scenario_id}/chat",
+                    "POST", upstream_url,
                     json=upstream_body,
+                    headers=upstream_headers,
                 ) as upstream:
                     async for line in upstream.aiter_lines():
                         if await request.is_disconnected():

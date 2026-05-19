@@ -45,7 +45,14 @@ class BaseAdminAgent(ABC):
     SYSTEM_PROMPT: str = ""
 
     def __init__(self):
-        self._llm = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        # v5.9.11: 之前只讀 OPENAI_API_KEY 沒帶 base_url → 永遠打 api.openai.com 失敗
+        # 改用 LLM_* 環境變數，跟 workflow executor 一致 (RFC-005 系統 LLM)
+        client_kwargs: dict = {
+            "api_key": settings.LLM_API_KEY or settings.OPENAI_API_KEY or "dummy",
+        }
+        if settings.LLM_BASE_URL:
+            client_kwargs["base_url"] = settings.LLM_BASE_URL
+        self._llm = AsyncOpenAI(**client_kwargs)
 
     async def retrieve_context(
         self,
@@ -130,12 +137,20 @@ class BaseAdminAgent(ABC):
             {"role": "user", "content": rag_user_message},
         ]
 
+        # v5.9.11: 部分 model 限定 temperature=1 (例如 Kimi K2.6 / o1 系列)
+        model_name = settings.LLM_MODEL or settings.OPENAI_MODEL
+        fixed_temp_models = ("kimi-k2", "o1-", "o3-")
+        if any(model_name.startswith(p) for p in fixed_temp_models):
+            temp = 1.0
+        else:
+            temp = settings.LLM_TEMPERATURE if settings.LLM_TEMPERATURE else 0.7
+
         stream = await self._llm.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model=model_name,
             messages=messages,
             stream=True,
-            temperature=0.1,
-            max_tokens=2048,
+            temperature=temp,
+            max_tokens=settings.LLM_MAX_TOKENS or 2048,
         )
 
         async for chunk in stream:
