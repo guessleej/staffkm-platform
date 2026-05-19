@@ -53,6 +53,8 @@ export default {
     triggers:    'Triggers',
     memory:      'Memory',
     mcp:         'MCP Hub',
+    toolsMenu:   'Tools',
+    adminMenu:   'Admin',
   },
 
   chat: {

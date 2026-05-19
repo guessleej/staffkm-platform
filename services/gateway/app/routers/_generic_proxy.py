@@ -13,17 +13,20 @@ from app.config import settings
 from app.utils.proxy import proxy_request
 
 
-def make_proxy_router(prefix: str) -> APIRouter:
-    """產生 /api/v1/{prefix}/* → agent service 的 proxy router。"""
+def make_proxy_router(prefix: str, global_mount: bool = False) -> APIRouter:
+    """產生 /api/v1/{prefix}/* → agent service 的 proxy router。
+
+    global_mount=True：不 inject workspace path（給 model-providers / media-providers
+    等 cluster-wide registry 用）。v5.0.7 修：之前無條件 rewrite 導致 global router 404。
+    """
     router = APIRouter()
     base = settings.AGENT_SERVICE_URL
 
     def _target(request: Request, suffix: str = "") -> str:
         ws = request.headers.get("X-Workspace-ID")
-        if ws:
+        if ws and not global_mount:
             base_path = f"/api/v1/workspace/{ws}/{prefix}"
         else:
-            # legacy fallback；agent 的 LegacyURLBridge 會處理（410 或 rewrite）
             base_path = f"/api/v1/{prefix}"
         return f"{base}{base_path}{suffix}"
 
@@ -44,8 +47,8 @@ tools_router        = make_proxy_router("tools")
 skills_router       = make_proxy_router("skills")
 data_sources_router = make_proxy_router("data-sources")
 folders_router      = make_proxy_router("folders")
-model_providers_router = make_proxy_router("model-providers")
-media_providers_router = make_proxy_router("media-providers")
+model_providers_router = make_proxy_router("model-providers", global_mount=True)  # cluster-wide registry
+media_providers_router = make_proxy_router("media-providers", global_mount=True)  # cluster-wide registry
 # Sprint 19 orphan endpoint cleanup
 usage_router        = make_proxy_router("usage")
 triggers_router     = make_proxy_router("triggers")

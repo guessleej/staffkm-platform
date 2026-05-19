@@ -71,6 +71,8 @@ export default {
     triggers:    '排程触发',
     memory:      '長期记忆',
     mcp:         'MCP Hub',
+    toolsMenu:   '工具',
+    adminMenu:   '管理',
   },
 
   chat: {
