@@ -56,7 +56,7 @@ async def upsert_embedding(
     await session.execute(
         text("""
             INSERT INTO paragraph_embeddings (paragraph_id, kb_id, embedding)
-            VALUES (:pid, :kb_id, :emb::vector)
+            VALUES (:pid, :kb_id, CAST(:emb AS vector))
             ON CONFLICT (paragraph_id) DO UPDATE SET embedding = EXCLUDED.embedding
         """),
         {"pid": str(paragraph_id), "kb_id": str(kb_id), "emb": str(embedding)},
@@ -114,15 +114,15 @@ async def hybrid_search(
         result = await session.execute(
             text("""
                 SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
-                       (1 - (pe.embedding <=> :emb::vector)) AS score,
-                       (1 - (pe.embedding <=> :emb::vector)) AS vector_score
+                       (1 - (pe.embedding <=> CAST(:emb AS vector))) AS score,
+                       (1 - (pe.embedding <=> CAST(:emb AS vector))) AS vector_score
                 FROM paragraph_embeddings pe
                 JOIN paragraphs p ON p.id = pe.paragraph_id
                 JOIN documents  d ON d.id = p.document_id
                 WHERE pe.kb_id  = :kb_id
                   AND p.is_active = true
-                  AND (1 - (pe.embedding <=> :emb::vector)) >= :threshold
-                ORDER BY pe.embedding <=> :emb::vector
+                  AND (1 - (pe.embedding <=> CAST(:emb AS vector))) >= :threshold
+                ORDER BY pe.embedding <=> CAST(:emb AS vector)
                 LIMIT :top_k
             """),
             {
@@ -162,11 +162,11 @@ async def hybrid_search(
                 WITH vector_ranked AS (
                     SELECT
                         pe.paragraph_id,
-                        1 - (pe.embedding <=> :emb::vector)                    AS vector_score,
-                        ROW_NUMBER() OVER (ORDER BY pe.embedding <=> :emb::vector) AS vrank
+                        1 - (pe.embedding <=> CAST(:emb AS vector))                    AS vector_score,
+                        ROW_NUMBER() OVER (ORDER BY pe.embedding <=> CAST(:emb AS vector)) AS vrank
                     FROM paragraph_embeddings pe
                     WHERE pe.kb_id = :kb_id
-                    ORDER BY pe.embedding <=> :emb::vector
+                    ORDER BY pe.embedding <=> CAST(:emb AS vector)
                     LIMIT :candidate_k
                 ),
                 fts_ranked AS (

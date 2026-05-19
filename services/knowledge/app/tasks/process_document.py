@@ -102,7 +102,7 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                         "SELECT chunk_strategy, chunk_size, chunk_overlap "
                         "FROM knowledge_bases WHERE id = :id"
                     ),
-                    {"id": str(doc.kb_id)},
+                    {"id": str(doc.knowledge_base_id)},
                 )
                 kb_settings = dict(kb_row.fetchone()._mapping) if kb_row else {}
                 strategy = kb_settings.get("chunk_strategy") or "auto"
