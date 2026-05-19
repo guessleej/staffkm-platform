@@ -12,13 +12,23 @@
         <h1 class="text-lg font-semibold text-neutral-900">工具</h1>
         <p class="text-xs text-neutral-500 mt-0.5">共 {{ items.length }} 個</p>
       </div>
-      <button
-        @click="showCreate = true"
-        class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
-      >
-        <IconPlus :size="14" :stroke-width="2.5" />
-        建立工具
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          @click="showCodeGen = true"
+          class="inline-flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+          title="用自然語言描述 → AI 自動生成 Python 程式碼（v2.8）"
+        >
+          <SIcon name="sparkles" :size="14" />
+          AI 生成程式碼
+        </button>
+        <button
+          @click="showCreate = true"
+          class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
+        >
+          <IconPlus :size="14" :stroke-width="2.5" />
+          建立工具
+        </button>
+      </div>
     </div>
 
     <div class="flex-1 overflow-auto p-6">
@@ -81,8 +91,20 @@
                 <option value="http">HTTP API</option>
                 <option value="mcp">MCP</option>
                 <option value="shell">Shell 指令</option>
-                <option value="custom">自訂</option>
+                <option value="custom">自訂（Python code）</option>
+                <option value="workflow">Workflow（MaxKB v2.8）</option>
               </select>
+            </div>
+            <!-- Workflow type 才顯示 application picker -->
+            <div v-if="draft.kind === 'workflow'">
+              <label class="block text-xs text-neutral-500 mb-1">關聯 Application（workflow）</label>
+              <select v-model="draft.application_id" class="w-full h-9 px-2 text-sm rounded-md border border-neutral-200">
+                <option value="">— 請選擇 —</option>
+                <option v-for="a in applications" :key="a.id" :value="a.id">{{ a.name }}</option>
+              </select>
+              <p class="text-[11px] text-neutral-500 mt-1">
+                把 workflow application 包成 callable tool，agent 透過 function-calling 自主呼叫。
+              </p>
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">說明</label>
@@ -156,6 +178,87 @@
         </div>
       </div>
     </Teleport>
+    <!-- v2.8：AI 生成程式碼 modal -->
+    <Teleport to="body">
+      <div
+        v-if="showCodeGen"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
+        @click.self="showCodeGen = false"
+      >
+        <div class="w-full max-w-3xl bg-surface-raised rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div class="px-5 py-4 border-b border-neutral-100 flex items-center justify-between flex-shrink-0">
+            <div>
+              <h3 class="text-sm font-semibold text-neutral-900">AI 生成 Tool 程式碼</h3>
+              <p class="text-[11px] text-neutral-500 mt-0.5">描述需求 + 輸入/輸出欄位 → LLM 產生 Python `def run(...)`</p>
+            </div>
+            <button @click="showCodeGen = false" class="text-neutral-400 hover:text-neutral-700">
+              <SIcon name="x" :size="16" />
+            </button>
+          </div>
+          <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div>
+              <label class="block text-xs text-neutral-500 mb-1">描述</label>
+              <textarea v-model="codeGen.description" rows="3"
+                placeholder="例：呼叫第三方 API 把攝氏轉華氏並回傳"
+                class="w-full px-3 py-2 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400 resize-y" />
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-neutral-500">輸入欄位</label>
+                <button @click="addCodeGenInput" class="text-[11px] text-brand-600 hover:underline">+ 新增</button>
+              </div>
+              <div v-for="(f, i) in codeGen.inputs" :key="'in-' + i" class="flex gap-2 mb-1">
+                <input v-model="f.name" placeholder="name" class="flex-1 h-8 px-2 text-xs rounded-md border border-neutral-200" />
+                <select v-model="f.type" class="h-8 px-2 text-xs rounded-md border border-neutral-200">
+                  <option value="string">string</option>
+                  <option value="number">number</option>
+                  <option value="boolean">boolean</option>
+                  <option value="object">object</option>
+                  <option value="array">array</option>
+                </select>
+                <input v-model="f.description" placeholder="描述" class="flex-[2] h-8 px-2 text-xs rounded-md border border-neutral-200" />
+                <button @click="rmCodeGenInput(i)" class="text-neutral-400 hover:text-danger-600 text-xs px-1">×</button>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-neutral-500">輸出欄位</label>
+                <button @click="addCodeGenOutput" class="text-[11px] text-brand-600 hover:underline">+ 新增</button>
+              </div>
+              <div v-for="(f, i) in codeGen.outputs" :key="'out-' + i" class="flex gap-2 mb-1">
+                <input v-model="f.name" placeholder="name" class="flex-1 h-8 px-2 text-xs rounded-md border border-neutral-200" />
+                <select v-model="f.type" class="h-8 px-2 text-xs rounded-md border border-neutral-200">
+                  <option value="string">string</option>
+                  <option value="number">number</option>
+                  <option value="boolean">boolean</option>
+                  <option value="object">object</option>
+                  <option value="array">array</option>
+                </select>
+                <input v-model="f.description" placeholder="描述" class="flex-[2] h-8 px-2 text-xs rounded-md border border-neutral-200" />
+                <button @click="rmCodeGenOutput(i)" class="text-neutral-400 hover:text-danger-600 text-xs px-1">×</button>
+              </div>
+            </div>
+            <div v-if="generatedCode">
+              <label class="block text-xs text-neutral-500 mb-1">生成結果</label>
+              <pre class="px-3 py-2 text-[12px] font-mono bg-neutral-50 rounded border border-neutral-200 max-h-72 overflow-auto whitespace-pre-wrap">{{ generatedCode }}</pre>
+            </div>
+          </div>
+          <div class="px-5 py-3 border-t border-neutral-100 bg-neutral-50 flex justify-end gap-2 flex-shrink-0">
+            <button @click="showCodeGen = false" class="h-9 px-4 text-sm rounded-lg border border-neutral-200">取消</button>
+            <button
+              :disabled="codeGenLoading"
+              @click="runCodeGen"
+              class="h-9 px-4 text-sm rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-40"
+            >{{ codeGenLoading ? '生成中…' : (generatedCode ? '重新生成' : '生成程式碼') }}</button>
+            <button
+              v-if="generatedCode"
+              @click="saveGeneratedTool"
+              class="h-9 px-4 text-sm rounded-lg bg-brand-600 text-white hover:bg-brand-700"
+            >儲存為 Tool</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
   </div>
 </template>
@@ -167,6 +270,8 @@ import { IconPlus } from '../../components/icons'
 import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
 import { useDialog } from '../../composables/useDialog'
 import { useToast } from '../../composables/useToast'
+import { http } from '../../api'
+import { SIcon } from '@staffkm/ui-kit'
 
 const dialog = useDialog()
 const toast = useToast()
@@ -174,8 +279,16 @@ const toast = useToast()
 const allItems = ref<ToolEntity[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
-const draft = reactive({ name: '', description: '', kind: 'http' })
+const draft = reactive({ name: '', description: '', kind: 'http', application_id: '' })
 const activeFolderId = ref<string | null>(null)
+const applications = ref<Array<{ id: string; name: string }>>([])
+
+async function loadApplications() {
+  try {
+    const { data } = await http.get('/applications')
+    applications.value = (data.data || []).map((a: any) => ({ id: a.id, name: a.name }))
+  } catch { /* 非關鍵 */ }
+}
 
 const items = computed(() => {
   if (activeFolderId.value === null) return allItems.value
@@ -188,8 +301,19 @@ async function load() {
 }
 async function onCreate() {
   if (!draft.name.trim()) return
-  await toolApi.create({ name: draft.name, description: draft.description || undefined, kind: draft.kind })
-  draft.name = ''; draft.description = ''; draft.kind = 'http'
+  if (draft.kind === 'workflow' && !draft.application_id) {
+    toast.error('Workflow tool 必須選擇關聯 application')
+    return
+  }
+  const body: Partial<ToolEntity> = {
+    name: draft.name,
+    description: draft.description || undefined,
+    kind: draft.kind,
+    tool_type: draft.kind,
+  }
+  if (draft.kind === 'workflow') body.application_id = draft.application_id
+  await toolApi.create(body)
+  draft.name = ''; draft.description = ''; draft.kind = 'http'; draft.application_id = ''
   showCreate.value = false
   await load()
 }
@@ -252,5 +376,63 @@ async function runExec() {
   }
 }
 
-onMounted(load)
+// ── v2.8 AI 生成程式碼 modal ──────────────────────────────────────────
+const showCodeGen = ref(false)
+const codeGenLoading = ref(false)
+const codeGen = reactive({
+  description: '',
+  inputs: [{ name: '', type: 'string', description: '' }],
+  outputs: [{ name: '', type: 'string', description: '' }],
+})
+const generatedCode = ref<string>('')
+
+function addCodeGenInput()  { codeGen.inputs.push({ name: '', type: 'string', description: '' }) }
+function rmCodeGenInput(i: number)  { codeGen.inputs.splice(i, 1) }
+function addCodeGenOutput() { codeGen.outputs.push({ name: '', type: 'string', description: '' }) }
+function rmCodeGenOutput(i: number) { codeGen.outputs.splice(i, 1) }
+
+async function runCodeGen() {
+  if (!codeGen.description.trim()) {
+    toast.error('請填寫描述')
+    return
+  }
+  codeGenLoading.value = true
+  generatedCode.value = ''
+  try {
+    const res = await toolApi.generateCode({
+      description: codeGen.description,
+      inputs:  codeGen.inputs.filter(i => i.name.trim()),
+      outputs: codeGen.outputs.filter(o => o.name.trim()),
+    })
+    generatedCode.value = res.code
+    toast.success('已生成程式碼')
+  } catch (e: any) {
+    toast.error('生成失敗：' + (e?.response?.data?.detail || e?.message || e))
+  } finally {
+    codeGenLoading.value = false
+  }
+}
+
+async function saveGeneratedTool() {
+  if (!generatedCode.value || !codeGen.description.trim()) return
+  const name = codeGen.description.slice(0, 32).replace(/\s+/g, '_')
+  await toolApi.create({
+    name,
+    description: codeGen.description,
+    kind: 'custom',
+    tool_type: 'custom',
+    code: generatedCode.value,
+    input_schema:  { fields: codeGen.inputs.filter(i => i.name.trim()) },
+    output_schema: { fields: codeGen.outputs.filter(o => o.name.trim()) },
+  } as any)
+  showCodeGen.value = false
+  generatedCode.value = ''
+  codeGen.description = ''
+  await load()
+  toast.success('Tool 已建立')
+}
+
+onMounted(async () => {
+  await Promise.all([load(), loadApplications()])
+})
 </script>

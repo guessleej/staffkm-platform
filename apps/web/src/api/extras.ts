@@ -16,9 +16,21 @@ export interface BaseEntity {
 }
 
 export interface ToolEntity extends BaseEntity {
-  kind:       string                  // 'http' | 'mcp' | 'shell' | 'custom'
+  kind:       string                  // 'http' | 'mcp' | 'shell' | 'custom' | 'workflow'
   config:     Record<string, unknown>
   is_enabled: boolean
+  // v2.8（MaxKB workflow-type tool / AI 程式碼生成）
+  tool_type?:      string | null
+  application_id?: string | null
+  input_schema?:   Record<string, unknown> | null
+  output_schema?:  Record<string, unknown> | null
+  code?:           string | null
+}
+
+export interface ToolCodeGenRequest {
+  description: string
+  inputs:  Array<{ name: string; type?: string; description?: string }>
+  outputs: Array<{ name: string; type?: string; description?: string }>
 }
 
 export interface SkillEntity extends BaseEntity {
@@ -57,6 +69,11 @@ export const toolApi = {
   ...makeCrud<ToolEntity, Partial<ToolEntity>, Partial<ToolEntity>>('tools'),
   execute: async (id: string, inputs: Record<string, unknown>): Promise<ToolExecResult> => {
     const { data } = await http.post(`/tools/${id}/execute`, { inputs })
+    return data.data
+  },
+  // v2.8：AI 自動生成 tool Python code
+  generateCode: async (body: ToolCodeGenRequest): Promise<{ code: string }> => {
+    const { data } = await http.post('/tools/generate-code', body)
     return data.data
   },
 }

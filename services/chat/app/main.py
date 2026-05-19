@@ -5,7 +5,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
-from app.api.conversations import router as conv_router
+from app.api.conversations import router as conv_router, public_router as conv_public_router
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
 from app.config import settings
@@ -30,6 +30,8 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(conv_router, prefix="/api/v1/chat/conversations", tags=["對話管理"])
+# v2.7：公開分享對話（無需 JWT）
+app.include_router(conv_public_router, prefix="/api/v1/public/conversations", tags=["公開對話分享 (v2.7)"])
 
 
 @app.get("/health")

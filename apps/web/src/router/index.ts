@@ -42,6 +42,13 @@ const router = createRouter({
       component: () => import('../views/login/OAuthCallbackView.vue'),
       meta: { public: true },
     },
+    // v2.7：公開分享對話（唯讀）
+    {
+      path: '/share/:token',
+      name: 'shared-conversation',
+      component: () => import('../views/chat/SharedConversationView.vue'),
+      meta: { public: true },
+    },
     // ── 對話為中心的 layout（claude.ai 風格），獨立路徑避免與 /
     //    被 DashboardLayout 的 children 互蓋（Vue Router 只認第一個 / parent）
     {

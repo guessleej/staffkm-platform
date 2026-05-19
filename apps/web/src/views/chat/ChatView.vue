@@ -40,6 +40,18 @@
 
     <!-- ───────── 對話進行中 ───────── -->
     <template v-else>
+      <!-- v2.7：對話頂部 actions（分享 / 匯出可在此擴充） -->
+      <div class="px-6 pt-3 pb-1 flex items-center justify-end gap-2 flex-shrink-0">
+        <button
+          @click="onShare"
+          class="inline-flex items-center gap-1 px-2.5 h-7 text-[12px] text-neutral-500 hover:text-brand-700 hover:bg-brand-50 rounded-md transition"
+          title="產生公開分享連結（唯讀）"
+        >
+          <SIcon name="share-2" :size="12" />
+          分享
+        </button>
+      </div>
+
       <!-- 訊息流（可滾動） -->
       <div ref="messagesEl" class="flex-1 overflow-y-auto">
         <div class="max-w-3xl mx-auto w-full px-6 py-8 space-y-6">
@@ -67,6 +79,12 @@
               class="whitespace-pre-wrap"
               :class="msg.role === 'user' ? 'text-neutral-900' : 'text-neutral-800'"
             >{{ msg.content }}</div>
+            <!-- v2.7：tool_calls 折疊顯示（MaxKB UI 對齊） -->
+            <ToolCallBlock
+              v-if="msg.role === 'assistant' && msg.tool_calls?.length"
+              :calls="msg.tool_calls"
+              class="mt-2"
+            />
             <!-- v2.3-B：引用來源 — inline chip + hover preview popover + click 開 ArtifactPane -->
             <div v-if="msg.citations?.length" class="mt-3 flex flex-wrap gap-1.5">
               <div
@@ -142,17 +160,35 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import ChatInput from '../../components/chat/ChatInput.vue'
+import ToolCallBlock from '../../components/chat/ToolCallBlock.vue'
 import { useConversationStore } from '../../stores/conversation'
 import { useArtifactStore } from '../../stores/artifact'
 import { useProjectStore } from '../../stores/project'
+import { useChatOverrideStore } from '../../stores/chatOverride'
 import { http } from '../../api'
-import { streamChat } from '../../api/chat'
+import { streamChat, shareApi } from '../../api/chat'
+import { useToast } from '../../composables/useToast'
 import { SIcon } from '@staffkm/ui-kit'
 
 const route = useRoute()
 const convStore = useConversationStore()
 const projectStore = useProjectStore()
 const artifact = useArtifactStore()
+const chatOverride = useChatOverrideStore()
+const toast = useToast()
+
+// MaxKB v2.7：分享當前對話
+async function onShare() {
+  if (!activeConv.value) return
+  try {
+    const res = await shareApi.share(activeConv.value.id)
+    const url = `${window.location.origin}/share/${res.share_token}`
+    await navigator.clipboard.writeText(url)
+    toast.success('分享連結已複製：' + url)
+  } catch (e: any) {
+    toast.error('分享失敗：' + (e?.message || e))
+  }
+}
 
 function openCitation(c: { doc_name: string; content: string }) {
   artifact.open({
@@ -254,6 +290,10 @@ async function onSubmit() {
       () => {
         sending.value = false
         streamingText.value = ''
+      },
+      {
+        model_override:  chatOverride.model || null,
+        kb_ids_override: chatOverride.kb_ids.length ? chatOverride.kb_ids : null,
       },
     )
   } catch {

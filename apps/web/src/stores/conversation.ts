@@ -2,6 +2,19 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { http } from '../api/index'
 
+export interface ToolCall {
+  /** function name / tool name */
+  name: string
+  /** invocation status：running 中、success 已完成、error 失敗 */
+  status: 'running' | 'success' | 'error'
+  /** LLM 傳給 tool 的 args（JSON） */
+  input?: Record<string, unknown> | null
+  /** tool runtime 回的結果 */
+  output?: unknown
+  /** 失敗訊息 */
+  error?: string | null
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -9,6 +22,8 @@ export interface Message {
   citations: Citation[]
   created_at: string
   streaming?: boolean
+  /** MaxKB v2.7：function-calling 工具呼叫紀錄（折疊式 UI） */
+  tool_calls?: ToolCall[]
 }
 
 export interface Citation {
