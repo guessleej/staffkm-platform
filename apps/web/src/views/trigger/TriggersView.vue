@@ -133,7 +133,7 @@
                 名稱 <span class="text-danger-500">*</span>
               </label>
               <input v-model="draft.name" placeholder="例：每日早上 9:00 報告"
-                     class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none" />
+                     class="form-input" />
             </div>
             <div>
               <label class="block text-xs font-semibold text-fg-secondary mb-1.5">
@@ -141,7 +141,7 @@
               </label>
               <select v-model="draft.application_id"
                       :disabled="!!editingId"
-                      class="w-full h-10 px-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none bg-surface-raised disabled:opacity-60">
+                      class="form-input disabled:opacity-60">
                 <option value="">-- 選一個 --</option>
                 <option v-for="a in apps" :key="a.id" :value="a.id">{{ a.name }}</option>
               </select>
@@ -169,7 +169,7 @@
               </label>
               <input v-model.number="draft.interval_sec" type="number" min="10"
                      placeholder="3600 = 每小時"
-                     class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none font-mono" />
+                     class="form-input font-mono" />
               <p class="text-[11px] text-fg-tertiary mt-1">最低 10 秒；常用值：60 / 300 / 3600 / 86400</p>
             </div>
             <div v-else-if="draft.kind === 'cron'">
@@ -177,7 +177,7 @@
                 Cron 表達式 <span class="text-danger-500">*</span>
               </label>
               <input v-model="draft.cron_expr" placeholder="0 9 * * *  (每日 9:00)"
-                     class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none font-mono" />
+                     class="form-input font-mono" />
               <p class="text-[11px] text-fg-tertiary mt-1">標準 5-field cron（分 時 日 月 周）</p>
             </div>
             <div v-else>
@@ -193,7 +193,7 @@
               </label>
               <textarea v-model="draft.input_template" rows="2"
                         placeholder="例：請總結今日新進文件"
-                        class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none resize-none" />
+                        class="form-textarea" />
             </div>
 
             <label class="flex items-center gap-2 text-sm text-fg-secondary cursor-pointer">

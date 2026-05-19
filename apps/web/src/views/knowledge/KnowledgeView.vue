@@ -264,7 +264,7 @@
                 v-model="form.name"
                 type="text"
                 placeholder="例：人事法規、採購規範"
-                class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus"
+                class="form-input"
               />
             </div>
             <div>
@@ -273,7 +273,7 @@
                 v-model="form.description"
                 rows="3"
                 placeholder="這個知識庫的用途、適用對象等"
-                class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none"
+                class="form-textarea"
               />
             </div>
 
@@ -302,7 +302,7 @@
                   v-model="form.web_url"
                   rows="3"
                   placeholder="https://docs.example.com/handbook&#10;https://docs.example.com/faq"
-                  class="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500 focus:shadow-focus resize-none font-mono"
+                  class="form-textarea font-mono"
                 />
                 <p v-if="urlCount > 0" class="text-[11px] text-brand-700 mt-1">
                   準備同步 <strong>{{ urlCount }}</strong> 個 URL
@@ -317,17 +317,17 @@
                   v-model="form.sitemap_url"
                   type="url"
                   placeholder="https://docs.example.com/sitemap.xml"
-                  class="w-full h-10 px-3 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-500 focus:shadow-focus font-mono" />
+                  class="form-input font-mono" />
                 <div class="grid grid-cols-2 gap-3 mt-2">
                   <div>
                     <label class="block text-[11px] text-fg-tertiary mb-1">最大 URL 數</label>
                     <input v-model.number="form.sitemap_max" type="number" min="1" max="100"
-                           class="w-full h-9 px-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-500 font-mono" />
+                           class="form-input font-mono" />
                   </div>
                   <div>
                     <label class="block text-[11px] text-fg-tertiary mb-1">URL 子字串 filter（選填）</label>
                     <input v-model="form.sitemap_filter" placeholder="例：/docs/"
-                           class="w-full h-9 px-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-500 font-mono" />
+                           class="form-input font-mono" />
                   </div>
                 </div>
                 <p class="text-[11px] text-fg-tertiary mt-2">
@@ -361,14 +361,14 @@
                 <label class="block text-xs font-semibold text-neutral-600 mb-1">每段字數</label>
                 <input
                   v-model.number="form.chunk_size" type="number" min="128" max="2048"
-                  class="w-full text-sm h-9 px-3 rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  class="form-input"
                 />
               </div>
               <div>
                 <label class="block text-xs font-semibold text-neutral-600 mb-1">overlap</label>
                 <input
                   v-model.number="form.chunk_overlap" type="number" min="0" max="512"
-                  class="w-full text-sm h-9 px-3 rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  class="form-input"
                 />
               </div>
             </div>
@@ -416,7 +416,7 @@
           <input
             v-model="folderForm.name"
             placeholder="例：人事 / 採購 / 法規"
-            class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+            class="form-input"
             @keyup.enter="createFolder"
           />
           <p v-if="activeFolderId" class="text-[11px] text-neutral-500 mt-2">

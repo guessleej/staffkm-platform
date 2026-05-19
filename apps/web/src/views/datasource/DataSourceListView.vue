@@ -88,11 +88,11 @@
           <div class="px-5 py-4 space-y-3">
             <div>
               <label class="block text-xs text-neutral-500 mb-1">名稱</label>
-              <input v-model="draft.name" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400" />
+              <input v-model="draft.name" class="form-input" />
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">類型</label>
-              <select v-model="draft.kind" class="w-full h-9 px-2 text-sm rounded-md border border-neutral-200">
+              <select v-model="draft.kind" class="form-input">
                 <option value="postgres">PostgreSQL</option>
                 <option value="mysql">MySQL</option>
                 <option value="mongo">MongoDB</option>
@@ -103,7 +103,7 @@
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">說明</label>
-              <textarea v-model="draft.description" rows="2" class="w-full px-3 py-2 text-sm rounded-md border border-neutral-200 resize-none focus:outline-none focus:ring-1 focus:ring-brand-400" />
+              <textarea v-model="draft.description" rows="2" class="form-textarea" />
             </div>
             <p class="text-[11px] text-neutral-400">
               連線詳細參數（host / port / credentials）於建立後另行設定

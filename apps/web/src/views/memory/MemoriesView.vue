@@ -108,13 +108,13 @@
               </label>
               <textarea v-model="draft.content" rows="4"
                         placeholder="例：使用者偏好回覆使用條列、引用文件來源"
-                        class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none resize-none" />
+                        class="form-textarea" />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-semibold text-fg-secondary mb-1.5">Scope</label>
                 <select v-model="draft.scope"
-                        class="w-full h-10 px-2 text-sm rounded-lg border border-neutral-200 bg-surface-raised focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none">
+                        class="form-input">
                   <option value="user">👤 只我自己看得到</option>
                   <option value="app">📱 應用範圍共享</option>
                   <option value="team">👥 整個 workspace</option>
@@ -134,7 +134,7 @@
               </label>
               <input v-model="draft.tagsText"
                      placeholder="人事, sop, 重要"
-                     class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none" />
+                     class="form-input" />
             </div>
           </div>
           <div class="px-5 py-3 border-t border-neutral-100 bg-neutral-50/40 flex justify-end gap-2">

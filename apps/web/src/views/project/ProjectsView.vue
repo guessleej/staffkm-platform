@@ -128,7 +128,7 @@
               <input
                 v-model="draft.name"
                 placeholder="例：人事 SOP 諮詢"
-                class="w-full h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none"
+                class="form-input"
               />
             </div>
             <div>
@@ -137,7 +137,7 @@
                 v-model="draft.description"
                 rows="3"
                 placeholder="這個 Project 用途為何？"
-                class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none resize-none"
+                class="form-textarea"
               />
             </div>
             <div>
@@ -149,7 +149,7 @@
                 v-model="draft.system_prompt"
                 rows="3"
                 placeholder="例：請使用繁體中文，所有回覆都帶上文件來源…"
-                class="w-full px-3 py-2 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none resize-none font-mono"
+                class="form-textarea font-mono"
               />
             </div>
           </div>

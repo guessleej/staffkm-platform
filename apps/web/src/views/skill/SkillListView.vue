@@ -58,11 +58,11 @@
           <div class="px-5 py-4 space-y-3">
             <div>
               <label class="block text-xs text-neutral-500 mb-1">名稱</label>
-              <input v-model="draft.name" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400" />
+              <input v-model="draft.name" class="form-input" />
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">說明</label>
-              <input v-model="draft.description" class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400" />
+              <input v-model="draft.description" class="form-input" />
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">Prompt template</label>

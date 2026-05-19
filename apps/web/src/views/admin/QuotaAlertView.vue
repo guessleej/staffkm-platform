@@ -91,7 +91,7 @@
           <div>
             <label class="block text-xs text-fg-secondary mb-1">範圍</label>
             <select v-model="form.scope"
-              class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg">
+              class="form-input">
               <option value="workspace">Workspace</option>
               <option value="user">User</option>
             </select>
@@ -110,13 +110,13 @@
                   : 'bg-surface-raised text-fg-secondary border-neutral-200 hover:bg-neutral-50'"
               >{{ p }}%</button>
               <input v-model.number="form.threshold_pct" type="number" min="1" max="200"
-                class="w-20 h-8 px-2 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg" />
+                class="form-input w-20 h-9 text-sm" />
             </div>
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">管道</label>
             <select v-model="form.channel"
-              class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg">
+              class="form-input">
               <option value="email">Email</option>
               <option value="slack">Slack webhook</option>
               <option value="webhook">Webhook</option>
@@ -126,7 +126,7 @@
             <label class="block text-xs text-fg-secondary mb-1">目標</label>
             <input v-model="form.target" type="text"
               :placeholder="form.channel === 'email' ? 'admin@example.com' : 'https://...'"
-              class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 bg-surface-raised text-fg" />
+              class="form-input" />
           </div>
           <div class="flex items-center gap-2">
             <input id="alert-enabled" v-model="form.enabled" type="checkbox" class="h-4 w-4" />
