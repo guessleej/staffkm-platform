@@ -76,24 +76,28 @@ async def hit_test(
             reranker_config=body.reranker,
             top_n=body.rerank_top_n,
         )
-        # 依 reranked 順序衍生 rerank_score：若 doc 本身被 reranker 塞了 relevance_score
-        # 則用該值，否則用「排序倒數」當 fallback
-        n = len(reranked)
-        for idx, doc in enumerate(reranked):
+        # 只用 reranker 真實塞的 relevance_score；缺失 = reranker 失敗/不支援
+        # v5.0.12 移除 (n-idx)/n fake fallback (user 誤以為 rerank 成功)
+        for doc in reranked:
             pid = str(doc["id"])
             rs = doc.get("relevance_score")
-            if rs is None:
-                rs = (n - idx) / n if n else 0.0
-            reranked_ids[pid] = float(rs)
+            if rs is not None:
+                reranked_ids[pid] = float(rs)
         # 把 reranked 順序套回 hits（保留沒入選的在後面）
         order_map = {str(d["id"]): i for i, d in enumerate(reranked)}
         hits = sorted(hits, key=lambda h: order_map.get(str(h["id"]), 10_000))
+        # 若 reranker 完全沒回 relevance_score → 視為失敗（降級為原順序）
+        reranker_succeeded = len(reranked_ids) > 0
 
     return ApiResponse(data={
         "query": body.query,
         "search_mode": body.search_mode,
         "hit_count": len(hits),
-        "reranked": bool(body.reranker),
+        "reranked": bool(body.reranker) and bool(reranked_ids),
+        "rerank_warning": (
+            "Reranker 啟用但失敗或不可用，已 fallback 回原排序"
+            if body.reranker and not reranked_ids else None
+        ),
         "results": [
             {
                 "paragraph_id": str(h["id"]),
