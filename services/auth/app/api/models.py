@@ -667,6 +667,10 @@ async def _verify_connection(
         "yi":           "https://api.lingyiwanwu.com/v1",
         "doubao":       "https://ark.cn-beijing.volces.com/api/v3",
         "baichuan":     "https://api.baichuan-ai.com/v1",
+        # v5.1: MaxKB v2 對齊 — 中國雲補齊
+        "hunyuan":      "https://api.hunyuan.cloud.tencent.com/v1",
+        "qianfan":      "https://qianfan.baidubce.com/v2",
+        "bailian":      "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "fireworks":    "https://api.fireworks.ai/inference/v1",
         "nvidia_nim":   "https://integrate.api.nvidia.com/v1",
         # 地端 self-host：沒填 base_url 直接報錯

@@ -199,7 +199,25 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
                  capabilities=["LLM", "Vision"]),
     ProviderMeta("doubao", "字節豆包 (Doubao)", "openai_compat",
                  default_base_url="https://ark.cn-beijing.volces.com/api/v3",
-                 capabilities=["LLM", "Embedding", "Vision"]),
+                 capabilities=["LLM", "Embedding", "Vision", "Image", "Reranker"],
+                 notes="火山引擎 (Volcano Engine) Ark API — LLM/Vision/Image/Reranker 全 capability。"),
+
+    # v5.1: MaxKB v2 對齊 — 中國雲補齊
+    ProviderMeta("hunyuan", "騰訊混元 (Hunyuan)", "openai_compat",
+                 default_base_url="https://api.hunyuan.cloud.tencent.com/v1",
+                 recommended_models=["hunyuan-turbo", "hunyuan-large", "hunyuan-pro", "hunyuan-vision"],
+                 capabilities=["LLM", "Vision"],
+                 notes="騰訊混元 OpenAI-compatible 端點。"),
+    ProviderMeta("qianfan", "百度千帆 (Qianfan)", "openai_compat",
+                 default_base_url="https://qianfan.baidubce.com/v2",
+                 recommended_models=["ernie-4.0-turbo-8k", "ernie-speed-128k", "bge-reranker-base"],
+                 capabilities=["LLM", "Embedding", "Reranker"],
+                 notes="百度千帆（文心一言 + 開源模型 + reranker，含 ChatCompletions/v2 兼容）。"),
+    ProviderMeta("bailian", "阿里 Bailian (DashScope full)", "openai_compat",
+                 default_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                 recommended_models=["qwen-max", "wan2.1-t2v-turbo", "cosyvoice-v1"],
+                 capabilities=["LLM", "Embedding", "Vision", "TTS", "STT", "Image", "Video"],
+                 notes="阿里百煉平台：LLM + Wan 文生影片 + CosyVoice TTS / Paraformer STT 全 capability。"),
 
     # ════════════════════════════════════════════════════════════════════
     # 4) Specialty (專門 capability)
