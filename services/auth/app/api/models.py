@@ -52,9 +52,15 @@ _DEFAULT_MODELS_ON_CREATE: dict[str, list[tuple[str, str, str]]] = {
         ("rerank-multilingual-v3.0","reranker", "Rerank multilingual v3"),
     ],
     "moonshot": [
-        ("moonshot-v1-8k",   "llm", "Moonshot v1 8K"),
-        ("moonshot-v1-32k",  "llm", "Moonshot v1 32K"),
-        ("moonshot-v1-128k", "llm", "Moonshot v1 128K"),
+        ("kimi-k2.6",                       "llm",    "Kimi K2.6 (旗艦)"),
+        ("kimi-k2.5",                       "llm",    "Kimi K2.5"),
+        ("moonshot-v1-8k",                  "llm",    "Moonshot v1 8K"),
+        ("moonshot-v1-32k",                 "llm",    "Moonshot v1 32K"),
+        ("moonshot-v1-128k",                "llm",    "Moonshot v1 128K"),
+        ("moonshot-v1-auto",                "llm",    "Moonshot v1 Auto"),
+        ("moonshot-v1-8k-vision-preview",   "vision", "Moonshot v1 8K Vision"),
+        ("moonshot-v1-32k-vision-preview",  "vision", "Moonshot v1 32K Vision"),
+        ("moonshot-v1-128k-vision-preview", "vision", "Moonshot v1 128K Vision"),
     ],
     "groq": [
         ("llama-3.1-70b-versatile", "llm", "Llama 3.1 70B (Groq)"),
@@ -739,7 +745,8 @@ async def _verify_connection(
         "openai":       "https://api.openai.com/v1",
         "custom":       "",  # 必須 user 自填
         # v5.7: 中國雲僅保留 Moonshot
-        "moonshot":     "https://api.moonshot.cn/v1",
+        # v5.9.7: 改成國際版 (.ai) 預設 — 中國平台 user 自填 base_url 改 .cn
+        "moonshot":     "https://api.moonshot.ai/v1",
         "groq":         "https://api.groq.com/openai/v1",
         "together":     "https://api.together.xyz/v1",
         "mistral":      "https://api.mistral.ai/v1",

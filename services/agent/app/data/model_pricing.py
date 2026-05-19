@@ -129,9 +129,15 @@ PROVIDER_DEFAULT_MODELS: dict[str, list[tuple[str, str, str]]] = {
     # v5.0.15: 中國 / 國際 cloud LLM（openai_compat 系，registry 已註冊但漏 seed）
     # v5.7: 中國雲只保留 Moonshot；其餘中國 / 非主流雲已移除
     "moonshot": [
-        ("moonshot-v1-8k",   "llm", "Moonshot v1 8K"),
-        ("moonshot-v1-32k",  "llm", "Moonshot v1 32K"),
-        ("moonshot-v1-128k", "llm", "Moonshot v1 128K"),
+        ("kimi-k2.6",                       "llm",    "Kimi K2.6 (旗艦)"),
+        ("kimi-k2.5",                       "llm",    "Kimi K2.5"),
+        ("moonshot-v1-8k",                  "llm",    "Moonshot v1 8K"),
+        ("moonshot-v1-32k",                 "llm",    "Moonshot v1 32K"),
+        ("moonshot-v1-128k",                "llm",    "Moonshot v1 128K"),
+        ("moonshot-v1-auto",                "llm",    "Moonshot v1 Auto"),
+        ("moonshot-v1-8k-vision-preview",   "vision", "Moonshot v1 8K Vision"),
+        ("moonshot-v1-32k-vision-preview",  "vision", "Moonshot v1 32K Vision"),
+        ("moonshot-v1-128k-vision-preview", "vision", "Moonshot v1 128K Vision"),
     ],
     "groq": [
         ("llama-3.1-70b-versatile", "llm", "Llama 3.1 70B (Groq)"),

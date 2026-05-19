@@ -170,9 +170,10 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
     # MiniMax/SiliconFlow/Yi/Doubao/Hunyuan/Qianfan/Bailian）已移除
     # ════════════════════════════════════════════════════════════════════
     ProviderMeta("moonshot", "Moonshot (Kimi)", "openai_compat",
-                 default_base_url="https://api.moonshot.cn/v1",
-                 recommended_models=["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
-                 capabilities=["LLM"]),
+                 default_base_url="https://api.moonshot.ai/v1",
+                 recommended_models=["kimi-k2.6", "kimi-k2.5", "moonshot-v1-128k", "moonshot-v1-32k", "moonshot-v1-8k"],
+                 capabilities=["LLM", "Vision"],
+                 notes="國際版預設 (.ai)；中國平台請改 base_url 成 https://api.moonshot.cn/v1。"),
 
     # ════════════════════════════════════════════════════════════════════
     # 4) Specialty (專門 capability)
