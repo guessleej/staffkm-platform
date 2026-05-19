@@ -253,6 +253,15 @@ class WorkflowExecutor:
             if isinstance(config, str):
                 config = json.loads(config)
 
+            # v5.3: node disabled flag — 前端 NodeConfigPanel toggle
+            # 略過執行但保留 graph 流向（next_key 用第一個 edge）
+            if node.get("disabled") is True:
+                yield {"event": "node_skipped", "data": json.dumps({"node_key": current_key, "type": node_type, "reason": "disabled"})}
+                # 找下一節點：第一個 outgoing edge
+                next_edge = next((e for e in self.edges if e.get("source_node_key") == current_key), None)
+                current_key = next_edge.get("target_node_key") if next_edge else None
+                continue
+
             yield {"event": "node_start", "data": json.dumps({"node_key": current_key, "type": node_type})}
 
             next_key = None
