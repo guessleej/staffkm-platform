@@ -173,12 +173,21 @@ async def stream_message(
     return EventSourceResponse(event_generator())
 
 
-@router.delete("/{conv_id}", response_model=ApiResponse, summary="刪除對話")
-async def delete_conversation(conv_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+@router.delete("/{conv_id}", response_model=ApiResponse, summary="刪除對話（soft delete）")
+async def delete_conversation(
+    conv_id: uuid.UUID,
+    request: Request = None,
+    session: AsyncSession = Depends(get_session),
+):
+    # v5.7.2: 補 ownership check — 之前任何人都能刪別人的對話
+    user_id = getattr(request.state, "user_id", None) if request else None
     conv = await session.get(Conversation, conv_id)
-    if not conv:
+    if not conv or not conv.is_active:
         raise HTTPException(status_code=404, detail="對話不存在")
+    if user_id and conv.user_id != user_id:
+        raise HTTPException(status_code=403, detail="無權刪除此對話")
     conv.is_active = False
+    # get_session yield 後自動 commit
     return ApiResponse(message="對話已刪除")
 
 

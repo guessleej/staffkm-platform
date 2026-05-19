@@ -8,6 +8,7 @@
       @toggle="toggleDrawer"
       @new-chat="onNewChat"
       @select="onSelect"
+      @delete="onDelete"
     />
 
     <!-- 主內容區（router-view 注入 ChatView） -->
@@ -222,6 +223,15 @@ function onSelect(id: string) {
   const conv = convStore.conversations.find((c) => c.id === id)
   if (conv) convStore.selectConversation(conv)
   router.push({ name: 'chat', query: { conv: id } })
+}
+async function onDelete(id: string) {
+  const wasActive = activeConvId.value === id
+  try {
+    await convStore.deleteConversation(id)
+    if (wasActive) router.push({ name: 'chat', query: {} })
+  } catch (e: any) {
+    window.alert('刪除失敗：' + (e?.response?.data?.detail || e?.message || '未知錯誤'))
+  }
 }
 async function onLogout() {
   userMenuOpen.value = false
