@@ -27,7 +27,8 @@ class KnowledgeBase(Base, UUIDPrimaryKeyMixin, AuditMixin):
     # ── 多租戶歸屬（RFC-001 Stage 2）— DB column 已由 0001 migration 建好 ──
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("workspace.id", ondelete="CASCADE"),
+        # v5.0.8 fix: cross-service FK 移除，避免 SQLAlchemy NoReferencedTableError
+        # (workspace 表在 staffkm-tenant 管轄；knowledge service ORM 不 import)
         nullable=True,    # Stage 2 過渡期 nullable；Stage 3 改 NOT NULL
     )
 
@@ -73,7 +74,8 @@ class Document(Base, UUIDPrimaryKeyMixin, AuditMixin):
     # ── 多租戶歸屬（RFC-001 Stage 2）──
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("workspace.id", ondelete="CASCADE"),
+        # v5.0.8 fix: cross-service FK 移除，避免 SQLAlchemy NoReferencedTableError
+        # (workspace 表在 staffkm-tenant 管轄；knowledge service ORM 不 import)
         nullable=True,
     )
 
@@ -111,7 +113,8 @@ class Paragraph(Base, UUIDPrimaryKeyMixin, AuditMixin):
     # ── 多租戶歸屬（RFC-001 Stage 2）──
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("workspace.id", ondelete="CASCADE"),
+        # v5.0.8 fix: cross-service FK 移除，避免 SQLAlchemy NoReferencedTableError
+        # (workspace 表在 staffkm-tenant 管轄；knowledge service ORM 不 import)
         nullable=True,
     )
 
