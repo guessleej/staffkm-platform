@@ -529,11 +529,17 @@ async function deleteProvider(id: string) {
 }
 
 async function verifyProvider(p: ModelProvider) {
+  // v5.9.9: 修 parse bug — 後端 ApiResponse shape 是 { success, message }，
+  // 之前前端讀 data.data.ok 永遠 undefined → 永遠顯示「✗ 驗證失敗」即使 HTTP 200
   try {
     const { data } = await modelProviderApi.verifyProvider(p.id)
-    alert(data.data?.ok ? '✓ 連線成功' : `✗ ${data.data?.error || '驗證失敗'}`)
+    if (data?.success === false) {
+      alert('✗ ' + (data?.message || '驗證失敗'))
+    } else {
+      alert('✓ ' + (data?.message || '連線成功'))
+    }
   } catch (e: any) {
-    alert('驗證失敗：' + (e?.response?.data?.detail || ''))
+    alert('✗ 驗證失敗：' + (e?.response?.data?.detail || e?.message || '未知錯誤'))
   }
 }
 
