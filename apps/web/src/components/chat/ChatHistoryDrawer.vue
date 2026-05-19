@@ -45,15 +45,35 @@
         </p>
         <ul class="space-y-0.5">
           <li v-for="c in group.items" :key="c.id">
-            <button
-              @click="$emit('select', c.id)"
-              class="w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors truncate group"
+            <div
+              class="group/row relative flex items-center rounded-lg transition-colors"
               :class="activeId === c.id
                 ? 'bg-neutral-100 text-neutral-900'
                 : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'"
             >
-              <span class="block truncate">{{ c.title || '未命名對話' }}</span>
-            </button>
+              <button
+                @click="$emit('select', c.id)"
+                class="flex-1 min-w-0 text-left pl-2.5 pr-1 py-2 text-sm truncate"
+              >
+                <span class="block truncate">{{ c.title || '未命名對話' }}</span>
+              </button>
+              <button
+                @click.stop="confirmDelete(c.id, c.title)"
+                class="flex-shrink-0 w-7 h-7 mr-1 flex items-center justify-center rounded-md
+                       text-neutral-400 hover:text-rose-600 hover:bg-rose-50 transition
+                       opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+                :title="`刪除「${c.title || '未命名對話'}」`"
+                aria-label="刪除對話"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                  <path d="M10 11v6"></path><path d="M14 11v6"></path>
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                </svg>
+              </button>
+            </div>
           </li>
         </ul>
       </div>
@@ -97,11 +117,19 @@ const props = defineProps<{
   collapsed?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'toggle'): void
   (e: 'new-chat'): void
   (e: 'select', id: string): void
+  (e: 'delete', id: string): void
 }>()
+
+function confirmDelete(id: string, title: string) {
+  const name = title || '未命名對話'
+  if (window.confirm(`確定要刪除「${name}」？\n此操作無法復原。`)) {
+    emit('delete', id)
+  }
+}
 
 const groups = computed(() =>
   groupByDate(
