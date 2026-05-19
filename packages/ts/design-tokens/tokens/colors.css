@@ -86,11 +86,18 @@
   --color-info-800:   216 66% 26%;
   --color-info-900:   218 64% 20%;
 
-  /* ── Surface（語意化背景；單一純白底，去階層感）──────────────── */
-  --color-surface-base:    0 0% 100%;                  /* 頁面底色 — 純白 */
-  --color-surface-raised:  0 0% 100%;                  /* 卡片 — 同底色，靠 border 區分 */
+  /* ── Surface（v5.1 Warm Enterprise：暖米底 + 純白卡片）────────── */
+  --color-surface-base:    35 22% 97%;                 /* 頁面底色 — 暖米 #FAF8F4 */
+  --color-surface-raised:  0 0% 100%;                  /* 卡片 — 純白浮起感 */
   --color-surface-overlay: 0 0% 100%;                  /* modal / popover */
-  --color-surface-sunken:  var(--color-neutral-50);    /* 凹陷區（極淡灰）*/
+  --color-surface-sunken:  35 25% 95%;                 /* 凹陷 / 次底色 */
+
+  /* ── Warm Enterprise 自訂 accent（v5.1）─────────────────────── */
+  --color-bg-soft:         35 25% 95%;                 /* 區段次底色 */
+  --color-warm-amber:      38 92% 50%;                 /* 奶油 accent */
+  --color-warm-amber-soft: 38 92% 95%;
+  --color-sage:            140 25% 55%;                /* 鼠尾草 accent */
+  --color-sage-soft:       140 25% 94%;
 
   /* ── Text（高對比，去多餘層次）─────────────────────────────────── */
   --color-text-primary:    var(--color-neutral-900);
@@ -99,10 +106,10 @@
   --color-text-on-brand:   0 0% 100%;
   --color-text-disabled:   var(--color-neutral-300);
 
-  /* ── Border（subtle ↔ default 收窄；strong 保留供 hover/focus）── */
-  --color-border-subtle:   var(--color-neutral-100);
-  --color-border-default:  var(--color-neutral-200);
-  --color-border-strong:   var(--color-neutral-300);
+  /* ── Border（v5.1 Warm Enterprise：暖灰邊框，避免冷感）──────── */
+  --color-border-subtle:   30 14% 92%;
+  --color-border-default:  30 14% 88%;
+  --color-border-strong:   30 12% 82%;
   --color-border-focus:    var(--color-brand-500);
 }
 
@@ -129,17 +136,24 @@
   --color-neutral-950:  0 0% 99%;   /* was 6%  — 最亮的「暗」階 */
 
   /* alias 重新對應到反轉後階層中 「視覺等價」 的階度 */
-  --color-surface-base:    0 0% 6%;                    /* OLED-friendly 近黑 */
-  --color-surface-raised:  var(--color-neutral-50);    /* 10% — 比 base 亮一階 */
-  --color-surface-overlay: var(--color-neutral-100);   /* 15% — modal / popover */
-  --color-surface-sunken:  0 0% 4%;                    /* 比 base 更暗 */
+  --color-surface-base:    30 8% 7%;                   /* 近黑加微暖（不冷藍）*/
+  --color-surface-raised:  30 6% 11%;                  /* 比 base 亮一階，仍暖 */
+  --color-surface-overlay: 30 6% 14%;                  /* modal / popover */
+  --color-surface-sunken:  30 8% 5%;                   /* 比 base 更暗 */
+
+  /* v5.1 Warm Enterprise — dark mode accent（保 hue 降亮）*/
+  --color-bg-soft:         30 6% 11%;
+  --color-warm-amber:      38 80% 55%;
+  --color-warm-amber-soft: 38 40% 20%;
+  --color-sage:            140 22% 60%;
+  --color-sage-soft:       140 15% 18%;
 
   --color-text-primary:    var(--color-neutral-900);   /* 96% — 接近白 */
   --color-text-secondary:  var(--color-neutral-600);   /* 70% */
   --color-text-tertiary:   var(--color-neutral-500);   /* 60% */
   --color-text-disabled:   var(--color-neutral-300);   /* 28% */
 
-  --color-border-subtle:   var(--color-neutral-100);   /* 15% */
-  --color-border-default:  var(--color-neutral-200);   /* 20% */
-  --color-border-strong:   var(--color-neutral-300);   /* 28% */
+  --color-border-subtle:   30 6% 16%;
+  --color-border-default:  30 6% 20%;
+  --color-border-strong:   30 6% 28%;
 }

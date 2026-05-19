@@ -13,11 +13,21 @@
 
   /* font 已由 design-tokens 設好；此處針對 long-form 區塊微調 */
   body {
-    background: hsl(var(--color-surface-base));
+    background-color: hsl(var(--color-surface-base));
+    /* v5.1 Warm Enterprise — 書頁感極淡 radial noise，opacity 0.4 */
+    background-image:
+      radial-gradient(circle at 1px 1px, hsl(30 14% 80% / 0.35) 1px, transparent 0);
+    background-size: 24px 24px;
+    background-attachment: fixed;
     color:      hsl(var(--color-text-primary));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv11", "ss01", "ss03";  /* Inter / 系統字微排版優化 */
+  }
+  :root.dark body,
+  [data-theme="dark"] body {
+    background-image:
+      radial-gradient(circle at 1px 1px, hsl(30 8% 22% / 0.45) 1px, transparent 0);
   }
 
   * { @apply box-border; }
@@ -71,8 +81,47 @@
   .btn-sm { @apply h-8 px-3 text-xs; }
   .btn-lg { @apply h-10 px-5; }
   .btn-primary {
-    @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800
-           shadow-sm hover:shadow focus-visible:ring-brand-300;
+    @apply text-white font-semibold focus-visible:ring-brand-300;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--color-brand-500)),
+      hsl(var(--color-brand-700))
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 1px 3px hsl(var(--color-brand-600) / 0.3);
+    transition: transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 4px 12px hsl(var(--color-brand-600) / 0.32);
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* v5.1 — 次要 CTA：奶油底配深棕字 */
+  .btn-warm {
+    @apply font-semibold focus-visible:ring-warning-300;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--color-warm-amber-soft)),
+      hsl(38 60% 88%)
+    );
+    color: hsl(28 80% 28%);
+    border: 1px solid hsl(38 60% 82%);
+    transition: transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+  }
+  .btn-warm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px hsl(38 80% 50% / 0.18);
+  }
+  :root.dark .btn-warm,
+  [data-theme="dark"] .btn-warm {
+    background: linear-gradient(135deg,
+      hsl(38 40% 22%), hsl(38 40% 18%));
+    color: hsl(38 80% 78%);
+    border-color: hsl(38 40% 30%);
   }
   .btn-outline {
     @apply bg-surface-raised border border-neutral-200 text-fg hover:bg-neutral-50 hover:border-neutral-300
@@ -87,6 +136,59 @@
            shadow-sm focus-visible:ring-danger-300;
   }
 
+  /* ── v5.1 Warm Enterprise — 卡片系統 ──────────────────────── */
+  .card-warm {
+    @apply bg-surface-raised rounded-2xl border border-bd
+           transition-all duration-200;
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.04),
+      0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+  .card-warm:hover {
+    @apply border-neutral-300;
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(0, 0, 0, 0.06);
+  }
+  .card-hero {
+    @apply rounded-3xl border border-bd p-8;
+    background: linear-gradient(135deg,
+      hsl(35 25% 99%) 0%,
+      hsl(35 30% 96%) 100%);
+  }
+  :root.dark .card-hero,
+  [data-theme="dark"] .card-hero {
+    background: linear-gradient(135deg,
+      hsl(30 6% 13%) 0%,
+      hsl(30 8% 10%) 100%);
+  }
+
+  /* ── v5.1 — Typography 階層 ───────────────────────────────── */
+  .heading-page {
+    @apply text-[1.75rem] font-semibold tracking-tight text-fg leading-tight;
+  }
+  .heading-section {
+    @apply text-xl font-semibold tracking-tight text-fg;
+  }
+  .heading-accent {
+    @apply flex items-center;
+  }
+  .heading-accent::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 1.5rem;
+    border-radius: 9999px;
+    margin-right: 0.75rem;
+    background: linear-gradient(
+      180deg,
+      hsl(var(--color-warm-amber)),
+      hsl(var(--color-brand-500))
+    );
+    flex-shrink: 0;
+  }
+
   /* badge */
   .badge {
     @apply inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded;
@@ -96,6 +198,18 @@
   .badge-brand { @apply bg-brand-50 text-brand-700; }
   .badge-warn  { @apply bg-warning-50 text-warning-700; }
   .badge-danger{ @apply bg-danger-50 text-danger-700; }
+}
+
+/* v5.1 — list item stagger fade-up（搭配 inline style="animation-delay: ...ms"）*/
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 360ms var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-up { animation: none; }
 }
 
 /* 全域 Transition（用於 router-view 的 fade）*/

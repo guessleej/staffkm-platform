@@ -8,27 +8,23 @@
       @update:active-folder-id="(v) => (activeFolderId = v)"
     />
     <div class="flex-1 flex flex-col overflow-hidden">
-    <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">{{ $t('app.title') }}</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">建立並管理各部門的 AI 問答應用</p>
-      </div>
-      <div v-if="auth.hasRole(['admin'])" class="flex items-center gap-2">
-        <button
-          @click="openTemplateGallery"
-          class="flex items-center gap-2 px-4 py-2 bg-surface-raised border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50/30 transition"
-        >
-          <span>✨</span>
-          從模板建立
-        </button>
-        <button
-          @click="openCreateDialog"
-          class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
-        >
-          <SIcon name="plus" :size="16" />
-          {{ $t('app.createApp') }}
-        </button>
+    <!-- 頁首（v5.1 Warm Enterprise hero）-->
+    <div class="px-6 pt-6 pb-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">{{ $t('app.title') }}</h1>
+          <p class="text-sm text-fg-tertiary mt-1.5 ml-[1rem]">建立並管理各部門的 AI 問答應用</p>
+        </div>
+        <div v-if="auth.hasRole(['admin'])" class="flex items-center gap-2">
+          <button @click="openTemplateGallery" class="btn btn-warm">
+            <span>✨</span>
+            從模板建立
+          </button>
+          <button @click="openCreateDialog" class="btn btn-primary">
+            <SIcon name="plus" :size="16" />
+            {{ $t('app.createApp') }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -38,23 +34,12 @@
         <SSpinner :size="32" />
       </div>
 
-      <div v-else-if="applications.length === 0" class="text-center py-20">
-        <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <SIcon name="message-square" :size="32" :stroke-width="1.5" class="text-indigo-400" />
-        </div>
-        <p class="text-fg-secondary font-medium">尚無任何應用</p>
-        <p class="text-fg-tertiary text-sm mt-1 mb-5">挑一個模板兩分鐘上手，或從空白開始</p>
-        <div v-if="auth.hasRole(['admin'])" class="flex items-center justify-center gap-2">
-          <button
-            @click="openTemplateGallery"
-            class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-          >✨ 從模板建立</button>
-          <button
-            @click="openCreateDialog"
-            class="px-4 py-2 bg-surface-raised border border-neutral-200 text-fg-secondary text-sm font-medium rounded-lg hover:bg-neutral-50 transition"
-          >空白應用</button>
-        </div>
-      </div>
+      <EmptyState v-else-if="applications.length === 0"
+                  icon="message-square"
+                  title="尚無任何應用"
+                  description="挑一個模板兩分鐘上手，或從空白開始"
+                  :action-label="auth.hasRole(['admin']) ? '✨ 從模板建立' : undefined"
+                  @action="openTemplateGallery" />
 
       <template v-else>
         <!-- D-6：Project 過濾指示 chip -->
@@ -76,12 +61,11 @@
         </div>
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <div
-            v-for="app in displayedApps"
+            v-for="(app, appIdx) in displayedApps"
           :key="app.id"
-          class="relative bg-surface-raised rounded-2xl border p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
-          :class="batch.isSelected(app.id)
-            ? 'border-brand-400 ring-1 ring-brand-200'
-            : 'border-neutral-200 hover:border-brand-200'"
+          class="card-warm fade-up relative p-5 cursor-pointer group"
+          :style="{ animationDelay: (appIdx * 40) + 'ms' }"
+          :class="batch.isSelected(app.id) ? 'border-brand-400 ring-1 ring-brand-200' : ''"
           @click="batch.hasSelection ? batch.toggle(app.id) : enterApp(app)"
         >
           <!-- 批量選取 checkbox（hover 或選中時顯示）-->
@@ -613,6 +597,7 @@ import { http } from '../../api/index'
 import { useBatchSelect } from '../../composables/useBatchSelect'
 import BatchSelectToolbar from '../../components/common/BatchSelectToolbar.vue'
 import EntityFolderSidebar from '../../components/common/EntityFolderSidebar.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
 import { useProjectStore } from '../../stores/project'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { APP_TEMPLATES, TEMPLATE_CATEGORIES, type AppTemplate } from '../../data/appTemplates'
