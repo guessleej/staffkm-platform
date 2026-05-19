@@ -55,6 +55,13 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     # Yi
     "yi-large":                (0.00278, 0.00278),
     "yi-medium":               (0.000347, 0.000347),
+    # v5.1 — 中國雲補齊
+    "hunyuan-turbo":           (0.00111, 0.00111),  # ≈ 8 / 1M CNY
+    "hunyuan-large":           (0.00556, 0.00556),
+    "hunyuan-pro":             (0.00417, 0.0125),
+    "ernie-4.0-turbo-8k":      (0.00111, 0.00444),
+    "ernie-speed-128k":        (0, 0),
+    "ernie-tiny-8k":           (0, 0),
 }
 
 
@@ -210,5 +217,46 @@ PROVIDER_DEFAULT_MODELS: dict[str, list[tuple[str, str, str]]] = {
     ],
     "nvidia_nim": [
         ("meta/llama-3.1-70b-instruct", "llm", "Llama 3.1 70B (NIM)"),
+    ],
+    # v5.1: MaxKB v2 對齊 — 中國雲補齊
+    "hunyuan": [
+        ("hunyuan-turbo",  "llm",    "Hunyuan Turbo"),
+        ("hunyuan-large",  "llm",    "Hunyuan Large"),
+        ("hunyuan-pro",    "llm",    "Hunyuan Pro"),
+        ("hunyuan-vision", "vision", "Hunyuan Vision"),
+    ],
+    "qianfan": [
+        ("ernie-4.0-turbo-8k",  "llm",       "ERNIE 4.0 Turbo 8K"),
+        ("ernie-speed-128k",    "llm",       "ERNIE Speed 128K"),
+        ("ernie-tiny-8k",       "llm",       "ERNIE Tiny 8K"),
+        ("embedding-v1",        "embedding", "ERNIE Embedding v1"),
+        ("bge-reranker-base",   "reranker",  "BGE Reranker (Qianfan)"),
+    ],
+    "bailian": [
+        ("qwen-max",                 "llm",       "Qwen Max (Bailian)"),
+        ("qwen-plus",                "llm",       "Qwen Plus (Bailian)"),
+        ("qwen-vl-max",              "vision",    "Qwen-VL Max"),
+        ("text-embedding-v3",        "embedding", "Bailian Embedding v3"),
+        ("gte-rerank",               "reranker",  "GTE Rerank"),
+        ("wanx-v1",                  "image",     "Wanx Image v1"),
+        ("wan2.1-t2v-turbo",         "video",     "Wan 2.1 Text-to-Video"),
+        ("wan2.1-i2v-turbo",         "video",     "Wan 2.1 Image-to-Video"),
+        ("cosyvoice-v1",             "tts",       "CosyVoice v1"),
+        ("paraformer-realtime-v2",   "stt",       "Paraformer Realtime v2"),
+    ],
+    # 補齊既有 minimax 的 TTS / Speech voice
+    "minimax": [
+        ("abab6.5s-chat",        "llm",  "MiniMax abab6.5s"),
+        ("abab6.5g-chat",        "llm",  "MiniMax abab6.5g"),
+        ("speech-01-turbo",      "tts",  "MiniMax Speech 01 Turbo"),
+        ("speech-01-hd",         "tts",  "MiniMax Speech 01 HD"),
+    ],
+    # 補齊 doubao 完整 capability（除既有 LLM 外加 image + reranker）
+    "doubao": [
+        ("doubao-pro-32k",                  "llm",       "Doubao Pro 32K"),
+        ("doubao-lite-32k",                 "llm",       "Doubao Lite 32K"),
+        ("doubao-vision-pro-32k",           "vision",    "Doubao Vision Pro 32K"),
+        ("doubao-embedding",                "embedding", "Doubao Embedding"),
+        ("doubao-seedream-3-0-t2i",         "image",     "Doubao Seedream Image"),
     ],
 }
