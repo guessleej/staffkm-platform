@@ -472,6 +472,8 @@ services:
       OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GOOGLE_API_KEY:    ${GOOGLE_API_KEY:-}
+      # v5.2: Bailian (DashScope) — text-to-video / image-to-video node 走原生 API
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       # legacy（v1 相容、後續移除）
       OPENAI_MODEL:    ${OPENAI_MODEL:-gemma4:e4b}
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
@@ -541,6 +543,8 @@ services:
       OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GOOGLE_API_KEY:    ${GOOGLE_API_KEY:-}
+      # v5.2: Bailian (DashScope) — text-to-video / image-to-video node 走原生 API
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       # ── SMTP（quota alert email channel）──────────────
       SMTP_HOST:     ${SMTP_HOST:-}
       SMTP_PORT:     ${SMTP_PORT:-587}

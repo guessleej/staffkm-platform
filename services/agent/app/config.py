@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY:    str = ""
     ANTHROPIC_API_KEY: str = ""
     GOOGLE_API_KEY:    str = ""
+    # v5.2: Bailian (DashScope) — text-to-video / image-to-video
+    DASHSCOPE_API_KEY: str = ""
 
     # ── Legacy（v1 相容，下一版移除）──────────────────────────
     OPENAI_MODEL: str = "gemma4:e4b"   # 舊欄位，導向地端
