@@ -82,6 +82,32 @@ PROVIDER_DEFAULT_MODELS: dict[str, list[tuple[str, str, str]]] = {
         ("bge-m3",             "embedding", "BGE-M3 embedding"),
         ("bge-reranker-v2-m3", "reranker",  "BGE Reranker v2 M3"),
     ],
+    # v5.0.6: 地端 serving framework
+    "llama_cpp": [
+        ("Llama-3.1-8B-Q4_K_M.gguf", "llm", "Llama 3.1 8B (Q4_K_M)"),
+    ],
+    "vllm": [
+        ("meta-llama/Meta-Llama-3.1-8B-Instruct", "llm", "Llama 3.1 8B Instruct"),
+        ("Qwen/Qwen2.5-7B-Instruct",              "llm", "Qwen 2.5 7B Instruct"),
+    ],
+    "sglang": [
+        ("meta-llama/Meta-Llama-3.1-8B-Instruct", "llm", "Llama 3.1 8B Instruct"),
+    ],
+    "tgi": [
+        ("meta-llama/Meta-Llama-3.1-8B-Instruct", "llm", "Llama 3.1 8B Instruct"),
+    ],
+    "lmstudio": [
+        ("lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "llm", "Llama 3.1 8B (LM Studio)"),
+    ],
+    "xinference": [
+        ("qwen2.5-instruct",   "llm",       "Qwen 2.5 Instruct"),
+        ("bge-m3",             "embedding", "BGE-M3"),
+        ("bge-reranker-v2-m3", "reranker",  "BGE Reranker v2 M3"),
+    ],
+    "localai": [
+        ("gpt-4",  "llm",       "LocalAI gpt-4 alias"),
+        ("bge-m3", "embedding", "BGE-M3"),
+    ],
     "cohere": [
         ("rerank-multilingual-v3.0", "reranker", "Cohere Rerank v3 multilingual"),
         ("rerank-english-v3.0",      "reranker", "Cohere Rerank v3 English"),
