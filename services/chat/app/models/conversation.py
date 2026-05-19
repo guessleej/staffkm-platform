@@ -18,6 +18,8 @@ class Conversation(Base, UUIDPrimaryKeyMixin, AuditMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     message_count: Mapped[int] = mapped_column(Integer, default=0)
     tenant_id: Mapped[str | None] = mapped_column(String(64))
+    # v2.7：分享對話紀錄（公開唯讀，無 token 為私密）
+    share_token: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at"

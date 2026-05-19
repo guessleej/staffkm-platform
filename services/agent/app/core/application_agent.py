@@ -1,4 +1,17 @@
-"""Application Builder 代理人 — DB 驅動的可設定 AI 代理人"""
+"""Application Builder 代理人 — DB 驅動的可設定 AI 代理人
+
+TODO(v2.8 對齊 MaxKB workflow-type tool runtime):
+  目前 agent 對 LLM 是 plain chat（streaming），尚未組 function-calling tool list。
+  待補：
+    1. 從 tools table 撈 `workspace_id = ctx.workspace_id AND tool_type='workflow'
+       AND is_enabled` 的列；
+    2. 把每個 workflow-tool 轉成 OpenAI function-calling schema
+       （name, description, parameters=input_schema）；
+    3. 串流時若 LLM 觸發 tool_call → 解析 args → 呼叫
+       app.core.workflow.executor 跑對應 application_id 的 workflow；
+    4. workflow 結果 yield 回 chat history、再 loop 給 LLM 收尾。
+  schema + UI 已就緒（services/agent/alembic/versions/0022 + tools API）。
+"""
 import json
 from typing import AsyncIterator, Any
 

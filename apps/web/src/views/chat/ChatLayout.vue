@@ -16,12 +16,46 @@
       <header
         class="h-12 px-4 flex items-center justify-between border-b border-neutral-100 flex-shrink-0"
       >
-        <!-- 中央顯示：Project picker + model -->
+        <!-- 中央顯示：Project picker + model / KB override (MaxKB v2.8) -->
         <div class="flex items-center gap-3 min-w-0">
           <ProjectPicker />
           <span class="w-px h-5 bg-neutral-200"></span>
-          <span class="text-xs uppercase tracking-widest text-neutral-400">模型</span>
-          <span class="text-sm font-mono text-neutral-700 truncate">gemma4:e4b</span>
+          <!-- Model override -->
+          <label class="text-xs uppercase tracking-widest text-neutral-400">模型</label>
+          <select
+            v-model="chatOverride.model"
+            class="h-8 px-2 text-xs rounded-md border border-neutral-200 bg-transparent text-neutral-700 max-w-[180px] focus:outline-none focus:ring-1 focus:ring-brand-400"
+            :title="chatOverride.model ? '本對話將以此 model 覆寫預設' : '使用 application 預設 model'"
+          >
+            <option value="">預設</option>
+            <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <!-- KB override -->
+          <span class="w-px h-5 bg-neutral-200"></span>
+          <label class="text-xs uppercase tracking-widest text-neutral-400">KB</label>
+          <button
+            @click="kbPickerOpen = !kbPickerOpen"
+            ref="kbPickerBtn"
+            class="h-8 px-2 text-xs rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1"
+          >
+            <span>{{ chatOverride.kb_ids.length ? `已選 ${chatOverride.kb_ids.length}` : '預設' }}</span>
+            <SIcon name="chevron-down" :size="12" />
+          </button>
+          <div v-if="kbPickerOpen" ref="kbPickerPanel" class="absolute top-12 left-[280px] z-50 w-72 bg-surface-raised rounded-lg border border-neutral-200 shadow-lg p-2 max-h-72 overflow-auto">
+            <p v-if="!availableKbs.length" class="text-xs text-neutral-500 p-2">尚無可用知識庫</p>
+            <label v-for="kb in availableKbs" :key="kb.id" class="flex items-center gap-2 px-2 py-1.5 hover:bg-neutral-50 rounded cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                :value="kb.id"
+                :checked="chatOverride.kb_ids.includes(kb.id)"
+                @change="toggleKb(kb.id)"
+              />
+              <span class="truncate">{{ kb.name }}</span>
+            </label>
+            <div v-if="chatOverride.kb_ids.length" class="border-t border-neutral-100 pt-2 mt-2">
+              <button @click="chatOverride.kb_ids = []" class="text-[11px] text-brand-600 hover:underline">清除</button>
+            </div>
+          </div>
         </div>
 
         <!-- 右側控制 -->
@@ -114,6 +148,8 @@ import { useArtifactStore } from '../../stores/artifact'
 import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
 import { useWorkspaceStore } from '../../stores/workspace'
+import { useChatOverrideStore } from '../../stores/chatOverride'
+import { http } from '../../api'
 
 const auth = useAuthStore()
 const ui = useUIStore()
@@ -121,8 +157,41 @@ const convStore = useConversationStore()
 const artifact = useArtifactStore()
 const workspace = useWorkspaceStore()
 const projects = useProjectStore()
+const chatOverride = useChatOverrideStore()
 const route = useRoute()
 const router = useRouter()
+
+// MaxKB v2.8：對話中切 model / KB 用的資料
+const availableModels = ref<string[]>([])
+const availableKbs = ref<Array<{ id: string; name: string }>>([])
+const kbPickerOpen = ref(false)
+const kbPickerBtn = ref<HTMLElement | null>(null)
+const kbPickerPanel = ref<HTMLElement | null>(null)
+onClickOutside(kbPickerPanel, () => { kbPickerOpen.value = false }, { ignore: [kbPickerBtn] })
+
+function toggleKb(id: string) {
+  const i = chatOverride.kb_ids.indexOf(id)
+  if (i >= 0) chatOverride.kb_ids.splice(i, 1)
+  else chatOverride.kb_ids.push(id)
+}
+
+async function loadOverrideOptions() {
+  // 撈當前 workspace 可用 model 清單
+  try {
+    const { data } = await http.get('/admin/models')
+    const items = data.data?.items ?? data.data ?? []
+    availableModels.value = items
+      .filter((m: any) => m.is_enabled !== false)
+      .map((m: any) => m.model_name || m.name)
+      .filter(Boolean)
+  } catch { /* admin/models 可能無權限 → 用 application chat 預設 */ }
+  // 撈可選 KBs
+  try {
+    const { data } = await http.get('/knowledge')
+    availableKbs.value = (data.data?.items ?? data.data ?? [])
+      .map((k: any) => ({ id: k.id, name: k.name }))
+  } catch { /* 非關鍵 */ }
+}
 
 // 從 route.query 推導當前選中對話，避免 ChatLayout 與 ChatView state 不同步
 const activeConvId = computed<string | null>(() =>
@@ -169,5 +238,6 @@ onMounted(async () => {
   // 對話列表 + project 列表並行載入
   convStore.fetchConversations()
   projects.load()
+  loadOverrideOptions()
 })
 </script>

@@ -12,6 +12,7 @@ from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import StructuredLoggingMiddleware
 from app.middleware.rate_limit import setup_rate_limiter
 from app.routers import health, knowledge, agent, auth, chat, integration, admin, applications, api_keys, public, workspaces, projects
+from app.routers.public import public_conversations_router
 from app.routers._generic_proxy import (
     tools_router, skills_router, data_sources_router, folders_router,
     model_providers_router, media_providers_router,
@@ -93,6 +94,8 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["系統管理"])
 app.include_router(applications.router, prefix="/api/v1/applications", tags=["Application Builder"])
 app.include_router(api_keys.router, prefix="/api/v1/api-keys", tags=["API Key 管理"])
 app.include_router(public.router, prefix="/api/v1/public/applications", tags=["公開存取"])
+# v2.7：公開分享對話（PUBLIC_PREFIXES `/api/v1/public/` 已含，bypass auth）
+app.include_router(public_conversations_router, prefix="/api/v1/public/conversations", tags=["公開分享對話 (v2.7)"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["Project（RFC-006）"])
 app.include_router(tools_router, prefix="/api/v1/tools", tags=["Tool（新 backlog）"])
 app.include_router(skills_router, prefix="/api/v1/skills", tags=["Skill（新 backlog）"])
