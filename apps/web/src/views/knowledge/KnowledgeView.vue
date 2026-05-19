@@ -41,9 +41,9 @@
     </aside>
 
     <!-- 主內容 -->
-    <div class="flex-1 flex flex-col">
+    <div class="flex-1 flex flex-col view-stagger">
       <!-- 頁首（v5.1 Warm Enterprise hero）-->
-      <div class="px-6 pt-6 pb-5 bg-transparent flex-shrink-0">
+      <div class="px-6 pt-6 pb-5 bg-transparent flex-shrink-0 stagger-item-1">
        <div class="card-hero flex items-center justify-between gap-4">
         <div>
           <h1 class="heading-page heading-accent">{{ activeFolderName }}</h1>
@@ -84,7 +84,7 @@
       </div>
 
       <!-- 列表 -->
-      <div class="flex-1 overflow-auto p-6">
+      <div class="flex-1 overflow-auto p-6 stagger-item-2">
         <div v-if="loading" class="flex items-center justify-center py-20 text-neutral-400 gap-2 text-sm">
           <IconSpinner :size="16" /> 載入中
         </div>

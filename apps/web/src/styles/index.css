@@ -244,27 +244,60 @@
 .fade-enter-active, .fade-leave-active { transition: opacity 200ms var(--ease-out); }
 .fade-enter-from,   .fade-leave-to     { opacity: 0; }
 
-/* page-up：頁面切換時帶 4px 上滑（router-view 主用）*/
-.page-enter-active { transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out); }
-.page-leave-active { transition: opacity 120ms var(--ease-in); }
-.page-enter-from   { opacity: 0; transform: translateY(4px); }
-.page-leave-to     { opacity: 0; }
+/* v5.9 — page transition：升級到 ease-out-expo + 12px slide + subtle scale
+   timing/曲線參考 Linear / Vercel / Framer 風 page transition */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 
-/* Sprint 19.x：page-fade-wrap — DashboardLayout router-view 包裝層 fade-in
-   用 key toggle (a/b) 觸發 CSS animation，不需 Vue Transition 元件 → 無 race */
-.page-fade-wrap         { animation: page-fade-in 200ms var(--ease-out); }
+/* page-up：頁面切換時帶 12px 上滑 + 微 scale（router-view Vue Transition 用） */
+.page-enter-active {
+  transition:
+    opacity 360ms var(--ease-out-expo),
+    transform 420ms var(--ease-out-expo);
+}
+.page-leave-active {
+  transition:
+    opacity 140ms var(--ease-in),
+    transform 140ms var(--ease-in);
+}
+.page-enter-from   { opacity: 0; transform: translateY(12px) scale(0.992); }
+.page-leave-to     { opacity: 0; transform: translateY(-4px); }
+
+/* v5.9 升級：page-fade-wrap — DashboardLayout / ChatLayout router-view 包裝層
+   key toggle (a/b) 觸發 CSS animation，避免 router-view + Transition mode='out-in' 連點 race
+   進場：12px 上滑 + 0.99 scale + opacity，配 ease-out-expo */
+.page-fade-wrap         { animation: page-fade-in-a 380ms var(--ease-out-expo) both; }
 .page-fade-wrap.a       { animation-name: page-fade-in-a; }
 .page-fade-wrap.b       { animation-name: page-fade-in-b; }
 @keyframes page-fade-in-a {
-  from { opacity: 0.65; transform: translateY(2px); }
-  to   { opacity: 1;    transform: translateY(0); }
+  from { opacity: 0; transform: translateY(12px) scale(0.992); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes page-fade-in-b {
-  from { opacity: 0.65; transform: translateY(2px); }
-  to   { opacity: 1;    transform: translateY(0); }
+  from { opacity: 0; transform: translateY(12px) scale(0.992); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* v5.9 — view-stagger：主內容區進場後子元素依序浮現
+   給 view 內部包 .view-stagger，子層 .stagger-item-1..6 自動 delay */
+.view-stagger .stagger-item-1 { animation: fade-up 460ms var(--ease-out-expo) 80ms both; }
+.view-stagger .stagger-item-2 { animation: fade-up 460ms var(--ease-out-expo) 140ms both; }
+.view-stagger .stagger-item-3 { animation: fade-up 460ms var(--ease-out-expo) 200ms both; }
+.view-stagger .stagger-item-4 { animation: fade-up 460ms var(--ease-out-expo) 260ms both; }
+.view-stagger .stagger-item-5 { animation: fade-up 460ms var(--ease-out-expo) 320ms both; }
+.view-stagger .stagger-item-6 { animation: fade-up 460ms var(--ease-out-expo) 380ms both; }
+
 @media (prefers-reduced-motion: reduce) {
+  .page-enter-active, .page-leave-active { transition: none; }
   .page-fade-wrap, .page-fade-wrap.a, .page-fade-wrap.b { animation: none; }
+  .view-stagger .stagger-item-1,
+  .view-stagger .stagger-item-2,
+  .view-stagger .stagger-item-3,
+  .view-stagger .stagger-item-4,
+  .view-stagger .stagger-item-5,
+  .view-stagger .stagger-item-6 { animation: none; }
 }
 
 /* v5.8.2 — FormModal pop-in（scale 0.95 → 1 + opacity 0 → 1） */

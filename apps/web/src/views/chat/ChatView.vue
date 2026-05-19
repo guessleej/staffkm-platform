@@ -3,9 +3,9 @@
     <!-- ───────── 空狀態：置中歡迎 + 輸入區（v5.1 Warm Enterprise）───────── -->
     <div
       v-if="!activeConv && !streamingText"
-      class="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-3xl mx-auto w-full"
+      class="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-3xl mx-auto w-full view-stagger"
     >
-      <div class="text-center mb-10">
+      <div class="text-center mb-10 stagger-item-1">
         <h1 class="text-3xl font-semibold tracking-tight text-fg mb-2">
           今天想了解什麼？
         </h1>
@@ -23,12 +23,12 @@
         v-model="draft"
         :disabled="sending"
         :placeholder="$t('chat.inputPlaceholder')"
-        class="w-full"
+        class="w-full stagger-item-2"
         @submit="onSubmit"
       />
 
       <!-- v5.1：starter prompt 卡片（2x2 grid） -->
-      <div v-if="starterPrompts.length" class="mt-8 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div v-if="starterPrompts.length" class="mt-8 w-full grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-item-3">
         <button
           v-for="(p, i) in starterPrompts"
           :key="p.title"

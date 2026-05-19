@@ -7,9 +7,9 @@
       :active-folder-id="activeFolderId"
       @update:active-folder-id="(v) => (activeFolderId = v)"
     />
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 flex flex-col overflow-hidden view-stagger">
     <!-- 頁首（v5.1 Warm Enterprise hero）-->
-    <div class="px-6 pt-6 pb-5 flex-shrink-0">
+    <div class="px-6 pt-6 pb-5 flex-shrink-0 stagger-item-1">
       <div class="card-hero flex items-center justify-between gap-4">
         <div>
           <h1 class="heading-page heading-accent">{{ $t('app.title') }}</h1>
@@ -29,7 +29,7 @@
     </div>
 
     <!-- 應用卡片列表 -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 overflow-y-auto p-6 stagger-item-2">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="32" />
       </div>
