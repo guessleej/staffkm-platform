@@ -16,6 +16,79 @@ from staffkm_core.utils.database import get_session
 
 router = APIRouter()
 
+
+# v5.9.2: provider 建立後自動 seed 的 default models（auth 服務獨立持有，
+# 跟 agent/app/data/model_pricing.py PROVIDER_DEFAULT_MODELS 保持同步）
+_DEFAULT_MODELS_ON_CREATE: dict[str, list[tuple[str, str, str]]] = {
+    "openai": [
+        ("gpt-4o",                  "llm",       "GPT-4o"),
+        ("gpt-4o-mini",             "llm",       "GPT-4o mini"),
+        ("gpt-4-turbo",             "llm",       "GPT-4 Turbo"),
+        ("gpt-3.5-turbo",           "llm",       "GPT-3.5 Turbo"),
+        ("o1-preview",              "llm",       "o1-preview"),
+        ("o1-mini",                 "llm",       "o1-mini"),
+        ("text-embedding-3-small",  "embedding", "Embedding 3 small"),
+        ("text-embedding-3-large",  "embedding", "Embedding 3 large"),
+        ("dall-e-3",                "image",     "DALL·E 3"),
+        ("whisper-1",               "stt",       "Whisper"),
+        ("tts-1",                   "tts",       "TTS-1"),
+    ],
+    "anthropic": [
+        ("claude-3-5-sonnet-20241022", "llm", "Claude 3.5 Sonnet"),
+        ("claude-3-5-haiku-20241022",  "llm", "Claude 3.5 Haiku"),
+    ],
+    "google": [
+        ("gemini-1.5-pro",   "llm", "Gemini 1.5 Pro"),
+        ("gemini-1.5-flash", "llm", "Gemini 1.5 Flash"),
+    ],
+    "ollama": [
+        ("gemma3:e4b",  "llm", "Gemma 3 e4b"),
+        ("qwen2.5",     "llm", "Qwen 2.5"),
+        ("llama3.1",    "llm", "Llama 3.1"),
+        ("bge-m3",      "embedding", "BGE M3"),
+    ],
+    "cohere": [
+        ("command-r-plus",          "llm",      "Command R+"),
+        ("rerank-multilingual-v3.0","reranker", "Rerank multilingual v3"),
+    ],
+    "moonshot": [
+        ("moonshot-v1-8k",   "llm", "Moonshot v1 8K"),
+        ("moonshot-v1-32k",  "llm", "Moonshot v1 32K"),
+        ("moonshot-v1-128k", "llm", "Moonshot v1 128K"),
+    ],
+    "groq": [
+        ("llama-3.1-70b-versatile", "llm", "Llama 3.1 70B (Groq)"),
+        ("llama-3.1-8b-instant",    "llm", "Llama 3.1 8B (Groq)"),
+    ],
+    "mistral": [
+        ("mistral-large-latest", "llm", "Mistral Large"),
+        ("mistral-small-latest", "llm", "Mistral Small"),
+    ],
+    "openrouter": [
+        ("openai/gpt-4o",               "llm", "GPT-4o (via OpenRouter)"),
+        ("anthropic/claude-3.5-sonnet", "llm", "Claude 3.5 Sonnet (via OpenRouter)"),
+    ],
+    "xai": [("grok-beta", "llm", "Grok Beta")],
+}
+
+
+async def _seed_default_models(session, provider_id: str, provider_type: str) -> int:
+    """v5.9.2: provider 建立後自動補 default model 列。
+    用 ON CONFLICT DO NOTHING（依賴 alembic 0021 加的 UNIQUE INDEX）"""
+    from sqlalchemy import text
+    defaults = _DEFAULT_MODELS_ON_CREATE.get(provider_type, [])
+    if not defaults:
+        return 0
+    inserted = 0
+    for name, mtype, display in defaults:
+        r = await session.execute(text("""
+            INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default, config)
+            VALUES (CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE, '{}'::jsonb)
+            ON CONFLICT (provider_id, model_name) DO NOTHING
+        """), {"pid": provider_id, "n": name, "t": mtype, "d": display})
+        inserted += r.rowcount or 0
+    return inserted
+
 # ---------------------------------------------------------------------------
 # 輔助函式 — API Key 混淆（base64）
 # ---------------------------------------------------------------------------
@@ -223,6 +296,17 @@ async def create_provider(
         },
     )
 
+    # v5.9.2: provider 建立後立刻 seed default model 列，避免 admin UI 顯示空模型
+    # 之前只有 agent startup pricing_seed 會跑 → user 刪掉舊 provider 重建（新 id）
+    # 就拿不到 default models，要等下次 agent 重啟才有
+    try:
+        seeded = await _seed_default_models(session, str(provider_id), body.provider_type)
+    except Exception as exc:
+        # seed 失敗不致命，記 log 不擋 create 回應
+        import structlog
+        structlog.get_logger().warning("default_model_seed_failed", error=str(exc), provider_type=body.provider_type)
+        seeded = 0
+
     row_result = await session.execute(
         text(
             "SELECT id, name, provider_type, base_url, api_key_enc, status, config, "
@@ -232,7 +316,8 @@ async def create_provider(
         {"id": str(provider_id)},
     )
     row = row_result.fetchone()
-    return ApiResponse(data=_row_to_provider_out(row), message="模型供應商建立成功")
+    msg = f"模型供應商建立成功（已預設 {seeded} 個模型）" if seeded else "模型供應商建立成功"
+    return ApiResponse(data=_row_to_provider_out(row), message=msg)
 
 
 @router.get("/providers/{provider_id}", response_model=ApiResponse[ProviderOut], summary="取得供應商詳情")
