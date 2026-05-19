@@ -138,24 +138,30 @@
             v-for="entry in filteredCatalog" :key="entry.type"
             class="border border-bd rounded-lg p-3 hover:border-brand-300 hover:bg-brand-50/30 transition-colors"
           >
-            <div class="flex items-start justify-between mb-2">
+            <div class="flex items-start justify-between mb-1.5">
               <div class="flex items-center gap-2 min-w-0">
                 <div class="w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                      :style="{background: providerColor(entry.type)}">
                   {{ providerInitials(entry.label) }}
                 </div>
-                <div class="text-sm font-medium text-fg truncate">{{ entry.label }}</div>
+                <div class="min-w-0">
+                  <div class="text-sm font-medium text-fg truncate flex items-center gap-1">
+                    {{ entry.label }}
+                    <span v-if="entry.is_local" class="text-[9px] px-1 py-0 rounded bg-success-100 text-success-700 font-semibold uppercase">地端</span>
+                  </div>
+                </div>
               </div>
               <button
                 @click="addFromCatalog(entry)"
                 class="text-[11px] px-2 py-0.5 rounded-md bg-brand-600 text-white hover:bg-brand-700 flex items-center gap-0.5 flex-shrink-0"
               >
-                <SIcon name="plus" :size="10" />添加模型
+                <SIcon name="plus" :size="10" />添加
               </button>
             </div>
+            <p v-if="entry.notes" class="text-[11px] text-fg-tertiary leading-snug mb-1.5 line-clamp-2" :title="entry.notes">{{ entry.notes }}</p>
             <div class="flex flex-wrap gap-1">
               <span
-                v-for="cap in entry.capabilities" :key="cap"
+                v-for="cap in (entry.capabilities || [])" :key="cap"
                 class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-fg-tertiary uppercase font-medium"
               >{{ cap }}</span>
             </div>
@@ -263,7 +269,7 @@ const MODEL_KINDS = [
   { key: 'default.tts',       label: '語音合成模型', modelType: 'tts',       required: false },
 ] as const
 
-const CATALOG_TABS = ['All', 'LLM', 'Embedding', 'Reranker', 'TTS', 'STT', 'Vision', 'Image'] as const
+const CATALOG_TABS = ['All', '地端', 'LLM', 'Embedding', 'Reranker', 'TTS', 'STT', 'Vision', 'Image'] as const
 
 // ── State ───────────────────────────────────────────────────────
 const loading = ref(false)
@@ -312,8 +318,10 @@ const filteredCatalog = computed(() => {
     if (catalogSearch.value &&
         !r.label.toLowerCase().includes(catalogSearch.value.toLowerCase()) &&
         !r.type.toLowerCase().includes(catalogSearch.value.toLowerCase())) return false
-    if (catalogTab.value !== 'All') {
-      const caps = r.capabilities.map(c => c.toLowerCase())
+    if (catalogTab.value === '地端') {
+      if (!r.is_local) return false
+    } else if (catalogTab.value !== 'All') {
+      const caps = (r.capabilities || []).map(c => c.toLowerCase())
       if (!caps.includes(catalogTab.value.toLowerCase())) return false
     }
     return true
@@ -322,10 +330,24 @@ const filteredCatalog = computed(() => {
 
 // ── Provider visual helpers ─────────────────────────────────────
 const COLORS: Record<string, string> = {
-  openai: '#10a37f', anthropic: '#cc785c', google: '#4285f4',
-  ollama: '#000000', cohere: '#39594d', azure_openai: '#0078d4',
-  bedrock: '#ff9900', minimax: '#7c3aed', gemini: '#4285f4',
-  vertex_ai: '#4285f4', mistral: '#f97316',
+  // 國際雲
+  openai: '#10a37f', anthropic: '#cc785c', azure_openai: '#0078d4',
+  bedrock: '#ff9900', gemini: '#4285f4', vertex_ai: '#4285f4',
+  cohere: '#39594d', mistral: '#f97316', groq: '#f55036',
+  together: '#1c64f2', fireworks: '#ff6b35', perplexity: '#20808d',
+  openrouter: '#6366f1', xai: '#000000', nvidia_nim: '#76b900',
+  // 地端 serving
+  ollama: '#000000', llama_cpp: '#a16207', vllm: '#2563eb',
+  sglang: '#7c3aed', tgi: '#f59e0b', lmstudio: '#9333ea',
+  xinference: '#10b981', localai: '#0891b2', text_gen_webui: '#475569',
+  gpt4all: '#dc2626',
+  // 中文雲
+  deepseek: '#4d6bfe', zhipu: '#3b82f6', moonshot: '#000000',
+  qwen: '#615ced', baichuan: '#dc2626', minimax: '#7c3aed',
+  siliconflow: '#06b6d4', yi: '#00a86b', doubao: '#ef4444',
+  // Specialty
+  voyage: '#9333ea', jina: '#fbbf24', elevenlabs: '#000000',
+  deepgram: '#13ef93', stability_ai: '#7c3aed',
 }
 function providerColor(type: string): string {
   return COLORS[type] || '#6366f1'

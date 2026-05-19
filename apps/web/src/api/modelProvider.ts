@@ -76,6 +76,8 @@ export interface ProviderRegistryEntry {
   recommended_models:  string[]
   needs_api_key:       boolean
   notes:               string
+  capabilities:        string[]   // v5.0.6: LLM / Embedding / Reranker / TTS / STT / Vision / Image / Moderation
+  is_local:            boolean    // v5.0.6: 地端 self-host (catalog chip)
 }
 
 export const providerRegistryApi = {
