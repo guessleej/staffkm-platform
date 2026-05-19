@@ -1,21 +1,23 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">Slow Query Analyzer</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">自動捕獲 &gt; 500ms 的 SQL 與 EXPLAIN ANALYZE plan（v3.8 P4）</p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">Slow Query Analyzer</h1>
+          <p class="text-sm text-fg-tertiary mt-1">自動捕獲 &gt; 500ms 的 SQL 與 EXPLAIN ANALYZE plan（v3.8 P4）</p>
+        </div>
+        <button
+          @click="load"
+          class="btn btn-warm"
+        >
+          <SIcon name="refresh" :size="12" /> 重新整理
+        </button>
       </div>
-      <button
-        @click="load"
-        class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:bg-neutral-50 transition flex items-center gap-1"
-      >
-        <SIcon name="refresh" :size="12" /> 重新整理
-      </button>
     </div>
 
     <!-- Tab 切換 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 flex items-center gap-1 flex-shrink-0">
+    <div class="bg-surface-raised border-b border-bd px-6 flex items-center gap-1 flex-shrink-0">
       <button
         v-for="t in tabs"
         :key="t.key"
@@ -45,7 +47,7 @@
           <p class="text-xs text-fg-tertiary mt-1">系統健康 — 沒有 query 超過門檻</p>
         </div>
 
-        <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+        <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
           <thead>
             <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
               <th class="px-4 py-3 font-semibold">時間</th>
@@ -91,7 +93,7 @@
           <p class="text-fg-secondary font-medium">過去 24 小時無資料</p>
         </div>
 
-        <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+        <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
           <thead>
             <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
               <th class="px-4 py-3 font-semibold">SQL Hash</th>

@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">使用者管理</h1>
+        <h1 class="heading-page heading-accent">使用者管理</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">新增 / 停用 / 改角色 / 重設密碼（共 {{ total }} 人）</p>
       </div>
       <div class="flex items-center gap-2">
@@ -25,7 +25,7 @@
         </button>
         <button
           @click="openInvite"
-          class="px-3 py-1.5 text-xs text-white bg-brand-600 hover:bg-brand-700 rounded-lg flex items-center gap-1"
+          class="btn btn-primary text-xs"
         >
           <SIcon name="plus" :size="12" /> 邀請新成員
         </button>
@@ -33,6 +33,7 @@
     </div>
 
     <!-- table -->
+</div>
     <div class="flex-1 overflow-y-auto p-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
@@ -45,7 +46,7 @@
         <p class="text-fg-secondary font-medium">沒有使用者</p>
       </div>
 
-      <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+      <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
         <thead>
           <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
             <th class="px-4 py-3 font-semibold">使用者</th>
@@ -107,7 +108,7 @@
 
     <!-- 邀請新成員 -->
     <div v-if="inviting" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="inviting = false">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-md p-5">
+      <div class="card-warm shadow-xl w-full max-w-md p-5">
         <h3 class="text-base font-semibold text-fg">邀請新成員</h3>
         <div class="mt-4 space-y-3">
           <div>
@@ -146,7 +147,7 @@
 
     <!-- 改角色 -->
     <div v-if="editingRole" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="editingRole = null">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-sm p-5">
+      <div class="card-warm shadow-xl w-full max-w-sm p-5">
         <h3 class="text-base font-semibold text-fg">修改角色</h3>
         <p class="text-xs text-fg-tertiary mt-0.5">{{ editingRole.username }}</p>
         <div class="mt-4">
@@ -166,7 +167,7 @@
 
     <!-- 重設密碼 -->
     <div v-if="editingPw" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="editingPw = null">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-sm p-5">
+      <div class="card-warm shadow-xl w-full max-w-sm p-5">
         <h3 class="text-base font-semibold text-fg">重設密碼</h3>
         <p class="text-xs text-fg-tertiary mt-0.5">{{ editingPw.username }}</p>
         <div class="mt-4">
@@ -183,7 +184,7 @@
 
     <!-- v2.7 X-Pack：登入方式白名單 -->
     <div v-if="editingMethods" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="editingMethods = null">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-sm p-5">
+      <div class="card-warm shadow-xl w-full max-w-sm p-5">
         <h3 class="text-base font-semibold text-fg">限定登入方式</h3>
         <p class="text-xs text-fg-tertiary mt-0.5">{{ editingMethods.username }}</p>
         <p class="text-[11px] text-fg-tertiary mt-3">
@@ -204,7 +205,7 @@
 
     <!-- 刪除確認 -->
     <div v-if="deleting" class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40" @click.self="deleting = null">
-      <div class="bg-surface-raised rounded-xl border border-neutral-200 shadow-xl w-full max-w-sm p-5">
+      <div class="card-warm shadow-xl w-full max-w-sm p-5">
         <h3 class="text-base font-semibold text-fg">刪除使用者</h3>
         <p class="text-xs text-fg-secondary mt-2">確定要刪除「{{ deleting.username }}」？此操作為軟刪除，帳號會被停用且 username/email 會被釋放。</p>
         <div class="mt-5 flex justify-end gap-2">

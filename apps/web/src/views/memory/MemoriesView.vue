@@ -1,20 +1,22 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-      <div>
-        <h1 class="text-lg font-semibold text-fg">長期記憶</h1>
-        <p class="text-sm text-fg-tertiary mt-0.5">
-          給 AI 助理的長期記憶（user / app / team 三層 scope），重要事實它會記住下次自動帶
-        </p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero flex items-center justify-between gap-4">
+        <div>
+          <h1 class="heading-page heading-accent">長期記憶</h1>
+          <p class="text-sm text-fg-tertiary mt-1">
+            給 AI 助理的長期記憶（user / app / team 三層 scope），重要事實它會記住下次自動帶
+          </p>
+        </div>
+        <button
+          @click="openCreate"
+          class="btn btn-primary"
+        >
+          <SIcon name="plus" :size="16" />
+          新增記憶
+        </button>
       </div>
-      <button
-        @click="openCreate"
-        class="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition"
-      >
-        <SIcon name="plus" :size="16" />
-        新增記憶
-      </button>
     </div>
 
     <!-- 工具列 -->
@@ -45,25 +47,19 @@
         <SSpinner :size="28" />
       </div>
 
-      <div v-else-if="!items.length" class="text-center py-20">
-        <div class="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <SIcon name="info" :size="28" :stroke-width="1.5" class="text-brand-500" />
-        </div>
-        <p class="text-fg-secondary font-medium">
-          {{ searchQ ? '搜尋無結果' : '尚無記憶' }}
-        </p>
-        <p class="text-fg-tertiary text-sm mt-1 mb-4">
-          {{ searchQ ? '換個關鍵字試試' : '記下重要事實，AI 助理下次會自動帶' }}
-        </p>
-        <button v-if="!searchQ" @click="openCreate"
-                class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition">
-          新增第一條記憶
-        </button>
-      </div>
+      <EmptyState
+        v-else-if="!items.length"
+        icon="info"
+        :title="searchQ ? '搜尋無結果' : '尚無記憶'"
+        :description="searchQ ? '換個關鍵字試試' : '記下重要事實，AI 助理下次會自動帶'"
+        :action-label="!searchQ ? '新增第一條記憶' : undefined"
+        @action="openCreate"
+      />
 
       <div v-else class="space-y-3">
-        <article v-for="m in items" :key="m.id"
-                 class="bg-surface-raised border border-neutral-200 rounded-xl p-4 hover:border-brand-200 transition group">
+        <article v-for="(m, idx) in items" :key="m.id"
+                 class="card-warm fade-up p-4 group"
+                 :style="`animation-delay: ${idx * 40}ms`">
           <div class="flex items-start gap-3">
             <span class="px-2 py-0.5 text-[10px] font-semibold rounded uppercase flex-shrink-0"
                   :class="scopeBadge(m.scope)">
@@ -160,6 +156,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 import { memoryApi, type Memory, type MemoryScope } from '../../api/memory'
+import EmptyState from '../../components/common/EmptyState.vue'
 
 const items = ref<Memory[]>([])
 const loading = ref(true)

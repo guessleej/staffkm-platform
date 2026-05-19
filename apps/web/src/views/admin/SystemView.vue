@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">系統設定</h1>
+        <h1 class="heading-page heading-accent">系統設定</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">全域偏好、預設模型、上傳與安全策略</p>
       </div>
       <button
@@ -24,6 +24,7 @@
     </div>
 
     <!-- 內容 -->
+</div>
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />

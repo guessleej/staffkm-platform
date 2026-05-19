@@ -17,7 +17,7 @@
         </button>
         <div>
           <div class="flex items-center gap-2">
-            <h2 class="text-base font-semibold text-neutral-900">文件</h2>
+            <h1 class="heading-section text-fg">文件</h1>
             <span v-if="sourceInfo?.source_type === 'workflow'"
                   class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-brand-50 text-brand-700 rounded">
               <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -54,7 +54,7 @@
         >匯出 ZIP</button>
         <button
           @click="($refs.fileInput as HTMLInputElement).click()"
-          class="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
+          class="btn btn-primary h-8 px-3 text-xs"
         >
           <IconUpload :size="13" />
           上傳

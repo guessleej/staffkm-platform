@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">Worker Heartbeats</h1>
+        <h1 class="heading-page heading-accent">Worker Heartbeats</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">背景 worker loop 健康狀態（v3.6 P2）</p>
       </div>
       <div class="flex items-center gap-2">
@@ -18,6 +18,7 @@
     </div>
 
     <!-- 表格 -->
+</div>
     <div class="flex-1 overflow-y-auto p-6">
       <div v-if="loading && !items.length" class="flex justify-center py-20">
         <SSpinner :size="24" />
@@ -31,7 +32,7 @@
         <p class="text-xs text-fg-tertiary mt-1">背景 worker 首次運行後會出現於此</p>
       </div>
 
-      <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+      <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
         <thead>
           <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
             <th class="px-4 py-3 font-semibold">Worker</th>

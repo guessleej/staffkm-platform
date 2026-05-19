@@ -1,6 +1,8 @@
 <template>
   <div class="p-6 h-full flex flex-col">
-    <h1 class="text-2xl font-semibold text-fg mb-4">Workflow 執行紀錄</h1>
+    <div class="card-hero mb-4">
+      <h1 class="heading-page heading-accent">Workflow 執行紀錄</h1>
+    </div>
 
     <!-- application select -->
     <div class="mb-4">

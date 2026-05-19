@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-neutral-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <div class="px-6 py-5 flex-shrink-0"><div class="card-hero flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-fg">Audit Log</h1>
+        <h1 class="heading-page heading-accent">Audit Log</h1>
         <p class="text-sm text-fg-tertiary mt-0.5">操作紀錄 — 誰、何時、做了什麼</p>
       </div>
       <button @click="load" class="px-3 py-1.5 text-xs text-fg-secondary bg-surface-raised border border-neutral-200 rounded-lg hover:bg-neutral-50 transition flex items-center gap-1">
@@ -40,6 +40,7 @@
     </div>
 
     <!-- table -->
+</div>
     <div class="flex-1 overflow-y-auto p-6">
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
@@ -53,7 +54,7 @@
         <p class="text-fg-tertiary text-sm mt-1">沒有操作或 filter 太嚴</p>
       </div>
 
-      <table v-else class="w-full text-sm bg-surface-raised border border-neutral-200 rounded-xl overflow-hidden">
+      <table v-else class="w-full text-sm bg-surface-raised border border-bd rounded-2xl overflow-hidden shadow-sm">
         <thead>
           <tr class="bg-surface-sunken text-xs uppercase tracking-wider text-fg-tertiary text-left">
             <th class="px-4 py-3 font-semibold">時間</th>

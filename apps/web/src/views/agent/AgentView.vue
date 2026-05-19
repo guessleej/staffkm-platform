@@ -1,16 +1,19 @@
 <template>
   <div class="flex flex-col h-full">
-    <div class="h-14 border-b border-neutral-200 px-6 flex items-center bg-surface-raised">
-      <h2 class="font-semibold text-fg">AI 代理人</h2>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero">
+        <h1 class="heading-page heading-accent">AI 代理人</h1>
+        <p class="text-sm text-fg-tertiary mt-1">
+          以下是系統內建的行政場景 AI 代理人，點選「立即諮詢」可直接開始對話。
+        </p>
+      </div>
     </div>
-    <div class="flex-1 overflow-auto p-6">
-      <p class="text-sm text-fg-tertiary mb-6">
-        以下是系統內建的行政場景 AI 代理人，點選「立即諮詢」可直接開始對話。
-      </p>
+    <div class="flex-1 overflow-auto px-6 pb-6">
       <div v-if="loading" class="text-center py-12 text-fg-tertiary">載入中…</div>
       <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <div v-for="agent in agents" :key="agent.scenario_id"
-          class="bg-surface-raised rounded-xl border border-neutral-200 p-5 hover:shadow-md transition">
+        <div v-for="(agent, idx) in agents" :key="agent.scenario_id"
+          class="card-warm fade-up p-5"
+          :style="`animation-delay: ${idx * 40}ms`">
           <div class="flex items-center gap-3 mb-3">
             <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-xl">
               {{ scenarioIcon(agent.scenario_id) }}

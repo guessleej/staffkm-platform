@@ -1,9 +1,11 @@
 <template>
   <div class="flex-1 flex flex-col overflow-hidden bg-surface-base">
     <!-- 頁首 -->
-    <div class="bg-surface-raised border-b border-bd px-6 py-4 flex-shrink-0">
-      <h1 class="text-lg font-semibold text-fg">模型管理</h1>
-      <p class="text-sm text-fg-tertiary mt-0.5">設定預設模型 / 新增供應商 / 管理 API Key</p>
+    <div class="px-6 py-5 flex-shrink-0">
+      <div class="card-hero">
+        <h1 class="heading-page heading-accent">模型管理</h1>
+        <p class="text-sm text-fg-tertiary mt-1">設定預設模型 / 新增供應商 / 管理 API Key</p>
+      </div>
     </div>
 
     <div class="flex-1 overflow-hidden flex">
