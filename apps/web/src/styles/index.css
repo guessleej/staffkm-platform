@@ -5,12 +5,19 @@
 @tailwind utilities;
 
 @layer base {
+  /* v5.0.16: 全站字體放大 — html root 17px（預設 16）→ 所有 rem-based 同比放大 ~6%
+     不動 tailwind scale 本體（保 design-system 一致），只把根字級往上推 */
+  html {
+    font-size: 17px;
+  }
+
   /* font 已由 design-tokens 設好；此處針對 long-form 區塊微調 */
   body {
     background: hsl(var(--color-surface-base));
     color:      hsl(var(--color-text-primary));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01", "ss03";  /* Inter / 系統字微排版優化 */
   }
 
   * { @apply box-border; }
