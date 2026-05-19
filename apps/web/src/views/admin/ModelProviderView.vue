@@ -212,6 +212,9 @@
           <div>
             <label class="block text-sm text-fg-secondary mb-1">Base URL（選填）</label>
             <input v-model="providerForm.base_url" placeholder="https://api.openai.com/v1" class="form-input" />
+            <p v-if="providerForm.provider_type === 'moonshot'" class="text-[11px] text-fg-tertiary mt-1.5">
+              💡 國際版（platform.kimi.ai）→ <code class="bg-neutral-100 px-1 rounded">api.moonshot.ai/v1</code>；中國版（platform.moonshot.cn）→ <code class="bg-neutral-100 px-1 rounded">api.moonshot.cn/v1</code>
+            </p>
           </div>
           <div>
             <label class="block text-sm text-fg-secondary mb-1">
