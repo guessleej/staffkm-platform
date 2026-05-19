@@ -214,9 +214,17 @@
             <input v-model="providerForm.base_url" placeholder="https://api.openai.com/v1" class="form-input" />
           </div>
           <div>
-            <label class="block text-sm text-fg-secondary mb-1">API Key</label>
-            <input v-model="providerForm.api_key" type="password" placeholder="sk-..." class="form-input" />
-            <p v-if="editingProvider" class="text-xs text-fg-tertiary mt-1">留空 = 不變更現有 API Key</p>
+            <label class="block text-sm text-fg-secondary mb-1">
+              API Key
+              <span v-if="editingProvider?.api_key_prefix" class="text-fg-tertiary font-normal ml-2">
+                目前：<code class="text-[11px] bg-neutral-100 px-1.5 py-0.5 rounded">{{ editingProvider.api_key_prefix }}</code>
+              </span>
+            </label>
+            <input v-model="providerForm.api_key" type="password" :placeholder="editingProvider ? '貼上新 key 以替換' : 'sk-...'" class="form-input" />
+            <p v-if="editingProvider" class="text-xs text-fg-tertiary mt-1.5 flex items-center gap-2">
+              <span>留空 = 不變更</span>
+              <span v-if="!providerForm.api_key" class="text-amber-700">⚠ 你目前沒輸入新 key，儲存後會沿用上方顯示的舊 key</span>
+            </p>
           </div>
         </div>
         <div class="px-6 pb-6 flex justify-end gap-2">

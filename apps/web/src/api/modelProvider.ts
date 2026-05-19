@@ -6,6 +6,7 @@ export interface ModelProvider {
   provider_type: 'openai' | 'ollama' | 'azure' | 'anthropic' | 'custom'
   base_url?: string
   api_key_masked?: string
+  api_key_prefix?: string  // 後端用此欄回傳遮罩後前綴（v5.9.6 補對應）
   status: string
   config: Record<string, any>
   created_at: string
