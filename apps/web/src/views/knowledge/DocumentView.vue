@@ -63,7 +63,7 @@
           ref="fileInput"
           type="file"
           class="hidden"
-          accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.csv"
+          accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.html"
           @change="onFileSelected"
         />
       </div>
