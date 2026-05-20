@@ -54,12 +54,19 @@ export async function streamChat(
   const payload: Record<string, unknown> = { content }
   if (overrides?.model_override) payload.model_override = overrides.model_override
   if (overrides?.kb_ids_override) payload.kb_ids_override = overrides.kb_ids_override
+  // v5.9.14: 必須帶 X-Workspace-ID — 之前漏，chat 內部 call agent 沒 ws prefix → 404 → empty stream
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+  try {
+    const { useWorkspaceStore } = await import('../stores/workspace')
+    const wsId = useWorkspaceStore().currentId
+    if (wsId) headers['X-Workspace-ID'] = wsId
+  } catch { /* store 未 init */ }
   const resp = await fetch(`/api/v1/chat/conversations/${convId}/messages/stream`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify(payload),
   })
 
@@ -108,12 +115,19 @@ export async function streamPreviewChat(
   onError: (e: string) => void,
 ): Promise<void> {
   const token = localStorage.getItem('access_token') || ''
+  // v5.9.14: streamPreviewChat 同樣需要 X-Workspace-ID
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+  try {
+    const { useWorkspaceStore } = await import('../stores/workspace')
+    const wsId = useWorkspaceStore().currentId
+    if (wsId) headers['X-Workspace-ID'] = wsId
+  } catch { /* store 未 init */ }
   const resp = await fetch('/api/v1/applications/preview/chat', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify(body),
   })
   if (!resp.ok || !resp.body) { onError(`HTTP ${resp.status}`); return }
