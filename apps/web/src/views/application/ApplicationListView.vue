@@ -869,6 +869,9 @@ async function saveApp() {
     }
     showDialog.value = false
     await load()
+  } catch (e: any) {
+    // v5.9.24: 之前沒 catch，update 失敗就靜默不關 modal
+    alert(e?.response?.data?.detail || e?.message || '儲存失敗，請重試')
   } finally {
     saving.value = false
   }
