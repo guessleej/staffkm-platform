@@ -145,18 +145,31 @@ class BaseAdminAgent(ABC):
         else:
             temp = settings.LLM_TEMPERATURE if settings.LLM_TEMPERATURE else 0.7
 
-        stream = await self._llm.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            stream=True,
-            temperature=temp,
-            max_tokens=settings.LLM_MAX_TOKENS or 2048,
-        )
-
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
+        # v5.9.12: API 錯誤改成中文友善訊息，不要直接把原始 JSON 當 assistant
+        # 回應串給 user（之前 401 會看到 "Error code: 401 - {...}"）
+        try:
+            stream = await self._llm.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                stream=True,
+                temperature=temp,
+                max_tokens=settings.LLM_MAX_TOKENS or 2048,
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+        except Exception as e:
+            msg = str(e)
+            log.error("llm_call_failed", model=model_name, error=msg[:300])
+            if "401" in msg or "Incorrect API key" in msg or "Invalid Authentication" in msg:
+                yield "⚠️ LLM 認證失敗（API key 無效或已撤銷）。請至 /admin/models 重新設定有效的 API key 並重啟 agent。"
+            elif "429" in msg or "rate" in msg.lower():
+                yield "⚠️ LLM 用量超出（rate limit）。請稍後再試或檢查帳戶配額。"
+            elif "Connection" in msg or "timeout" in msg.lower():
+                yield "⚠️ 連線 LLM 服務失敗。請檢查 LLM_BASE_URL 設定與網路可達性。"
+            else:
+                yield f"⚠️ LLM 呼叫失敗：{msg[:200]}"
 
     @abstractmethod
     def get_suggested_questions(self) -> list[str]:
