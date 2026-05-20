@@ -25,8 +25,12 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 64
     MAX_FILE_SIZE_MB: int = 50
 
-    # v5.9.19: 加 .xls (xlrd) + .html (純文字 fallback)
-    ALLOWED_EXTENSIONS: set[str] = {".pdf", ".docx", ".doc", ".txt", ".md", ".xlsx", ".xls", ".csv", ".html"}
+    # v5.9.19: 加 .xls (xlrd) + .html
+    # v5.9.22: 加圖片 OCR (.png/.jpg/.jpeg/.webp/.tiff/.bmp)
+    ALLOWED_EXTENSIONS: set[str] = {
+        ".pdf", ".docx", ".doc", ".txt", ".md", ".xlsx", ".xls", ".csv", ".html",
+        ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp",
+    }
 
 
 settings = Settings()

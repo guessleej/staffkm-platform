@@ -16,6 +16,10 @@ pypdf==5.1.0
 python-docx==1.1.2
 openpyxl==3.1.5
 xlrd==2.0.1  # v5.9.19: 舊版 .xls (OLE2) — xlrd 2.x 只支援 .xls (xlsx 走 openpyxl)
+# v5.9.22: OCR 混合 pipeline — 掃描 PDF / 圖片轉文字
+pytesseract==0.3.13
+pdf2image==1.17.0
+Pillow==11.0.0
 structlog==24.4.0
 celery[redis]==5.4.0
 # Sprint 16: Web KB sync
