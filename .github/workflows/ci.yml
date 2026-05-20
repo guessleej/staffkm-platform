@@ -31,6 +31,10 @@ jobs:
             frontend:
               - 'apps/web/**'
               - 'packages/ts/**'
+              # Codex P1: 共用依賴解析檔也要觸發 frontend build
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
 
   # ─────────────────────────────────────────────────────────────
   # 後端：Python 語法編譯檢查 + CLAUDE.md §8 asyncpg dialect lint
@@ -61,15 +65,9 @@ jobs:
             echo "$HITS"; exit 1
           fi
           echo "✅ 無 :param::type 殘留"
-      - name: Placeholder view lint (CLAUDE.md release checklist)
-        run: |
-          if grep -rl "UnderConstructionView" apps/web/src/ 2>/dev/null; then
-            echo "❌ 仍有 UnderConstructionView placeholder"; exit 1
-          fi
-          echo "✅ 無 placeholder view"
 
   # ─────────────────────────────────────────────────────────────
-  # 前端：install + build（apps/web 真實 vite build）
+  # 前端：placeholder lint + install + build（apps/web 真實 vite build）
   # ─────────────────────────────────────────────────────────────
   frontend:
     needs: changes
@@ -77,6 +75,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Codex P2: placeholder lint 檢查 apps/web/src，移到 frontend job 才會在
+      # frontend-only PR 跑到（之前誤放在 backend job）
+      - name: Placeholder view lint (CLAUDE.md release checklist)
+        run: |
+          if grep -rl "UnderConstructionView" apps/web/src/ 2>/dev/null; then
+            echo "❌ 仍有 UnderConstructionView placeholder"; exit 1
+          fi
+          echo "✅ 無 placeholder view"
       - uses: pnpm/action-setup@v4
         with:
           version: 9
