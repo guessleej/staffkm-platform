@@ -20,7 +20,20 @@ class DocumentProcessor:
         ".csv":  "_load_csv",
         ".md":   "_load_text",
         ".txt":  "_load_text",
+        ".html": "_load_text",
+        # v5.9.22: 圖片 OCR
+        ".png":  "_load_image",
+        ".jpg":  "_load_image",
+        ".jpeg": "_load_image",
+        ".webp": "_load_image",
+        ".tiff": "_load_image",
+        ".bmp":  "_load_image",
     }
+
+    # v5.9.22: OCR 語言 (繁中 + 簡中 + 英文)
+    OCR_LANG = "chi_tra+chi_sim+eng"
+    # PDF 純文字層抽出少於此字數 → 視為掃描件，觸發 OCR fallback
+    OCR_PDF_TEXT_THRESHOLD = 20
 
     def load(self, file: BinaryIO, filename: str) -> str:
         ext = Path(filename).suffix.lower()
@@ -43,6 +56,17 @@ class DocumentProcessor:
         # PDF: %PDF
         if head.startswith(b"%PDF"):
             return ".pdf"
+        # v5.9.22: 圖片 magic bytes
+        if head.startswith(b"\x89PNG"):
+            return ".png"
+        if head.startswith(b"\xff\xd8\xff"):           # JPEG
+            return ".jpg"
+        if head.startswith(b"RIFF") and ext == ".webp":
+            return ".webp"
+        if head.startswith(b"II*\x00") or head.startswith(b"MM\x00*"):  # TIFF
+            return ".tiff"
+        if head.startswith(b"BM"):                     # BMP
+            return ".bmp"
         # DOCX/XLSX 等 Office Open XML：PK ZIP 容器
         if head.startswith(b"PK\x03\x04") or head.startswith(b"PK\x05\x06"):
             # 同樣是 PK，需以副檔名區分 docx / xlsx
@@ -66,9 +90,61 @@ class DocumentProcessor:
             return ext  # 最終回退到副檔名
 
     def _load_pdf(self, file: BinaryIO) -> str:
+        """v5.9.22 混合: 先抽文字層；幾乎抽不到字 (掃描件) → OCR fallback。"""
         from pypdf import PdfReader
-        reader = PdfReader(file)
-        return "\n\n".join(page.extract_text() or "" for page in reader.pages)
+        data = file.read()
+        file.seek(0)
+        import io as _io
+        text = ""
+        try:
+            reader = PdfReader(_io.BytesIO(data))
+            text = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception:
+            text = ""
+        # 文字層夠多 → 直接用（文字型 PDF，快且免費）
+        if len(text.strip()) >= self.OCR_PDF_TEXT_THRESHOLD:
+            return text
+        # 掃描件 / 圖片型 PDF → OCR
+        ocr_text = self._ocr_pdf(data)
+        # 兩者取較長的（避免 OCR 失敗時丟掉原本少量文字）
+        return ocr_text if len(ocr_text.strip()) > len(text.strip()) else text
+
+    def _ocr_pdf(self, data: bytes) -> str:
+        """v5.9.22: 掃描 PDF → pdf2image 轉頁圖 → tesseract OCR。"""
+        try:
+            import pytesseract
+            from pdf2image import convert_from_bytes
+        except ImportError:
+            return ""
+        try:
+            images = convert_from_bytes(data, dpi=200)
+        except Exception:
+            return ""
+        pages = []
+        for img in images:
+            try:
+                pages.append(pytesseract.image_to_string(img, lang=self.OCR_LANG))
+            except Exception:
+                continue
+        return "\n\n".join(p for p in pages if p.strip())
+
+    def _load_image(self, file: BinaryIO) -> str:
+        """v5.9.22: 圖片直接 tesseract OCR。"""
+        try:
+            import pytesseract
+            from PIL import Image
+        except ImportError as e:
+            raise ValueError(
+                "圖片 OCR 需 pytesseract + Pillow — 環境未安裝。"
+            ) from e
+        try:
+            img = Image.open(file)
+            text = pytesseract.image_to_string(img, lang=self.OCR_LANG)
+        except Exception as e:
+            raise ValueError(f"圖片 OCR 失敗：{e}。請確認圖片清晰可讀。")
+        if not text.strip():
+            raise ValueError("圖片 OCR 未辨識到任何文字（可能是純圖像 / 字太小 / 太模糊）。")
+        return text
 
     def _load_docx(self, file: BinaryIO) -> str:
         from docx import Document

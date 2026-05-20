@@ -4,7 +4,7 @@ FROM python:3.12-slim AS base
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagic1 poppler-utils tesseract-ocr tesseract-ocr-chi-tra curl \
+    libmagic1 poppler-utils tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-chi-sim curl \
     antiword \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r staffkm && useradd -r -g staffkm staffkm
