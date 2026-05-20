@@ -110,10 +110,11 @@ class DocumentProcessor:
         return ocr_text if len(ocr_text.strip()) > len(text.strip()) else text
 
     def _ocr_pdf(self, data: bytes) -> str:
-        """v5.9.22: 掃描 PDF → pdf2image 轉頁圖 → tesseract OCR。"""
+        """v5.9.22/v5.9.23: 掃描 PDF → pdf2image 轉頁圖 → OCR（引擎依設定）。"""
         try:
-            import pytesseract
             from pdf2image import convert_from_bytes
+            from PIL import Image  # noqa
+            import io as _io
         except ImportError:
             return ""
         try:
@@ -122,29 +123,87 @@ class DocumentProcessor:
             return ""
         pages = []
         for img in images:
-            try:
-                pages.append(pytesseract.image_to_string(img, lang=self.OCR_LANG))
-            except Exception:
-                continue
-        return "\n\n".join(p for p in pages if p.strip())
+            buf = _io.BytesIO()
+            img.save(buf, format="PNG")
+            txt = self._ocr_image_bytes(buf.getvalue())
+            if txt.strip():
+                pages.append(txt)
+        return "\n\n".join(pages)
 
     def _load_image(self, file: BinaryIO) -> str:
-        """v5.9.22: 圖片直接 tesseract OCR。"""
-        try:
-            import pytesseract
-            from PIL import Image
-        except ImportError as e:
-            raise ValueError(
-                "圖片 OCR 需 pytesseract + Pillow — 環境未安裝。"
-            ) from e
-        try:
-            img = Image.open(file)
-            text = pytesseract.image_to_string(img, lang=self.OCR_LANG)
-        except Exception as e:
-            raise ValueError(f"圖片 OCR 失敗：{e}。請確認圖片清晰可讀。")
+        """v5.9.22/v5.9.23: 圖片 OCR（引擎依設定：tesseract / vision）。"""
+        data = file.read()
+        text = self._ocr_image_bytes(data)
         if not text.strip():
             raise ValueError("圖片 OCR 未辨識到任何文字（可能是純圖像 / 字太小 / 太模糊）。")
         return text
+
+    # ── OCR 引擎分派 ────────────────────────────────────────────────
+    def _ocr_image_bytes(self, img_bytes: bytes) -> str:
+        """依 settings.OCR_ENGINE 選引擎；vision 失敗可 fallback tesseract。"""
+        from app.config import settings
+        engine = (settings.OCR_ENGINE or "tesseract").lower()
+        if engine == "vision":
+            try:
+                txt = self._ocr_vision(img_bytes)
+                if txt.strip():
+                    return txt
+                log.warning("vision_ocr_empty_fallback_tesseract")
+            except Exception as e:
+                log.warning("vision_ocr_failed", error=str(e)[:200])
+                if not settings.VISION_OCR_FALLBACK_TESSERACT:
+                    raise ValueError(f"Vision OCR 失敗：{e}")
+            # fallback
+            return self._ocr_tesseract(img_bytes)
+        return self._ocr_tesseract(img_bytes)
+
+    def _ocr_tesseract(self, img_bytes: bytes) -> str:
+        try:
+            import pytesseract
+            from PIL import Image
+            import io as _io
+        except ImportError:
+            return ""
+        try:
+            img = Image.open(_io.BytesIO(img_bytes))
+            return pytesseract.image_to_string(img, lang=self.OCR_LANG)
+        except Exception as e:
+            log.warning("tesseract_ocr_failed", error=str(e)[:200])
+            return ""
+
+    def _ocr_vision(self, img_bytes: bytes) -> str:
+        """v5.9.23: Vision LLM OCR — 走 OpenAI-compat /chat/completions
+        (地端 Ollama vision model 預設；改 base_url/api_key 可接 cloud)。"""
+        import base64, httpx
+        from app.config import settings
+
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        base = (settings.VISION_OCR_BASE_URL or "").rstrip("/")
+        url = f"{base}/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if settings.VISION_OCR_API_KEY:
+            headers["Authorization"] = f"Bearer {settings.VISION_OCR_API_KEY}"
+        payload = {
+            "model": settings.VISION_OCR_MODEL,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text":
+                        "你是 OCR 引擎。請逐字提取這張圖片中的所有文字，"
+                        "原樣輸出（保留換行 / 表格結構），不要加任何說明、標題或評論。"
+                        "若圖片沒有文字就回空字串。"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                ],
+            }],
+            "temperature": 0,
+            "stream": False,
+        }
+        with httpx.Client(timeout=120.0) as client:
+            resp = client.post(url, json=payload, headers=headers)
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+        data = resp.json()
+        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
 
     def _load_docx(self, file: BinaryIO) -> str:
         from docx import Document

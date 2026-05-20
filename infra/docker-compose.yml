@@ -373,6 +373,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CHUNK_SIZE: ${CHUNK_SIZE:-512}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-64}
+      # v5.9.23: OCR 引擎 — tesseract (預設地端) | vision (地端 Ollama vision model)
+      OCR_ENGINE: ${OCR_ENGINE:-tesseract}
+      VISION_OCR_MODEL: ${VISION_OCR_MODEL:-llama3.2-vision}
+      VISION_OCR_BASE_URL: ${VISION_OCR_BASE_URL:-http://embedder:11434/v1}
+      VISION_OCR_API_KEY: ${VISION_OCR_API_KEY:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
@@ -416,6 +421,11 @@ services:
       MINIO_SECURE: "false"
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # v5.9.23: OCR 引擎 (worker 也要解析檔案)
+      OCR_ENGINE: ${OCR_ENGINE:-tesseract}
+      VISION_OCR_MODEL: ${VISION_OCR_MODEL:-llama3.2-vision}
+      VISION_OCR_BASE_URL: ${VISION_OCR_BASE_URL:-http://embedder:11434/v1}
+      VISION_OCR_API_KEY: ${VISION_OCR_API_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME | grep -q OK || exit 1"]
       interval: 30s

@@ -32,5 +32,16 @@ class Settings(BaseSettings):
         ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp",
     }
 
+    # v5.9.23: OCR 引擎切換
+    #   "tesseract" (預設) — 地端 Tesseract LSTM，離線零費用
+    #   "vision"           — Vision LLM OCR（預設也走地端 Ollama vision model）
+    OCR_ENGINE: str = "tesseract"
+    # Vision OCR：預設指向內網 Ollama（地端優先）。改 cloud 就換 base_url + api_key + model
+    VISION_OCR_MODEL: str = "llama3.2-vision"
+    VISION_OCR_BASE_URL: str = "http://embedder:11434/v1"
+    VISION_OCR_API_KEY: str = ""   # 地端 Ollama 不需要；cloud (Kimi/OpenAI) 才填
+    # Vision OCR 失敗 → 是否自動 fallback 回 Tesseract
+    VISION_OCR_FALLBACK_TESSERACT: bool = True
+
 
 settings = Settings()
