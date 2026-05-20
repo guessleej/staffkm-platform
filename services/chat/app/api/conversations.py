@@ -195,11 +195,12 @@ async def delete_conversation(
     session: AsyncSession = Depends(get_session),
 ):
     # v5.7.2: 補 ownership check — 之前任何人都能刪別人的對話
+    # v5.9.13: 例外放行 anonymous 對話（早期版本未登入建立的、誰登入都能清）
     user_id = getattr(request.state, "user_id", None) if request else None
     conv = await session.get(Conversation, conv_id)
     if not conv or not conv.is_active:
         raise HTTPException(status_code=404, detail="對話不存在")
-    if user_id and conv.user_id != user_id:
+    if user_id and conv.user_id not in (user_id, "anonymous"):
         raise HTTPException(status_code=403, detail="無權刪除此對話")
     conv.is_active = False
     # get_session yield 後自動 commit
