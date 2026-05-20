@@ -1,13 +1,17 @@
 <template>
-  <div ref="rootRef" class="relative">
+  <div ref="rootRef" class="relative inline-block">
     <button
-      @click.stop="open = !open"
+      ref="btnRef"
+      @click.stop="onToggle"
       class="px-2 text-fg-tertiary hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors py-1.5"
       :title="alreadyIn ? '已加入某 Project — 點擊管理' : '加入 Project'"
     >
       <SIcon :name="alreadyIn ? 'folder' : 'plus'" :size="14" />
     </button>
 
+    <!-- v5.9.20: Teleport 到 body 避免被 card 的 overflow-hidden 截掉
+         配合 fixed positioning 計算 btn rect 定位 -->
+    <Teleport to="body">
     <transition
       enter-active-class="transition duration-150 ease-out"
       enter-from-class="opacity-0 translate-y-1"
@@ -16,7 +20,9 @@
     >
       <div
         v-if="open"
-        class="absolute right-0 top-full mt-1 w-56 bg-surface-raised border border-neutral-200 rounded-xl shadow-lg z-30 overflow-hidden"
+        ref="popoverRef"
+        :style="popoverStyle"
+        class="fixed w-56 bg-surface-raised border border-neutral-200 rounded-xl shadow-lg z-50 overflow-hidden"
         @click.stop
       >
         <div class="px-3 py-2 border-b border-neutral-100">
@@ -59,11 +65,12 @@
         </div>
       </div>
     </transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { onClickOutside } from '@vueuse/core'
 import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
@@ -78,7 +85,32 @@ const projects = useProjectStore()
 const open = ref(false)
 const busy = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
-onClickOutside(rootRef, () => { open.value = false })
+const btnRef = ref<HTMLButtonElement | null>(null)
+const popoverRef = ref<HTMLElement | null>(null)
+const popoverStyle = ref<Record<string, string>>({})
+
+// 點按鈕外關閉（含 teleport 後的 popover）
+onClickOutside(rootRef, (e) => {
+  // 若點到 popover 本體就不關
+  if (popoverRef.value && popoverRef.value.contains(e.target as Node)) return
+  open.value = false
+})
+
+async function onToggle() {
+  open.value = !open.value
+  if (open.value) {
+    await nextTick()
+    // 計算 popover 位置：對齊按鈕右邊、下方
+    const r = btnRef.value?.getBoundingClientRect()
+    if (r) {
+      const popoverW = 224 // w-56 = 14rem ≈ 224px
+      // 右對齊
+      const left = Math.max(8, r.right - popoverW)
+      const top = r.bottom + 4
+      popoverStyle.value = { left: `${left}px`, top: `${top}px` }
+    }
+  }
+}
 
 const fieldName = computed(() => props.kind === 'kb' ? 'knowledge_base_ids' : 'application_ids')
 
