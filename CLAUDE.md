@@ -179,6 +179,10 @@ docs/
 | router-view + Transition mode='out-in' 連點 race | 改用 watch + CSS key toggle |
 | 跑了 v3-v5 十幾個 milestone 才發現 `/admin/users` 跟 `/admin/system` 一直是 `UnderConstructionView` placeholder（v5.0.1 才補）| 廣度做了、深度沒收尾的典型債 — 加進下面 release checklist |
 | NOT NULL JSONB / 陣列 column INSERT 帶 None → `NotNullViolationError` 被 starlette 吞、前端只看到 generic「儲存失敗」 | INSERT 時 fallback 用 `'{}'` / `'[]'` 字串，**不能傳 None**；v5.0.13 從 admin/models 新增 Moonshot provider 修出 |
+| Gateway router 透明 forward `/api/v1/foo/{path}` → agent / knowledge service v4.0 後只接 workspace-scoped `/api/v1/workspace/{ws}/foo/...` → 404 / 卡死 | 寫 gateway router 必須注入 `X-Workspace-ID` header → workspace prefix。pattern 看 `routers/agent.py` / `routers/knowledge.py` 的 `_target()`；v5.9.10 / v5.9.16 / v5.9.17 三輪修補（agent / chat / knowledge / applications / api_keys / projects 都中過） |
+| 前端 raw `fetch()` 繞過 axios interceptor → 漏 `X-Workspace-ID` header → gateway 退回 legacy → 後端 404 → 對話 stream 空回應 | 任何前端 raw fetch 都要手動注入 ws header。`apps/web/src/api/chat.ts` 用 `dynamic import('../stores/workspace')` 拿 `currentId`；v5.9.14 從「對話無法回應」修出 |
+| Chat service 沒有 GatewayHeadersMiddleware → 所有 conversation 的 `user_id` 都 fallback `"anonymous"` → 跨 user 不隔離 + ownership check 失敗 | 任何 backend service 接 user-scoped resource 都要 GatewayHeadersMiddleware（從 X-User-ID header 寫 request.state.user_id）；v5.9.13 從「刪掉的對話又出現」修出 |
+| LLM 端 vendor 自動掃描公開通訊中的 sk-XXX 格式 key 並 auto-revoke | API key **永遠**只能進系統 settings 畫面，不能貼到任何對話 / Slack / GitHub / Notion；debug 時只貼前後 6 字元 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
