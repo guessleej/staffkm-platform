@@ -150,13 +150,17 @@
             </div>
           </article>
 
-          <!-- 串流中的回應 -->
-          <article v-if="streamingText" class="text-[15px] leading-7">
+          <!-- v5.9.15: 移除重複的串流 article — store.messages 透過 appendToken
+               已 reactive 累積，這裡 streamingText 會顯示第二次（duplicate）。
+               改成：sending 狀態下在最後一條 assistant message 末加一個 cursor。
+               若還沒有 assistant message（剛起步）顯示一個 placeholder。 -->
+          <article v-if="sending && !convStore.messages.some(m => m.role === 'assistant')"
+                   class="text-[15px] leading-7">
             <header class="mb-1 text-[11px] uppercase tracking-widest text-neutral-400">
               staffKM
             </header>
-            <div class="whitespace-pre-wrap text-neutral-800">
-              {{ streamingText }}<span class="animate-pulse">▌</span>
+            <div class="whitespace-pre-wrap text-neutral-500">
+              <span class="animate-pulse">思考中…▌</span>
             </div>
           </article>
         </div>
