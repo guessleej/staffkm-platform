@@ -16,6 +16,7 @@ class DocumentProcessor:
         ".docx": "_load_docx",
         ".doc":  "_load_doc_legacy",   # OLE2 → antiword
         ".xlsx": "_load_excel",
+        ".xls":  "_load_xls_legacy",   # v5.9.19: OLE2 舊版 Excel → xlrd
         ".csv":  "_load_csv",
         ".md":   "_load_text",
         ".txt":  "_load_text",
@@ -50,11 +51,9 @@ class DocumentProcessor:
             return ".docx"
         # 舊版 OLE2 (.doc / .xls)：D0 CF 11 E0 A1 B1 1A E1
         if head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
-            # 用 antiword 處理 — 副檔名為 .xls 則無支援
+            # v5.9.19: 加 xlrd 支援，.xls 不再 raise
             if ext == ".xls":
-                raise ValueError(
-                    "偵測到舊版 Excel 文件 (.xls)。請以 Excel 開啟後另存為「.xlsx」再上傳。"
-                )
+                return ".xls"
             return ".doc"
         # 純文字 / Markdown / CSV 沒有固定 magic bytes
         if ext in (".txt", ".md", ".csv"):
@@ -110,6 +109,35 @@ class DocumentProcessor:
         for ws in wb.worksheets:
             for row in ws.iter_rows(values_only=True):
                 cells = [str(c) for c in row if c is not None]
+                if cells:
+                    rows.append("\t".join(cells))
+        return "\n".join(rows)
+
+    def _load_xls_legacy(self, file: BinaryIO) -> str:
+        """v5.9.19: 舊版 .xls (OLE2) 用 xlrd 2.x 解析。"""
+        try:
+            import xlrd
+        except ImportError as e:
+            raise ValueError(
+                "舊版 Excel (.xls) 解析需 xlrd library — 環境未安裝。"
+                "請以 Excel 開啟後另存為 .xlsx 再上傳。"
+            ) from e
+        try:
+            data = file.read()
+            wb = xlrd.open_workbook(file_contents=data)
+        except Exception as e:
+            raise ValueError(
+                f"舊版 Excel (.xls) 解析失敗：{e}。"
+                "請確認檔案未損毀，或以 Excel 開啟後另存為 .xlsx 再上傳。"
+            )
+        rows = []
+        for sheet in wb.sheets():
+            for r_idx in range(sheet.nrows):
+                cells = []
+                for c in sheet.row_values(r_idx):
+                    if c == "" or c is None:
+                        continue
+                    cells.append(str(c))
                 if cells:
                     rows.append("\t".join(cells))
         return "\n".join(rows)
