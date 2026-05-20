@@ -1,16 +1,15 @@
-name: RAG eval weekly bench
+name: RAG eval bench (manual)
 
-# 每週日 02:00 UTC 自動跑 RAG bench，append 結果到 docs/perf/v3.3-rag-bench-history.md，
-# 並用 hit@5 threshold gate 偵測 retrieval 退化。
+# v5.9.26: 停掉 cron 自動排程 — 此 bench 需在 runner 起整套 docker stack +
+# 下載 Ollama models (gemma4 9.6GB + bge-m3 1.2GB)，GitHub-hosted runner 跑不動
+# (OOM / timeout) → 每週必失敗寄信。改成只能手動觸發 (workflow_dispatch)，
+# 建議在 >=16GB 的 self-hosted runner 跑。
 #
 # 注意：
-# - 首次 enable 此 workflow 前確認 GH runner 有夠記憶體（>=8GB）— 起 docker compose 整套很重。
-# - 預設未跑 reranker container（cold start ~120s），如需請於 P5+ 加入 `--profile reranker`。
+# - 起 docker compose 整套很重；embedder 首次會拉 Ollama models。
 # - SECRET_KEY / POSTGRES_PASSWORD / REDIS_PASSWORD 走 CI-only 預設值，僅供 ephemeral 測試。
 
 on:
-  schedule:
-    - cron: '0 2 * * 0'
   workflow_dispatch:
 
 jobs:
@@ -52,16 +51,18 @@ jobs:
       - name: Login → get token & workspace
         id: token
         run: |
+          # v5.9.26: login 回 {data:{access_token}}，token 在 .data.access_token
           TOKEN=$(curl -s -X POST http://localhost/api/v1/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"Admin@2026"}' | jq -r .access_token)
+            -d '{"username":"admin","password":"Admin@2026"}' | jq -r '.data.access_token')
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "::error::failed to obtain admin token"
             exit 1
           fi
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
           WS=$(curl -s http://localhost/api/v1/workspaces \
-            -H "Authorization: Bearer $TOKEN" | jq -r '.data[0].id')
+            -H "Authorization: Bearer $TOKEN" -H "X-Workspace-ID: 00000000-0000-0000-0000-000000000001" \
+            | jq -r '.data[0].id // .data.items[0].id')
           echo "workspace=$WS" >> $GITHUB_OUTPUT
 
       - name: Seed eval KB
