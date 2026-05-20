@@ -1,6 +1,7 @@
 """Chat Service — 對話管理服務"""
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 import structlog
@@ -29,6 +30,18 @@ instrument_fastapi(app, service_name="staffkm-chat")
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+# v5.9.13: 從 gateway 注入的 X-User-ID 恢復到 request.state，
+# conversations.py 才能正確 scope 對話 / 不再 fallback "anonymous"
+class GatewayHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request.state.user_id = request.headers.get("X-User-ID") or None
+        request.state.roles   = [r for r in request.headers.get("X-User-Roles", "").split(",") if r]
+        return await call_next(request)
+
+
+app.add_middleware(GatewayHeadersMiddleware)
 app.include_router(conv_router, prefix="/api/v1/chat/conversations", tags=["對話管理"])
 # v2.7：公開分享對話（無需 JWT）
 app.include_router(conv_public_router, prefix="/api/v1/public/conversations", tags=["公開對話分享 (v2.7)"])
