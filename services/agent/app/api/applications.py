@@ -314,7 +314,8 @@ async def update_application(
 
     for field, value in updates.items():
         if field in ("suggested_questions", "knowledge_base_ids", "skill_ids", "config"):
-            set_parts.append(f"{field} = :{field}::jsonb")
+            # v5.9.24: 修 CLAUDE.md §8 asyncpg 雷 — :param::jsonb 不認，用 CAST
+            set_parts.append(f"{field} = CAST(:{field} AS jsonb)")
             params[field] = json.dumps(value, ensure_ascii=False)
         elif field == "llm_model_id":
             set_parts.append(f"{field} = :{field}")
