@@ -104,14 +104,22 @@
             :style="{ animationDelay: (idx * 40) + 'ms' }"
             :class="batch.isSelected(kb.id) ? 'border-brand-400 ring-1 ring-brand-200' : ''"
           >
+            <!-- v5.9.18: checkbox 重設計
+                 - 平時真隱形 (無 border / 無 bg)，hover 才浮現
+                 - 移到 icon 內部 — hover 時取代 IconKnowledge 顯示
+                 - 選中時恆顯 brand 色實心
+                 不再跟右上「正常」狀態 badge 撞位 -->
             <button
-              class="absolute top-3 right-3 z-10 w-5 h-5 flex items-center justify-center rounded border transition opacity-0 group-hover:opacity-100"
+              class="absolute top-[18px] left-[18px] z-10 w-9 h-9 flex items-center justify-center rounded-lg
+                     transition-all duration-150"
               :class="batch.isSelected(kb.id)
-                ? 'bg-brand-600 border-brand-600 text-white opacity-100'
-                : 'bg-surface-raised border-neutral-300 hover:border-brand-400 text-transparent'"
+                ? 'bg-brand-600 text-white opacity-100 shadow-sm'
+                : 'bg-white/85 backdrop-blur-sm ring-1 ring-brand-300 text-brand-600 opacity-0 group-hover:opacity-100'"
               @click.stop="batch.toggle(kb.id)"
+              :title="batch.isSelected(kb.id) ? '取消選取' : '選取此 KB'"
+              :aria-pressed="batch.isSelected(kb.id)"
             >
-              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
               </svg>
             </button>
