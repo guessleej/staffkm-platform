@@ -162,6 +162,21 @@
                 <span>Workflow 寫入</span>
               </div>
             </div>
+            <!-- v5.9.21: 一鍵建立綁定此 KB 的 RAG 對話助理 -->
+            <div class="px-3 pt-0 pb-2">
+              <button
+                @click="onCreateRagApp(kb)"
+                :disabled="ragBusyKbId === kb.id"
+                class="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-white
+                       bg-gradient-to-r from-brand-500 to-brand-700 hover:from-brand-600 hover:to-brand-800
+                       py-2 rounded-lg transition disabled:opacity-50"
+                title="自動建立一個只查此知識庫的 RAG 對話助理"
+              >
+                <SIcon :name="ragBusyKbId === kb.id ? 'loader' : 'sparkles'" :size="14"
+                       :class="ragBusyKbId === kb.id ? 'animate-spin' : ''" />
+                {{ ragBusyKbId === kb.id ? '建立中…' : '建立 RAG 對話助理' }}
+              </button>
+            </div>
             <div class="px-3 pb-3 pt-0 flex gap-1.5">
               <router-link
                 :to="`/knowledge/${kb.id}/documents`"
@@ -505,6 +520,41 @@ import AttachToProjectButton from '../../components/project/AttachToProjectButto
 import ResourceRelationsPanel from '../../components/common/ResourceRelationsPanel.vue'
 import { SIcon } from '@staffkm/ui-kit'
 import { useProjectStore } from '../../stores/project'
+import { useRouter } from 'vue-router'
+import { applicationApi } from '../../api/application'
+
+const router = useRouter()
+
+// v5.9.21: 一鍵把單一 KB 變成 RAG 對話助理
+const ragBusyKbId = ref<string | null>(null)
+async function onCreateRagApp(kb: any) {
+  if (ragBusyKbId.value) return
+  ragBusyKbId.value = kb.id
+  try {
+    const { data } = await applicationApi.create({
+      name: `${kb.name} 助理`,
+      description: `從知識庫「${kb.name}」自動建立的 RAG 對話助理`,
+      type: 'simple',
+      system_prompt:
+        `你是「${kb.name}」知識庫的專屬助理。請只根據提供的參考資料回答問題，` +
+        `若資料中沒有明確答案，請誠實說明並提供一般性建議，不要編造內容。回答使用繁體中文。`,
+      welcome_message: `你好！我會根據「${kb.name}」的內容回答你的問題，請問有什麼需要協助的嗎？`,
+      knowledge_base_ids: [kb.id],
+      is_public: false,
+    })
+    const appId = data?.data?.id || data?.id
+    if (appId) {
+      // 直接跳到新 application 的對話頁
+      router.push(`/applications/${appId}/chat`)
+    } else {
+      alert('已建立 RAG 助理，請至「應用」頁查看')
+    }
+  } catch (e: any) {
+    alert(e?.response?.data?.detail || e?.message || '建立 RAG 助理失敗')
+  } finally {
+    ragBusyKbId.value = null
+  }
+}
 
 const kbs = ref<any[]>([])
 const folders = ref<KbFolder[]>([])
