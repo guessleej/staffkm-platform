@@ -156,10 +156,13 @@ async def chat_with_application(
         sess_factory = _db._session_factory
         if sess_factory is None:
             # 沒 DB 設定時退化為純 streaming（理論上不該發生）
-            async for token in agent.stream_response(ctx):
+            async for ev in agent.stream_events(ctx):
                 if await request.is_disconnected():
                     break
-                yield {"event": "token", "data": token}
+                if ev.get("type") == "tool_call":
+                    yield {"event": "tool_call", "data": json.dumps(ev, ensure_ascii=False)}
+                elif ev.get("type") == "token":
+                    yield {"event": "token", "data": ev.get("data") or ""}
             yield {"event": "citations", "data": json.dumps(ctx.citations, ensure_ascii=False)}
             yield {"event": "done", "data": "[DONE]"}
             return
@@ -178,11 +181,19 @@ async def chat_with_application(
                     feature="chat",
                 ) as meter:
                     try:
-                        async for token in agent.stream_response(ctx):
+                        async for ev in agent.stream_events(ctx):
                             if await request.is_disconnected():
                                 break
-                            out_buffer.append(token or "")
-                            yield {"event": "token", "data": token}
+                            if ev.get("type") == "tool_call":
+                                # 任務 3：tool_call SSE event（前端 ToolCallBlock 顯示）
+                                yield {
+                                    "event": "tool_call",
+                                    "data": json.dumps(ev, ensure_ascii=False),
+                                }
+                            elif ev.get("type") == "token":
+                                token = ev.get("data") or ""
+                                out_buffer.append(token)
+                                yield {"event": "token", "data": token}
 
                         yield {
                             "event": "citations",

@@ -32,6 +32,12 @@ class Settings(BaseSettings):
 
     MAX_CONTEXT_MESSAGES: int = 20
 
+    # ── Agent function-calling loop（MaxKB v2 智能體）──────────────
+    # 綁了 tool 的 application 走 ReAct 式 function-calling；safety 上限避免無限迴圈
+    AGENT_MAX_ITERATIONS: int = 5
+    # cross_encoder 地端 reranker container endpoint（v3.4 P3 profile=reranker）
+    RERANKER_ENDPOINT: str = "http://reranker:8000"
+
     # ── v3.4 P2: SMTP for quota alert email channel ─────────────
     # 沒設 SMTP_HOST 時 email dispatch 仍 log-only（dev 友善）
     SMTP_HOST:     str = ""

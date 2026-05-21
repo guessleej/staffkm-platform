@@ -132,6 +132,14 @@ export const useConversationStore = defineStore('conversation', () => {
     if (msg) msg.content += token
   }
 
+  /** MaxKB v2.7：append 一筆 function-calling 工具呼叫紀錄到訊息 */
+  function appendToolCall(msgId: string, call: ToolCall) {
+    const msg = messages.value.find(m => m.id === msgId)
+    if (!msg) return
+    if (!msg.tool_calls) msg.tool_calls = []
+    msg.tool_calls.push(call)
+  }
+
   function finishAssistantMessage(msgId: string, citations: Citation[]) {
     const msg = messages.value.find(m => m.id === msgId)
     if (msg) {
@@ -155,6 +163,7 @@ export const useConversationStore = defineStore('conversation', () => {
     addUserMessage,
     startAssistantMessage,
     appendToken,
+    appendToolCall,
     finishAssistantMessage,
   }
 })

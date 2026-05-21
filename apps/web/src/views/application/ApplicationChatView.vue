@@ -112,7 +112,16 @@
               {{ application?.icon || 'AI' }}
             </div>
             <div class="min-w-0 flex-1">
-              <div class="bg-surface-raised border border-neutral-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+              <!-- MaxKB v2.7：function-calling 工具呼叫過程（折疊） -->
+              <ToolCallBlock
+                v-if="msg.tool_calls?.length"
+                :calls="msg.tool_calls"
+                class="mb-2"
+              />
+              <div
+                v-if="msg.content || msg.streaming"
+                class="bg-surface-raised border border-neutral-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm"
+              >
                 <MarkdownMessage v-if="msg.content" :content="msg.content" />
                 <div v-if="msg.streaming" class="flex gap-1 mt-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0ms"/>
@@ -178,6 +187,7 @@ import { applicationApi, type Application } from '../../api/application'
 import { SIcon } from '@staffkm/ui-kit'
 import ConversationCostBadge from '../../components/chat/ConversationCostBadge.vue'
 import MarkdownMessage from '../../components/chat/MarkdownMessage.vue'
+import ToolCallBlock from '../../components/chat/ToolCallBlock.vue'
 
 const route = useRoute()
 const convStore = useConversationStore()
@@ -307,6 +317,19 @@ async function sendMessage() {
             scrollBottom()
           } else if (pendingEvent === 'citations') {
             try { citations = JSON.parse(data) } catch { /* ignore */ }
+          } else if (pendingEvent === 'tool_call') {
+            // MaxKB v2.7：function-calling 工具呼叫過程 → 折疊式 ToolCallBlock
+            try {
+              const tc = JSON.parse(data)
+              convStore.appendToolCall(assistantMsg.id, {
+                name: tc.name,
+                status: tc.status === 'error' ? 'error' : 'success',
+                input: tc.input ?? null,
+                output: tc.output ?? null,
+                error: tc.error ?? null,
+              })
+              scrollBottom()
+            } catch { /* ignore malformed tool_call */ }
           } else if (pendingEvent === 'error') {
             convStore.appendToken(assistantMsg.id, `\n\n錯誤：${data}`)
           }
