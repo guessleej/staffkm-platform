@@ -34,7 +34,7 @@
       <!-- search -->
       <div class="relative">
         <SIcon name="search" :size="14" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-tertiary pointer-events-none" />
-        <input v-model="searchQ" @keydown.enter="onSearch"
+        <input v-model="searchQ" @keydown.enter="(e) => { if (!(e as any).isComposing) onSearch() }"
                placeholder="搜尋記憶..."
                class="h-9 pl-8 pr-3 w-64 text-sm border border-neutral-200 rounded-lg focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none" />
       </div>

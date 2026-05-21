@@ -27,7 +27,7 @@
             placeholder="搜尋指令或頁面…"
             @keydown.down.prevent="move(1)"
             @keydown.up.prevent="move(-1)"
-            @keydown.enter.prevent="exec()"
+            @keydown.enter="(e) => { if (!(e as any).isComposing) { e.preventDefault(); exec() } }"
           />
           <ul
             ref="listRef"

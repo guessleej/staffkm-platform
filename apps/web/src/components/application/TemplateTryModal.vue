@@ -65,7 +65,7 @@
             <div class="flex gap-2">
               <input
                 v-model="draft"
-                @keydown.enter.prevent="send(draft)"
+                @keydown.enter="(e) => { if (!(e as any).isComposing) { e.preventDefault(); send(draft) } }"
                 :disabled="sending"
                 placeholder="輸入訊息試試看..."
                 class="flex-1 h-10 px-3 text-sm rounded-lg border border-neutral-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none disabled:opacity-50"

@@ -9,6 +9,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM base AS runtime
 COPY --chown=staffkm:staffkm services/integration/app ./app
+# v5.9.30: 補 staffkm_core — main.py import staffkm_core.observability，
+# 之前漏 COPY → ModuleNotFoundError → crash loop
+COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core ./staffkm_core
 USER staffkm
 EXPOSE 8004
 HEALTHCHECK --interval=20s --timeout=5s --start-period=30s --retries=5 \
