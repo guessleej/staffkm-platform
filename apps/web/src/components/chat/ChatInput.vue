@@ -10,7 +10,7 @@
       rows="1"
       class="flex-1 resize-none bg-transparent outline-none text-[15px] leading-6 text-neutral-900 placeholder:text-neutral-400 max-h-48"
       @input="onInput"
-      @keydown.enter.exact.prevent="submit"
+      @keydown.enter.exact="onEnterKey"
     />
     <button
       type="button"
@@ -51,6 +51,12 @@ function onInput(e: Event) {
 function submit() {
   if (!canSubmit.value || props.disabled) return
   emit('submit')
+}
+// v5.9.29: IME 組字中按 Enter (選字確認) 不送出
+function onEnterKey(e: KeyboardEvent) {
+  if (e.isComposing || (e as any).keyCode === 229) return
+  e.preventDefault()
+  submit()
 }
 
 function autoResize() {

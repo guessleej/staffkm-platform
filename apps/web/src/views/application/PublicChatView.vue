@@ -76,7 +76,7 @@
       <div class="flex gap-3 items-end max-w-3xl mx-auto">
         <textarea
           v-model="input"
-          @keydown.enter.exact.prevent="() => sendMessage()"
+          @keydown.enter.exact="onEnterKey"
           rows="1"
           placeholder="輸入問題…（Enter 送出）"
           :disabled="streaming"
@@ -134,6 +134,13 @@ function scrollBottom() {
       msgContainer.value.scrollTop = msgContainer.value.scrollHeight
     }
   })
+}
+
+// v5.9.29: IME 組字中按 Enter (選字確認) 不送出
+function onEnterKey(e: KeyboardEvent) {
+  if (e.isComposing || (e as any).keyCode === 229) return
+  e.preventDefault()
+  sendMessage()
 }
 
 async function sendMessage(text?: string) {

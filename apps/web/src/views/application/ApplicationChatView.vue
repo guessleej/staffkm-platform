@@ -146,7 +146,7 @@
         <div class="flex gap-3 items-end max-w-4xl mx-auto">
           <textarea
             v-model="input"
-            @keydown.enter.exact.prevent="sendMessage"
+            @keydown.enter.exact="onEnterKey"
             @keydown.enter.shift.exact="input += '\n'"
             rows="1"
             class="flex-1 resize-none rounded-xl border border-neutral-200 px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
@@ -225,6 +225,13 @@ async function sendSuggestedQuestion(q: string) {
   await newConversation()
   input.value = q
   await sendMessage()
+}
+
+// v5.9.29: IME 組字中按 Enter (選字確認) 不能送出 — 判斷 isComposing
+function onEnterKey(e: KeyboardEvent) {
+  if (e.isComposing || (e as any).keyCode === 229) return
+  e.preventDefault()
+  sendMessage()
 }
 
 async function sendMessage() {
