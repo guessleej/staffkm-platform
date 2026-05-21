@@ -1,0 +1,40 @@
+name: E2E smoke (manual)
+
+# v5.10.1: 完整使用者流程 smoke test (login → 對話串流 → KB → 應用 → RAG)。
+# 需起整套 docker stack + Ollama models，GitHub-hosted runner 跑不動 (OOM)
+# → 只能手動觸發 (workflow_dispatch)，建議 >=16GB self-hosted runner。
+# 本機跑: BASE=http://localhost python tests/e2e_smoke.py
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bring up stack
+        working-directory: infra
+        env:
+          POSTGRES_PASSWORD: ci_pass
+          SECRET_KEY: ci_secret_key_for_testing_only_32chars
+          REDIS_PASSWORD: ci_redis
+        run: docker compose up -d --wait
+      - name: Wait for gateway
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost/api/v1/health > /dev/null && break || sleep 5
+          done
+          curl -sf http://localhost/api/v1/health || (echo "gateway not healthy"; exit 1)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install --quiet httpx
+      - name: Run e2e smoke
+        run: BASE=http://localhost ADMIN_PW=Admin@2026 python tests/e2e_smoke.py
+      - name: Tear down
+        if: always()
+        working-directory: infra
+        run: docker compose down -v
