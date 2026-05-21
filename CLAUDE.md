@@ -198,7 +198,9 @@ grep -cE 'to="/[a-z]' apps/web/src/views/dashboard/DashboardLayout.vue
 # 拿到數字 N → 手動點過 N 個 nav，每個都要看到非 placeholder 內容
 
 # 3. asyncpg dialect 雷掃描（CLAUDE.md §8 紀律）— 避免 500 沒 log 的悶炸
-grep -rnE ':[a-z_]+::(jsonb|vector|uuid|int|text|timestamptz|date|inet|bool)' \
+#    v5.10.5：pattern 補 f-string 內插變體 :{var}::type（原本只抓字面 :name::type，
+#    害 _generic_crud / app_versions 的 :{col}::jsonb 潛伏；test_landmine_guards 同步強化）
+grep -rnE ':\{?[a-z_][a-z0-9_]*\}?::(jsonb|vector|uuid|int|text|timestamptz|date|inet|bool)' \
     services/ packages/python/ --include="*.py" 2>/dev/null \
     | grep -v __pycache__ | grep -v "/alembic/versions/"
 # 預期：no matches。有的話一律改 CAST(:param AS type)
