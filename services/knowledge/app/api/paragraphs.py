@@ -132,8 +132,7 @@ async def delete_paragraph(
 # ═══════════════════════════════════════════════════════════════════════
 #  Round 10-2：段落層級 Q&A 生成 / 編輯
 # ═══════════════════════════════════════════════════════════════════════
-from pydantic import BaseModel, Field
-from typing import Literal
+# (BaseModel / Field / Literal 已在檔頭 import，此處不重複 — v5.9.34 ruff F811 修)
 
 
 class QAGenerateReq(BaseModel):

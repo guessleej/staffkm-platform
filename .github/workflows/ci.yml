@@ -40,9 +40,10 @@ jobs:
   # 後端：Python 語法編譯檢查 + CLAUDE.md §8 asyncpg dialect lint
   # （repo 用 per-service requirements.txt，無 uv.lock / 統一 pyproject）
   # ─────────────────────────────────────────────────────────────
+  # 後端品質：compile + ruff(高訊號) + pytest(雷區守衛 + 純邏輯單元)
+  # 永遠跑 — 雷區守衛掃前後端，不依 path filter
+  # ─────────────────────────────────────────────────────────────
   backend:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,21 +51,13 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile check (py_compile 全 services + packages)
-        run: |
-          python -m compileall -q services packages/python || exit 1
-      - name: asyncpg dialect lint (CLAUDE.md §8)
-        run: |
-          set -e
-          echo "▶ 掃 :param::type（asyncpg 不認，應改 CAST）"
-          HITS=$(grep -rnE ':[a-z_]+::(jsonb|vector|uuid|int|text|timestamptz|date|inet|bool)' \
-            services/ packages/python/ --include="*.py" 2>/dev/null \
-            | grep -v __pycache__ | grep -v "/alembic/versions/" \
-            | grep -v "CLAUDE.md\|# " || true)
-          if [ -n "$HITS" ]; then
-            echo "❌ 發現 :param::type 用法（請改 CAST(:param AS type)）："
-            echo "$HITS"; exit 1
-          fi
-          echo "✅ 無 :param::type 殘留"
+        run: python -m compileall -q services packages/python || exit 1
+      - name: Install lint/test deps
+        run: pip install --quiet pytest==8.3.* ruff==0.8.* structlog==24.4.0
+      - name: Lint (ruff 高訊號子集)
+        run: ruff check .
+      - name: Tests (雷區守衛 + 純邏輯單元)
+        run: pytest tests/ services/knowledge/tests/test_document_processor.py -q
 
   # ─────────────────────────────────────────────────────────────
   # 前端：placeholder lint + install + build（apps/web 真實 vite build）

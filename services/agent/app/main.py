@@ -185,7 +185,7 @@ from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 app.add_middleware(IdempotencyMiddleware)
 
 # ── v5.0 K: Region router middleware（active-active scaffolding；預設 disabled）
-import os as _os  # noqa: E402
+# (os as _os 已在檔頭 import — v5.9.34 ruff F811 修)
 if _os.environ.get("MULTI_REGION_ENABLED", "false").lower() == "true":
     from app.middleware.region_router import RegionRouterMiddleware  # noqa: E402
     app.add_middleware(RegionRouterMiddleware)

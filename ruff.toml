@@ -1,0 +1,20 @@
+# staffKM lint — 高訊號子集（v5.9.34）
+# 只選「真 bug」規則，避免大規模 false positive 擋住 CI：
+#   E9  語法錯誤
+#   F63 無效比較 / F7 語法 / F82 未定義名稱
+#   F401 未使用 import（清理）/ F811 重複定義
+# 不選 style（行長、引號）— 那些靠 review 不靠 CI。
+target-version = "py312"
+line-length = 120
+
+extend-exclude = [
+  "**/alembic/versions/**",
+  "**/__pycache__/**",
+  "**/node_modules/**",
+  ".venv",
+]
+
+[lint]
+select = ["E9", "F63", "F7", "F82", "F811"]
+# F401 (未使用 import) 暫不全開 — 既有 code 太多，避免一次爆。
+# 想清理時改 select 加 F401 跑一次。
