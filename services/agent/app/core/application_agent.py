@@ -712,24 +712,88 @@ class ApplicationAgent:
                 from app.api.tool_exec import _exec_mcp
                 res = await _exec_mcp(tool.get("config") or {}, args)
                 return {"output": res.output, "error": res.error}
-            return {"error": f"工具類型 {tool_type} 暫不支援於對話 loop（shell/custom 沙箱另案）"}
+            if tool_type in ("custom", "code"):
+                from app.api.tool_exec import _exec_code
+                res = await _exec_code(tool.get("code") or "", args)
+                return {"output": res.output if res.output is not None else res.text, "error": res.error}
+            return {"error": f"工具類型 {tool_type} 暫不支援於對話 loop（shell 沙箱另案）"}
         except Exception as e:
             log.warning("application_agent_tool_exec_failed", app_id=self.app_id, tool=name, error=str(e))
             return {"error": str(e)}
 
     async def _invoke_workflow_tool(self, tool: dict, args: dict, ctx: AgentContext) -> dict:
-        """workflow-type tool：invoke sub-application。
+        """workflow-type tool：in-process invoke 子應用的 workflow（v5.10.5）。
 
-        TODO(v2.9)：真正 invoke 需走 in-process executor（避免 self-HTTP 缺
-        gateway 認證 → 401）。目前回明確 error，由 LLM 在後續輪次據此回覆使用者，
-        不阻斷整個 loop。schema / 載入路徑已就緒，待 executor 接線。
+        走 in-process executor（不自打 HTTP，避免缺 gateway 認證 → 401）：
+        載入 sub-app 的 workflow → 巢狀 WorkflowExecutor 跑 → 累積 token 當答案。
+        子應用以呼叫端的 workspace/user/roles 執行（不提權）。
         """
         sub_app_id = tool.get("application_id")
         if not sub_app_id:
             return {"error": "workflow tool 未設定 application_id"}
-        return {
-            "error": "workflow-type tool 子應用調用尚未實作（TODO v2.9：in-process invoke）",
-        }
+        sub_app_id = str(sub_app_id)
+        if sub_app_id == self.app_id:
+            return {"error": "workflow tool 不可指向自身應用（避免遞迴）"}
+        workspace_id = ctx.workspace_id or self._workspace_id
+        if not workspace_id:
+            return {"error": "workflow tool 需要 workspace context"}
+
+        from staffkm_core.utils import database as _db
+        if not _db._session_factory:
+            return {"error": "workflow tool 需要 DB session（agent 未連 DB）"}
+        from app.core.trigger_dispatcher import _load_workflow
+        from app.core.workflow.executor import WorkflowExecutor
+
+        # workflow 輸入：優先 args.input / args.query，否則整包 args 序列化
+        user_input = args.get("input") or args.get("query")
+        if user_input is None:
+            user_input = json.dumps(args, ensure_ascii=False)
+
+        try:
+            async with _db._session_factory() as session:
+                nodes, edges, mgr, _created_by = await _load_workflow(
+                    session, sub_app_id, str(workspace_id)
+                )
+        except Exception as e:
+            log.warning("workflow_tool_load_failed", app_id=self.app_id, sub=sub_app_id, error=str(e))
+            return {"error": f"載入 workflow 失敗：{e}"}
+        if not nodes:
+            return {"error": "目標應用沒有 workflow 節點（可能不是進階流程應用）"}
+
+        try:
+            sub_exec = WorkflowExecutor(
+                nodes=nodes, edges=edges,
+                workspace_id=str(workspace_id),
+                user_id=ctx.user_id or "agent-tool",
+                roles=ctx.roles or [],
+                workflow_manager=mgr or "simple",
+                application_id=sub_app_id,
+                run_id=None,
+                conversation_id=getattr(ctx, "conversation_id", None),
+            )
+        except Exception as e:
+            return {"error": f"建立 workflow executor 失敗：{e}"}
+
+        answer_parts: list[str] = []
+        error_msg = None
+        try:
+            async for ev in sub_exec.execute(
+                user_input=str(user_input), user_id=ctx.user_id or "agent-tool"
+            ):
+                name = ev.get("event", "")
+                data = ev.get("data", "")
+                if name == "token" and isinstance(data, str):
+                    answer_parts.append(data)
+                elif name == "error":
+                    error_msg = data
+        except Exception as e:
+            log.warning("workflow_tool_exec_failed", app_id=self.app_id, sub=sub_app_id, error=str(e))
+            return {"error": f"workflow 執行失敗：{e}"}
+
+        answer = "".join(answer_parts).strip()
+        if error_msg and not answer:
+            return {"error": f"workflow 回報錯誤：{error_msg}"}
+        return {"output": {"result": answer or "(workflow 無文字輸出)"}}
 
     async def _stream_function_calling(self, ctx: AgentContext) -> AsyncIterator[dict]:
         """ReAct loop：tools=auto → 執行 tool → 回灌 → 收尾 stream。"""

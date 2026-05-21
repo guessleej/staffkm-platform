@@ -98,7 +98,8 @@ def make_crud_router(
         }
         for k, v in d.items():
             if k in jsonb_fields:
-                placeholders.append(f":{k}::jsonb")
+                # CLAUDE.md §8：用 CAST(:p AS jsonb)，不可 :p::jsonb（asyncpg dialect 雷）
+                placeholders.append(f"CAST(:{k} AS jsonb)")
                 params[k] = json.dumps(v, ensure_ascii=False)
             else:
                 placeholders.append(f":{k}")
@@ -137,7 +138,8 @@ def make_crud_router(
         }
         for k, v in updates.items():
             if k in jsonb_fields:
-                set_parts.append(f"{k} = :{k}::jsonb")
+                # CLAUDE.md §8：用 CAST(:p AS jsonb)，不可 :p::jsonb（asyncpg dialect 雷）
+                set_parts.append(f"{k} = CAST(:{k} AS jsonb)")
                 params[k] = json.dumps(v, ensure_ascii=False)
             else:
                 set_parts.append(f"{k} = :{k}")

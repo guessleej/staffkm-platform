@@ -60,9 +60,13 @@ async def _exec_http(config: dict, inputs: dict) -> ToolExecResponse:
     if not url:
         raise HTTPException(status_code=400, detail="config.url 未設定")
 
+    from staffkm_core.utils.net import UnsafeURLError, safe_request
     started = time.monotonic()
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        resp = await client.request(method, url, headers=headers, json=body_json)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            resp = await safe_request(client, method, url, headers=headers, json=body_json)
+        except UnsafeURLError as e:
+            raise HTTPException(status_code=400, detail=f"URL 被 SSRF 防護擋下：{e}")
     elapsed = int((time.monotonic() - started) * 1000)
     out_json = None
     try:
@@ -97,9 +101,15 @@ async def _exec_mcp(config: dict, inputs: dict) -> ToolExecResponse:
     if api_key := config.get("api_key"):
         headers["Authorization"] = f"Bearer {api_key}"
 
+    from staffkm_core.utils.net import UnsafeURLError, assert_safe_url
+    mcp_url = f"{server_url}/mcp"
+    try:
+        await assert_safe_url(mcp_url)
+    except UnsafeURLError as e:
+        raise HTTPException(status_code=400, detail=f"MCP server URL 被 SSRF 防護擋下：{e}")
     started = time.monotonic()
     async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(f"{server_url}/mcp", json=payload, headers=headers)
+        resp = await client.post(mcp_url, json=payload, headers=headers)
     elapsed = int((time.monotonic() - started) * 1000)
     data = None
     try:
@@ -111,6 +121,63 @@ async def _exec_mcp(config: dict, inputs: dict) -> ToolExecResponse:
         status=resp.status_code,
         output=data,
         elapsed_ms=elapsed,
+    )
+
+
+async def _exec_code(code: str, inputs: dict) -> ToolExecResponse:
+    """執行 custom / AI 生成的 `def run(**kwargs) -> dict` Python 程式碼（v5.10.5）。
+
+    走 sandbox.run_sandboxed（rlimit + wall-clock timeout + 環境清空），
+    以 stdin 傳 JSON 參數，從 stdout marker 之後取回 JSON 結果。
+    注意：M2 sandbox 尚無網路 / fs namespace 隔離（見 sandbox.py M4 升級路徑）。
+    """
+    import sys
+
+    from app.core.sandbox import run_sandboxed
+
+    if not code or "def run" not in code:
+        raise HTTPException(status_code=400, detail="tool.code 缺少 def run(**kwargs)")
+
+    marker = "__STAFFKM_RESULT__"
+    harness = (
+        "import sys, json\n"
+        f"{code}\n"
+        "\nif __name__ == '__main__':\n"
+        "    _args = json.loads(sys.stdin.read() or '{}')\n"
+        "    try:\n"
+        "        _res = run(**_args)\n"
+        "    except Exception as _e:\n"
+        "        _res = {'error': str(_e)}\n"
+        f"    sys.stdout.write({marker!r} + json.dumps(_res, ensure_ascii=False, default=str))\n"
+    )
+    started = time.monotonic()
+    res = await run_sandboxed(
+        [sys.executable, "-I", "-c", harness],
+        stdin=json.dumps(inputs, ensure_ascii=False),
+        timeout_sec=15, mem_mb=256, cpu_secs=10,
+    )
+    elapsed = int((time.monotonic() - started) * 1000)
+    if res.timed_out:
+        return ToolExecResponse(success=False, elapsed_ms=elapsed, error="執行逾時（>15s）")
+    if res.exit_code != 0:
+        return ToolExecResponse(
+            success=False, elapsed_ms=elapsed,
+            error=(res.stderr or "程式以非零碼結束").strip()[:1000],
+        )
+    out_dict = None
+    idx = res.stdout.rfind(marker)
+    if idx >= 0:
+        try:
+            out_dict = json.loads(res.stdout[idx + len(marker):])
+        except Exception:
+            out_dict = None
+    err = out_dict.get("error") if isinstance(out_dict, dict) else None
+    return ToolExecResponse(
+        success=isinstance(out_dict, dict) and err is None,
+        output=out_dict if isinstance(out_dict, dict) else None,
+        text=None if isinstance(out_dict, dict) else (res.stdout[:2000] or None),
+        elapsed_ms=elapsed,
+        error=err,
     )
 
 
@@ -127,7 +194,7 @@ async def execute_tool(
 ):
     row = await session.execute(
         text(
-            "SELECT id, kind, config, is_enabled FROM tools "
+            "SELECT id, kind, tool_type, config, code, is_enabled FROM tools "
             "WHERE id = :id AND workspace_id = :ws"
         ),
         {"id": str(tool_id), "ws": str(ctx.workspace_id)},
@@ -145,24 +212,28 @@ async def execute_tool(
         except Exception: cfg = {}
 
     kind = d["kind"]
+    # v5.10.5：tool_type 優先（v2.8 新欄位），fallback kind
+    tt = (d.get("tool_type") or kind or "").lower()
     audit = {
         "workspace_id": str(ctx.workspace_id),
         "user_id":      str(ctx.user_id),
         "tool_id":      str(tool_id),
-        "kind":         kind,
+        "kind":         tt,
     }
     try:
-        if kind == "http":
+        if tt == "http":
             result = await _exec_http(cfg, body.inputs)
-        elif kind == "mcp":
+        elif tt == "mcp":
             result = await _exec_mcp(cfg, body.inputs)
-        elif kind in ("shell", "custom"):
+        elif tt in ("custom", "code"):
+            result = await _exec_code(d.get("code") or "", body.inputs)
+        elif tt == "shell":
             raise HTTPException(
                 status_code=501,
-                detail=f"kind={kind} 暫不支援（沙箱另案處理）",
+                detail="kind=shell 暫不支援（沙箱另案處理）",
             )
         else:
-            raise HTTPException(status_code=400, detail=f"未知 kind: {kind}")
+            raise HTTPException(status_code=400, detail=f"未知 kind: {tt}")
         log.info("tool_exec_ok", **audit, status=result.status, elapsed=result.elapsed_ms)
         return ApiResponse(data=result)
     except HTTPException:
