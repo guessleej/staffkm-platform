@@ -110,9 +110,13 @@ async def update_paragraph(
         raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(p, field, value)
+    # v5.10.x P0-1：內容變更必須重算向量 + tsvector，否則檢索吃到舊向量
+    reembedded = None
     if body.content:
         p.char_count = len(body.content)
-    return ApiResponse(message="段落已更新")
+        await session.flush()
+        reembedded = await _embed_and_index(session, p.id, p.knowledge_base_id, body.content)
+    return ApiResponse(message="段落已更新", data={"reembedded": reembedded})
 
 
 @router.delete("/{paragraph_id}", response_model=ApiResponse)
@@ -553,11 +557,13 @@ async def bulk_paragraph_action(
             data={"affected": len(rows), "is_active": new_val},
         )
 
-    # regen_embedding：太重，先回 queued placeholder（TODO v5.1 接 celery）
-    log.warning("bulk regen_embedding queued (not yet wired to celery): %d ids", len(rows))
+    # regen_embedding：丟給 celery 背景重算（v5.10.x P0-1：接上 pipeline）
+    from app.tasks.process_document import regen_embeddings
+    task = regen_embeddings.delay([str(r.id) for r in rows])
+    log.info("bulk regen_embedding enqueued: %d ids task=%s", len(rows), task.id)
     return ApiResponse(
         message=f"已排程 {len(rows)} 段重建向量（背景處理中）",
-        data={"queued": len(rows)},
+        data={"queued": len(rows), "task_id": task.id},
     )
 
 
