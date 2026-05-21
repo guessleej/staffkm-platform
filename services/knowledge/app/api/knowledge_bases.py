@@ -396,6 +396,7 @@ async def import_kb_full(
 
     doc_count = 0
     para_count = 0
+    docs_to_embed: list[tuple[str, str]] = []  # (doc_id, name) — 匯入後背景補 embed
     for dm in docs_meta:
         new_doc = Document(
             workspace_id=ctx.workspace_id,
@@ -424,6 +425,7 @@ async def import_kb_full(
                 paras: list[dict] = _json.loads(zf.read(para_path))
             except Exception:
                 paras = []
+            doc_para_count = 0
             for p in paras:
                 session.add(Paragraph(
                     workspace_id=ctx.workspace_id,
@@ -438,15 +440,28 @@ async def import_kb_full(
                     qa_pairs=p.get("qa_pairs") or [],
                 ))
                 para_count += 1
+                doc_para_count += 1
+            if doc_para_count:
+                docs_to_embed.append((str(new_doc.id), new_doc.name))
 
     await session.commit()
+
+    # v5.10.x P0-1：匯入的段落沒有向量 → 對每個 doc 背景補 embed（inline 模式）
+    from app.tasks.process_document import process_document
+    enqueued = 0
+    for doc_id, doc_name in docs_to_embed:
+        process_document.apply_async(args=[doc_id, "", doc_name], kwargs={"inline": True})
+        enqueued += 1
+    logger.info("kb_import_reembed_enqueued kb=%s docs=%d paras=%d", new_kb.id, enqueued, para_count)
+
     return ApiResponse(
-        message="KB 匯入成功；段落尚未 embed，請等待後台任務或手動觸發 re-embed。",
+        message=f"KB 匯入成功；已自動排程 {enqueued} 份文件的段落向量化（背景處理中）。",
         data={
             "kb_id":           str(new_kb.id),
             "documents":       doc_count,
             "paragraphs":      para_count,
-            "embeddings_note": "embeddings 內容尚未還原（v2.8 簡化版）；段落需重 embed。",
+            "reembed_docs":    enqueued,
+            "embeddings_note": "段落向量由後台 inline re-embed 自動補齊。",
         },
     )
 

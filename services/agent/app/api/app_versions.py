@@ -185,7 +185,8 @@ async def restore_version(
     }
     for col, val in target_snap.items():
         if col in JSONB_COLS:
-            set_parts.append(f"{col} = :{col}::jsonb")
+            # CLAUDE.md §8：CAST(:p AS jsonb)，不可 :p::jsonb（asyncpg dialect 雷）
+            set_parts.append(f"{col} = CAST(:{col} AS jsonb)")
             params[col] = json.dumps(val if val is not None else [], ensure_ascii=False)
         else:
             set_parts.append(f"{col} = :{col}")

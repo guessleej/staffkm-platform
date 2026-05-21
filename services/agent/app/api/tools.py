@@ -147,15 +147,16 @@ async def generate_code(
 ):
     import httpx
 
-    api_key = settings.OPENAI_API_KEY or settings.LLM_API_KEY
-    base_url = (
-        "https://api.openai.com/v1"
-        if "openai" in settings.LLM_PROVIDER.lower()
-        else settings.LLM_BASE_URL
-    )
+    # v5.10.5：對齊 base_agent 的 LLM 解析（用系統實際配置的 LLM_*，
+    # 不再硬寫 api.openai.com — 否則 Kimi 等 provider 會被誤導向 OpenAI → 401）
+    api_key = settings.LLM_API_KEY or settings.OPENAI_API_KEY
+    base_url = (settings.LLM_BASE_URL or "https://api.openai.com/v1").rstrip("/")
     model = body.model or settings.LLM_MODEL
     if not api_key:
-        raise HTTPException(503, "LLM 未設定（請填入 OPENAI_API_KEY 或 LLM_API_KEY）")
+        raise HTTPException(503, "LLM 未設定（請填入 LLM_API_KEY 或 OPENAI_API_KEY）")
+    # Kimi k2 / o1 / o3 只接受 temperature=1
+    _ml = (model or "").lower()
+    temperature = 1 if ("kimi-k2" in _ml or _ml.startswith(("o1", "o3"))) else 0.2
 
     user_prompt = (
         f"描述：{body.description}\n"
@@ -166,7 +167,7 @@ async def generate_code(
     try:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(
-                f"{base_url.rstrip('/')}/chat/completions",
+                f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": model,
@@ -174,7 +175,7 @@ async def generate_code(
                         {"role": "system", "content": _SYSTEM_PROMPT},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "temperature": 0.2,
+                    "temperature": temperature,
                     "max_tokens": 1500,
                 },
             )

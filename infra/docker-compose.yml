@@ -471,6 +471,9 @@ services:
       <<: *db-env
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2
       KNOWLEDGE_SERVICE_URL: http://knowledge:8001
+      # P0-2 SSRF allowlist：workflow http_request / MCP 可呼叫的內部服務 host
+      # （deny-by-default；私網 IP / metadata 仍擋，只放行這些明確的服務名）
+      SSRF_ALLOWED_HOSTS: ${SSRF_ALLOWED_HOSTS:-knowledge,chat,auth,gateway,embedder,reranker,agent}
       # ── LLM 地端優先 (RFC-005) ─────────────────────
       LLM_PROVIDER:    ${LLM_PROVIDER:-ollama}
       LLM_MODEL:       ${LLM_MODEL:-gemma4:e4b}
@@ -551,6 +554,8 @@ services:
       <<: *db-env
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2
       KNOWLEDGE_SERVICE_URL: http://knowledge:8001
+      # P0-2 SSRF allowlist（同 agent；觸發式 workflow 也在 worker 跑 executor）
+      SSRF_ALLOWED_HOSTS: ${SSRF_ALLOWED_HOSTS:-knowledge,chat,auth,gateway,embedder,reranker,agent}
       # ── LLM（部分 job 會走 workflow 執行需要）─────────
       LLM_PROVIDER:    ${LLM_PROVIDER:-ollama}
       LLM_MODEL:       ${LLM_MODEL:-gemma4:e4b}

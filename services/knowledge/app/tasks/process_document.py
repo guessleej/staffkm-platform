@@ -187,3 +187,57 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 raise
     finally:
         await engine.dispose()
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  v5.10.x P0-1：段落重新向量化（regen_embedding / KB 匯入後補 embed）
+#  段落已存在，只重算 embedding + tsvector；不碰 download / chunking。
+# ════════════════════════════════════════════════════════════════════════
+@celery_app.task(
+    bind=True,
+    name="app.tasks.process_document.regen_embeddings",
+    max_retries=3,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def regen_embeddings(self, paragraph_ids: list[str]) -> dict:
+    """批次重算指定段落的向量 + 全文索引（段落編輯 / 批次 regen / 匯入補 embed）。"""
+    try:
+        return asyncio.run(_async_regen(paragraph_ids))
+    except Exception as exc:
+        countdown = min(30 * (2 ** self.request.retries), 300)
+        log.error("regen_embeddings_will_retry", count=len(paragraph_ids), error=str(exc), countdown=countdown)
+        raise self.retry(exc=exc, countdown=countdown)
+
+
+async def _async_regen(paragraph_ids: list[str]) -> dict:
+    """對既有段落重算 embedding + tsvector，在 worker 獨立 event loop 執行。"""
+    engine = create_async_engine(settings.DB_URL, pool_size=1, max_overflow=0)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            ids = [uuid.UUID(p) for p in paragraph_ids]
+            rows = await session.execute(select(Paragraph).where(Paragraph.id.in_(ids)))
+            paras: list[Paragraph] = list(rows.scalars().all())
+            if not paras:
+                log.warning("regen_embeddings_no_rows", requested=len(paragraph_ids))
+                return {"status": "success", "regenerated": 0}
+
+            embedder = get_embedder(
+                settings.EMBEDDING_MODEL,
+                settings.OPENAI_API_KEY,
+                settings.EMBEDDING_BASE_URL or None,
+            )
+            embeddings = await embedder.embed_batch([p.content for p in paras])
+            done = 0
+            for p, emb in zip(paras, embeddings):
+                await upsert_embedding(session, p.id, p.knowledge_base_id, emb)
+                await update_search_vector(session, p.id, p.content)
+                done += 1
+                if done % 50 == 0:
+                    await session.commit()
+            await session.commit()
+            log.info("regen_embeddings_done", regenerated=done, requested=len(paragraph_ids))
+            return {"status": "success", "regenerated": done}
+    finally:
+        await engine.dispose()

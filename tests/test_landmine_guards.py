@@ -42,9 +42,18 @@ def _web_files(*exts: str):
 
 
 # ── §8 asyncpg :param::type ──────────────────────────────────────────
+# 同時涵蓋兩種寫法（v5.10.5：補 f-string 內插變體，原本只抓字面 :name）：
+#   - 字面 named param：   :config::jsonb
+#   - f-string 內插 param：:{k}::jsonb  ← 曾因此逃過 grep，害 generic CRUD 全掛
+_TYPES = "jsonb|vector|uuid|int|text|timestamptz|date|inet|bool"
+_PARAM_CAST = re.compile(
+    rf":(?:[a-z_][a-z0-9_]*|\{{[a-z_][a-z0-9_]*\}})::(?:{_TYPES})"
+)
+
+
 def test_no_asyncpg_param_cast():
-    """:param::jsonb 等 — asyncpg dialect 不認，必須用 CAST(:param AS type)。"""
-    pat = re.compile(r":[a-z_]+::(jsonb|vector|uuid|int|text|timestamptz|date|inet|bool)")
+    """:param::jsonb / :{var}::jsonb — asyncpg dialect 不認，必須用 CAST(:param AS type)。"""
+    pat = _PARAM_CAST
     hits = []
     for p in _py_files(SERVICES, PKGS):
         for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):

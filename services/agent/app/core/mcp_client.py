@@ -31,6 +31,9 @@ class MCPClient:
             "method":  method,
             "params":  params or {},
         }
+        # SSRF guard：MCP server URL 來自 workspace 設定，需擋內網 / metadata
+        from staffkm_core.utils.net import assert_safe_url
+        await assert_safe_url(self.url)
         r = await self._client.post(self.url, json=body, headers=self._headers)
         r.raise_for_status()
         data = r.json()

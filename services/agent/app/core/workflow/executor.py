@@ -2082,8 +2082,13 @@ class WorkflowExecutor:
             body = json.loads(body_str) if body_str else None
         except Exception:
             body = None
+        from staffkm_core.utils.net import UnsafeURLError, safe_request
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.request(method, url, headers=headers, json=body)
+            try:
+                resp = await safe_request(client, method, url, headers=headers, json=body)
+            except UnsafeURLError as exc:
+                log.warning("http_node_blocked_ssrf", url=url[:200], error=str(exc), **self._audit_fields(context))
+                return {"error": f"URL 被 SSRF 防護擋下：{exc}", "blocked": True}
             try:
                 return resp.json()
             except Exception:

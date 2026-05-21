@@ -29,8 +29,13 @@ log = structlog.get_logger()
 )
 def sync_web_kb(self, kb_id: str, url: str, workspace_id: str) -> dict:
     """Celery 同步入口。"""
+    from staffkm_core.utils.net import UnsafeURLError
     try:
         return asyncio.run(_async_sync(kb_id, url, workspace_id))
+    except UnsafeURLError as exc:
+        # SSRF 防護擋下：retry 同一 URL 沒意義，直接回失敗（狀態已標 failed）
+        log.warning("web_sync_blocked_ssrf", kb_id=kb_id, url=url, error=str(exc))
+        return {"ok": False, "url": url, "error": f"URL 被 SSRF 防護擋下：{exc}"}
     except Exception as exc:
         log.error("web_sync_will_retry", kb_id=kb_id, url=url, error=str(exc))
         raise self.retry(exc=exc, countdown=30)
@@ -44,28 +49,30 @@ async def _async_sync(kb_id_s: str, url: str, workspace_id_s: str) -> dict:
 
     async def _set_status(status: str, error: str | None = None) -> None:
         async with session_factory() as s:
+            # 注意：:st 不可同時用在 SET 賦值與 CASE 比較 → asyncpg 對 $1 推斷
+            # 不一致型別 AmbiguousParameterError（CLAUDE.md §8 雷）。拆成兩個 param。
             await s.execute(
                 text_sql(
                     "UPDATE knowledge_bases SET sync_status = :st, sync_error = :err, "
-                    "last_synced_at = CASE WHEN :st = 'ready' THEN now() ELSE last_synced_at END "
+                    "last_synced_at = CASE WHEN :st_chk = 'ready' THEN now() ELSE last_synced_at END "
                     "WHERE id = :id"
                 ),
-                {"st": status, "err": error, "id": str(kb_id)},
+                {"st": status, "st_chk": status, "err": error, "id": str(kb_id)},
             )
             await s.commit()
 
     try:
         await _set_status("running")
 
-        # 1. 抓
+        # 1. 抓（SSRF guard：驗證初始 URL + 逐跳 redirect 再驗證，擋內網/metadata）
+        from staffkm_core.utils.net import safe_request
         async with httpx.AsyncClient(
-            follow_redirects=True,
             timeout=httpx.Timeout(30.0, connect=10.0),
             headers={
                 "User-Agent": "staffKM-WebSync/1.0 (+https://staffkm.local)"
             },
         ) as client:
-            resp = await client.get(url)
+            resp = await safe_request(client, "GET", url)
             resp.raise_for_status()
             html = resp.text
 
