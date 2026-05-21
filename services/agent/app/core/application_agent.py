@@ -224,20 +224,34 @@ class ApplicationAgent:
                     pass
             default_type = str(val).strip().strip('"').lower() if val is not None else ""
             if default_type == "cross_encoder":
-                # 地端 cross_encoder：reranker container 走 sentence-transformers，
-                # 無外部 API。container 未起時 rerank() 會 graceful fallback 原始排序。
-                self._reranker_config = {
-                    "type": "cross_encoder",
-                    "endpoint": settings.RERANKER_ENDPOINT,
-                }
-                log.info(
-                    "application_agent_default_reranker",
-                    app_id=self.app_id,
-                    reranker_type="cross_encoder",
-                    endpoint=settings.RERANKER_ENDPOINT,
-                )
+                # 地端 cross_encoder：reranker container 走 sentence-transformers。
+                # v5.10.2: 先 health check — container 未起 (--profile reranker opt-in)
+                # 就不啟用，避免每次 chat 都白試連線 + 噪音 log。reranker 起來後自動生效。
+                if await self._reranker_reachable():
+                    self._reranker_config = {
+                        "type": "cross_encoder",
+                        "endpoint": settings.RERANKER_ENDPOINT,
+                    }
+                    log.info(
+                        "application_agent_default_reranker",
+                        app_id=self.app_id,
+                        reranker_type="cross_encoder",
+                        endpoint=settings.RERANKER_ENDPOINT,
+                    )
         except Exception as e:
             log.warning("application_agent_default_reranker_failed", app_id=self.app_id, error=str(e))
+
+    @staticmethod
+    async def _reranker_reachable() -> bool:
+        """v5.10.2: 快速 health check reranker container（1.5s timeout）。
+        container 未起就回 False，跳過預設 reranker。"""
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=1.5) as client:
+                r = await client.get(f"{settings.RERANKER_ENDPOINT.rstrip('/')}/health")
+                return r.status_code == 200
+        except Exception:
+            return False
 
     async def _init_skills_from_db(self, session) -> None:
         """D-2：載入引用的 Skills，把每個 skill 的 prompt_template 收進
