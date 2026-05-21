@@ -238,13 +238,21 @@ async function sendMessage() {
   scrollBottom()
 
   try {
+    // v5.9.28: 必帶 X-Workspace-ID — agent 只接 workspace-scoped 路徑，
+    // 漏了會 fallback legacy → 404 (同 streamChat v5.9.14 雷)
+    const _chatHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+      Accept: 'text/event-stream',
+    }
+    try {
+      const { useWorkspaceStore } = await import('../../stores/workspace')
+      const wsId = useWorkspaceStore().currentId
+      if (wsId) _chatHeaders['X-Workspace-ID'] = wsId
+    } catch { /* store 未 init */ }
     const response = await fetch(`/api/v1/applications/${appId}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        Accept: 'text/event-stream',
-      },
+      headers: _chatHeaders,
       body: JSON.stringify({
         session_id: convStore.currentConversation?.id ?? convStore.currentConversation?.conversation_id,
         // v3.7 P1：明確傳 conversation_id 用於 cost 歸因

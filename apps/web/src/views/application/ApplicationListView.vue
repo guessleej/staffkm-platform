@@ -101,6 +101,17 @@
             </span>
           </div>
 
+          <!-- v5.9.28: 明確的「開始問答」CTA — 點下去直接進 RAG 對話 -->
+          <button
+            @click.stop="enterApp(app)"
+            class="w-full mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold text-white
+                   bg-gradient-to-r from-indigo-500 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800
+                   py-2 rounded-lg transition"
+          >
+            <SIcon name="message-square" :size="14" />
+            開始問答
+          </button>
+
           <!-- 管理員操作 -->
           <div v-if="auth.hasRole(['admin'])" class="flex gap-2 mt-4 pt-4 border-t border-neutral-100 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
             <button v-if="app.type === 'workflow'" @click.stop="router.push(`/applications/${app.id}/workflow`)"

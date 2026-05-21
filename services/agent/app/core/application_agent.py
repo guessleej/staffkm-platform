@@ -64,15 +64,20 @@ class ApplicationAgent:
         self.config: dict[str, Any] = config or {}
 
         # LLM 設定（預設使用全域 settings）
-        self._api_key: str = settings.OPENAI_API_KEY
-        self._model: str = settings.OPENAI_MODEL
-        self._base_url: str | None = None
+        # v5.9.28: 改用 LLM_* 系統 LLM (RFC-005) — 之前只讀 OPENAI_API_KEY 沒 base_url
+        # → application 沒設 llm_model_id 時打 api.openai.com 空 key → Connection error
+        self._api_key: str = settings.LLM_API_KEY or settings.OPENAI_API_KEY or "dummy"
+        self._model: str = settings.LLM_MODEL or settings.OPENAI_MODEL
+        self._base_url: str | None = settings.LLM_BASE_URL or None
 
         # 若有指定 llm_model_id，稍後透過 _init_llm_from_db 非同步載入
         self._llm_model_id: str | None = str(application["llm_model_id"]) if application.get("llm_model_id") else None
 
         # 建立預設 LLM 客戶端（可能在 _init_llm_from_db 後被替換）
-        self._llm = AsyncOpenAI(api_key=self._api_key)
+        _client_kwargs: dict = {"api_key": self._api_key}
+        if self._base_url:
+            _client_kwargs["base_url"] = self._base_url
+        self._llm = AsyncOpenAI(**_client_kwargs)
 
         # M3 中段-A：BaseProvider adapter（若 _init_llm_from_db 載入成功會被設定）
         self._provider: BaseProvider | None = None
@@ -404,6 +409,9 @@ class ApplicationAgent:
 
         temperature = float(self.config.get("temperature", 0.1))
         max_tokens = int(self.config.get("max_tokens", 2048))
+        # v5.9.28: 部分 model 限定 temperature=1 (Kimi K2.6 / o1 / o3 系列)
+        if any(self._model.startswith(p) for p in ("kimi-k2", "o1-", "o3-")):
+            temperature = 1.0
 
         # M3 中段-A：優先使用 BaseProvider adapter（支援 Anthropic / Gemini / …）；
         # 若未載入則 fallback 到既有 AsyncOpenAI 路徑（保持向後相容）。
