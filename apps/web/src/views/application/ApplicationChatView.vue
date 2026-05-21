@@ -1,7 +1,9 @@
 <template>
-  <div class="flex h-full overflow-hidden">
+  <!-- v5.9.33: 固定高度 (viewport - header) — 之前 h-full 在會滾動的 <main> 下
+       塌成 auto → sidebar overflow 失效、輸入框被推到看不見 -->
+  <div class="flex h-[calc(100vh-72px)] overflow-hidden">
     <!-- 左側：對話列表 -->
-    <div class="w-64 bg-surface-raised border-r border-neutral-200 flex flex-col flex-shrink-0">
+    <div class="w-64 bg-surface-raised border-r border-neutral-200 flex flex-col flex-shrink-0 min-h-0">
       <div class="p-3 border-b border-neutral-100">
         <button @click="newConversation" class="w-full flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
           <SIcon name="plus" :size="16" />
@@ -96,7 +98,7 @@
       </div>
 
       <!-- 訊息列表 -->
-      <div v-else ref="msgContainer" class="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+      <div v-else ref="msgContainer" class="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-4">
         <div
           v-for="msg in convStore.messages"
           :key="msg.id"
@@ -192,6 +194,13 @@ async function load() {
 }
 
 async function newConversation() {
+  // v5.9.33: 避免累積一堆空對話 — 已有 0 則訊息的空對話就重用它
+  const empty = convStore.conversations.find(c => (c.message_count ?? 0) === 0)
+  if (empty) {
+    convStore.selectConversation(empty)
+    convStore.messages = []
+    return
+  }
   await convStore.createConversation(appId, '新對話')
 }
 
