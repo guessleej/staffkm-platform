@@ -57,7 +57,7 @@
             {{ app?.icon || 'AI' }}
           </div>
           <div class="bg-surface-raised border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-            <p class="text-sm text-fg whitespace-pre-wrap">{{ msg.content }}</p>
+            <MarkdownMessage v-if="msg.content" :content="msg.content" />
             <div v-if="msg.streaming" class="flex gap-1 mt-2">
               <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0ms"/>
               <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:150ms"/>
@@ -99,6 +99,7 @@
 import { ref, nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { SIcon } from '@staffkm/ui-kit'
+import MarkdownMessage from '../../components/chat/MarkdownMessage.vue'
 
 const route = useRoute()
 const appId = route.params.appId as string
