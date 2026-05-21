@@ -32,6 +32,7 @@ ignore_missing_imports = true
 exclude = ["build", ".venv", "alembic"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-addopts = "-ra --strict-markers"
-testpaths = ["services", "packages/python"]
+addopts = "-ra"
+# v5.9.34: CI 跑輕量測試 (landmine guards + 純邏輯單元)；
+# 重型 service smoke (需全 deps) 由各 service 自行跑
+testpaths = ["tests", "services/knowledge/tests"]
