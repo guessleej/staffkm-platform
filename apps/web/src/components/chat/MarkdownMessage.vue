@@ -5,7 +5,7 @@
   - 串流中也即時渲染（content 變動 → computed 重算）
 -->
 <template>
-  <div class="md-body text-sm text-fg" v-html="rendered" />
+  <div class="md-body text-sm text-fg w-full" v-html="rendered" />
 </template>
 
 <script setup lang="ts">
@@ -29,6 +29,7 @@ const rendered = computed(() => {
 
 <style scoped>
 /* 聊天訊息 markdown 排版 — 緊湊但分明 */
+.md-body                     { word-break: break-word; overflow-wrap: anywhere; }
 .md-body :deep(p)            { margin: 0.35rem 0; line-height: 1.65; }
 .md-body :deep(p:first-child){ margin-top: 0; }
 .md-body :deep(p:last-child) { margin-bottom: 0; }

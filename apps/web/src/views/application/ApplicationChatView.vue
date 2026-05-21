@@ -104,12 +104,12 @@
           :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
         >
           <!-- AI 訊息 -->
-          <div v-if="msg.role === 'assistant'" class="max-w-[85%] flex items-start gap-3">
+          <div v-if="msg.role === 'assistant'" class="max-w-[85%] flex items-start gap-3 flex-1 min-w-0">
             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 mt-0.5"
                  :style="{ background: appGradient(appId) }">
               {{ application?.icon || 'AI' }}
             </div>
-            <div>
+            <div class="min-w-0 flex-1">
               <div class="bg-surface-raised border border-neutral-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                 <MarkdownMessage v-if="msg.content" :content="msg.content" />
                 <div v-if="msg.streaming" class="flex gap-1 mt-2">
@@ -291,7 +291,8 @@ async function sendMessage() {
         if (line.startsWith('event: ')) {
           pendingEvent = line.slice(7).trim()
         } else if (line.startsWith('data: ')) {
-          const data = line.slice(6)
+          // v5.9.32: SSE 是 CRLF，去尾 \r 但保留 token 內的有意義空格 (不能用 trim)
+          const data = line.slice(6).replace(/\r$/, '')
           if (pendingEvent === 'token') {
             convStore.appendToken(assistantMsg.id, data)
             scrollBottom()

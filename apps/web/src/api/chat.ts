@@ -89,13 +89,16 @@ export async function streamChat(
     for (const line of lines) {
       if (line.startsWith('event:')) continue
       if (line.startsWith('data:')) {
-        const data = line.slice(5).trim()
-        if (!data || data === '[DONE]') { onDone(); continue }
+        // v5.9.32: 去尾 \r (CRLF) 但保留 token 內空格 (trim 會誤刪 " RTX" 前導空格)
+        const raw = line.slice(5).replace(/\r$/, '')
+        const trimmed = raw.trim()
+        if (!trimmed || trimmed === '[DONE]') { onDone(); continue }
         try {
-          const parsed = JSON.parse(data)
+          const parsed = JSON.parse(trimmed)
           if (Array.isArray(parsed)) { onCitations(parsed); continue }
         } catch { /* token text */ }
-        onToken(data)
+        // data: 後通常有一個空格分隔符，去掉它但保留 token 真正的前導空格
+        onToken(raw.startsWith(' ') ? raw.slice(1) : raw)
       }
     }
   }
