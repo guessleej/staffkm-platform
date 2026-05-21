@@ -52,11 +52,11 @@
         class="flex"
         :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
       >
-        <div v-if="msg.role === 'assistant'" class="max-w-[85%] flex items-start gap-3">
+        <div v-if="msg.role === 'assistant'" class="max-w-[85%] flex items-start gap-3 flex-1 min-w-0">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" :style="{ background: gradient }">
             {{ app?.icon || 'AI' }}
           </div>
-          <div class="bg-surface-raised border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+          <div class="bg-surface-raised border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm min-w-0 flex-1">
             <MarkdownMessage v-if="msg.content" :content="msg.content" />
             <div v-if="msg.streaming" class="flex gap-1 mt-2">
               <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0ms"/>
@@ -187,7 +187,8 @@ async function sendMessage(text?: string) {
           if (pendingEvent === 'token') {
             const msg = messages.value.find(m => m.id === aMsg.id)
             if (msg) {
-              msg.content += line.slice(6)
+              // v5.9.32: 去尾 \r (CRLF) 但保留 token 內空格
+              msg.content += line.slice(6).replace(/\r$/, '')
               scrollBottom()
             }
           }
