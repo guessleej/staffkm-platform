@@ -96,10 +96,15 @@
                 <span class="text-[10px]">展開</span>
               </button>
             </header>
-            <!-- 訊息內容（無頭像 chip，純文字段落） -->
+            <!-- 訊息內容：user 純文字、assistant 渲染 markdown (v5.9.31) -->
+            <MarkdownMessage
+              v-if="msg.role === 'assistant'"
+              :content="msg.content"
+              class="text-neutral-800"
+            />
             <div
-              class="whitespace-pre-wrap"
-              :class="msg.role === 'user' ? 'text-neutral-900' : 'text-neutral-800'"
+              v-else
+              class="whitespace-pre-wrap text-neutral-900"
             >{{ msg.content }}</div>
             <!-- v2.7：tool_calls 折疊顯示（MaxKB UI 對齊） -->
             <ToolCallBlock
@@ -187,6 +192,7 @@ import { useRoute } from 'vue-router'
 
 import ChatInput from '../../components/chat/ChatInput.vue'
 import ToolCallBlock from '../../components/chat/ToolCallBlock.vue'
+import MarkdownMessage from '../../components/chat/MarkdownMessage.vue'
 import { useConversationStore } from '../../stores/conversation'
 import { useArtifactStore } from '../../stores/artifact'
 import { useProjectStore } from '../../stores/project'
