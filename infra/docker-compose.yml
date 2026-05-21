@@ -539,6 +539,14 @@ services:
     profiles: ["arq-worker"]
     restart: unless-stopped
     command: ["python", "-m", "arq", "app.workers.arq_settings.WorkerSettings"]
+    # v5.9.30: arq worker 沒 HTTP server → 覆寫 agent image 繼承的 curl :8002/health
+    # （否則永遠 unhealthy）。改檢查能連到 redis broker 即視為存活
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('redis', 6379), timeout=3)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       <<: *db-env
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2

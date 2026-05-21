@@ -27,7 +27,7 @@
             type="text"
             placeholder="輸入測試問題……"
             class="flex-1 h-10 px-3 text-sm bg-surface-raised border border-neutral-200 rounded-lg focus:border-brand-400 focus:outline-none text-fg placeholder:text-fg-secondary"
-            @keydown.enter="runTest"
+            @keydown.enter="(e) => { if (!(e as any).isComposing) runTest() }"
           />
           <button
             @click="runTest"
