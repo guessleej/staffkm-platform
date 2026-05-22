@@ -99,12 +99,7 @@ const router = createRouter({
           component: () => import('../views/application/ApplicationListView.vue'),
           meta: { title: 'AI 應用' },
         },
-        {
-          path: 'applications/:appId/chat',
-          name: 'application-chat',
-          component: () => import('../views/application/ApplicationChatView.vue'),
-          meta: { title: 'AI 應用對話' },
-        },
+        // v5.10.14：應用對話已整合進統一「對話」(/chat?app={id})；移除獨立路由
         {
           path: 'applications/:appId/workflow',
           name: 'application-workflow',

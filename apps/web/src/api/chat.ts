@@ -49,6 +49,8 @@ export async function streamChat(
   onError: (e: string) => void,
   /** v2.8: 對話中動態切 model / KB（不改 application 預設） */
   overrides?: { model_override?: string | null; kb_ids_override?: string[] | null },
+  /** v5.10.14: 應用對話的 function-calling 工具呼叫過程（折疊式 UI） */
+  onToolCall?: (tc: { name: string; status?: string; input?: unknown; output?: unknown; error?: string | null }) => void,
 ): Promise<void> {
   const token = localStorage.getItem('access_token') || ''
   const payload: Record<string, unknown> = { content }
@@ -78,16 +80,29 @@ export async function streamChat(
   const reader = resp.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let evType = ''
   let dataLines: string[] = []
 
-  // v5.10.13: SSE 多行 data 用 \n 重組（token 含換行被 sse-starlette 拆成多行）。
-  // 累積一個 event 的 data 行、遇空行(event 邊界)才依內容分派。
+  // v5.10.13/14: SSE 多行 data 用 \n 重組（token 含換行被 sse-starlette 拆成多行）；
+  // 追蹤 event: 型別 → token / citations / tool_call 正確分派（應用對話會帶 tool_call）。
   const flush = () => {
-    if (dataLines.length === 0) return
+    if (!evType && dataLines.length === 0) return
     const data = dataLines.join('\n')
+    const ev = evType
+    evType = ''
     dataLines = []
+    if (ev === 'tool_call') {
+      try { onToolCall?.(JSON.parse(data)) } catch { /* ignore */ }
+      return
+    }
+    if (ev === 'citations') {
+      try { const p = JSON.parse(data); if (Array.isArray(p)) onCitations(p) } catch { /* ignore */ }
+      return
+    }
     const trimmed = data.trim()
-    if (!trimmed || trimmed === '[DONE]') { onDone(); return }
+    if (!trimmed || trimmed === '[DONE]' || ev === 'done') { onDone(); return }
+    if (ev === 'error') { onError(data); return }
+    // token（或無 event: 標記）：內容是 list → citations（相容 agents 端）
     try {
       const parsed = JSON.parse(trimmed)
       if (Array.isArray(parsed)) { onCitations(parsed); return }
@@ -105,7 +120,7 @@ export async function streamChat(
     for (const raw of lines) {
       const line = raw.replace(/\r$/, '')              // 去 CRLF 尾 \r
       if (line === '') { flush(); continue }            // event 邊界
-      if (line.startsWith('event:')) continue
+      if (line.startsWith('event:')) { evType = line.slice(6).replace(/^ /, '').trim(); continue }
       if (line.startsWith('data:')) {
         // 去 "data:" + 一個 SSE 分隔空格（保留 token 真正的前導空格，如 " RTX"）
         dataLines.push(line.slice(5).replace(/^ /, ''))

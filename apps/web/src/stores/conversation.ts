@@ -36,7 +36,9 @@ export interface Citation {
 export interface Conversation {
   id: string
   title: string
-  scenario_id: string
+  scenario_id?: string | null
+  // v5.10.14：對話可綁應用（application）而非代理人（scenario）
+  application_id?: string | null
   message_count: number
   updated_at: string
 }
@@ -79,6 +81,28 @@ export const useConversationStore = defineStore('conversation', () => {
       id: raw.id || raw.conversation_id,
       title: raw.title || title || '新對話',
       scenario_id: raw.scenario_id ?? scenarioId,
+      message_count: raw.message_count ?? 0,
+      updated_at: raw.updated_at || new Date().toISOString(),
+    }
+    conversations.value.unshift(conv)
+    currentConversation.value = conv
+    messages.value = []
+    return conv
+  }
+
+  // v5.10.14：建立綁定「應用」的對話（統一進對話清單，取代獨立 ApplicationChatView）
+  async function createApplicationConversation(appId: string, title?: string, kbIds?: string[]) {
+    const { data } = await http.post('/chat/conversations', {
+      application_id: appId,
+      title: title || '新對話',
+      kb_ids: kbIds ?? [],
+    })
+    const raw = data.data || {}
+    const conv: Conversation = {
+      id: raw.id || raw.conversation_id,
+      title: raw.title || title || '新對話',
+      scenario_id: null,
+      application_id: raw.application_id ?? appId,
       message_count: raw.message_count ?? 0,
       updated_at: raw.updated_at || new Date().toISOString(),
     }
@@ -158,6 +182,7 @@ export const useConversationStore = defineStore('conversation', () => {
     fetchConversations,
     fetchMessages,
     createConversation,
+    createApplicationConversation,
     deleteConversation,
     selectConversation,
     addUserMessage,

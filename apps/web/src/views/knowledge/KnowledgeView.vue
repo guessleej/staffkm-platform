@@ -544,8 +544,8 @@ async function onCreateRagApp(kb: any) {
     })
     const appId = data?.data?.id || data?.id
     if (appId) {
-      // 直接跳到新 application 的對話頁
-      router.push(`/applications/${appId}/chat`)
+      // v5.10.14：KB→RAG 後直接進統一「對話」（不再開獨立 ApplicationChatView）
+      router.push({ path: '/chat', query: { app: appId, appName: `${kb.name} 助理` } })
     } else {
       alert('已建立 RAG 助理，請至「應用」頁查看')
     }

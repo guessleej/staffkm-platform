@@ -895,7 +895,8 @@ async function deleteApp(id: string) {
 }
 
 function enterApp(app: Application) {
-  router.push(`/applications/${app.id}/chat`)
+  // v5.10.14：開始問答匯流進統一「對話」（不再開獨立 ApplicationChatView）
+  router.push({ path: '/chat', query: { app: app.id, appName: app.name } })
 }
 
 function appGradient(id: string) {
