@@ -409,25 +409,22 @@ class WorkflowExecutor:
                     async for ev in self._exec_sub_workflow(config, context):
                         yield ev
 
-                # ── v4.3 Theme C：plugin node fallback ─────────────────────────
-                # TODO (v4.4): 從 app.core.plugin_loader.get_plugin_node 取 BaseNode
-                # 實例，注入 PluginContext(workspace_id, user_id, session_factory)，
-                # 呼叫 await pnode.execute(config, ctx, context)；dict 結果 update
-                # 回 context。本 PR 暫不實接以免 break workflow runtime；plugin SDK
-                # 已可在 lifespan 內 load 並透過 /api/v1/admin/plugins 列出。
-                # else:
-                #     from app.core.plugin_loader import get_plugin_node
-                #     pnode = get_plugin_node(node_type)
-                #     if pnode:
-                #         from staffkm_plugin_sdk.base import PluginContext
-                #         pctx = PluginContext(
-                #             workspace_id=str(self.workspace_id),
-                #             user_id=str(self.user_id) if self.user_id else None,
-                #             session_factory=lambda: _db._session_factory,
-                #         )
-                #         _result = await pnode.execute(config, pctx, context)
-                #         if isinstance(_result, dict):
-                #             context.update(_result)
+                # ── v4.3/v5.10.12：plugin node fallback ─────────────────────────
+                # 非內建 node_type → 交給已載入的 plugin BaseNode（lifespan load）。
+                else:
+                    from app.core.plugin_loader import get_plugin_node
+                    pnode = get_plugin_node(node_type)
+                    if pnode is not None:
+                        async for ev in self._exec_plugin_node(pnode, node_type, config, context):
+                            yield ev
+                    else:
+                        log.warning(
+                            "workflow_unknown_node_type", type=node_type,
+                            **self._audit_fields(context),
+                        )
+                        yield {"event": "node_skipped", "data": json.dumps(
+                            {"node_key": current_key, "type": node_type, "reason": "unknown_node_type"}
+                        )}
 
             except WorkflowPaused:
                 # v3.5 P2：暫停而非錯誤；寫一筆 paused step 後 re-raise，caller 處理 run.status
@@ -2555,6 +2552,39 @@ class WorkflowExecutor:
             "error": res.get("error"),
             "output_variable": out_var,
         }, ensure_ascii=False)}
+
+    # ── v5.10.12：plugin node — 執行已載入的 plugin BaseNode ──────────
+    async def _exec_plugin_node(self, pnode, node_type: str, config: dict, context: dict):
+        """執行 plugin BaseNode（lifespan 已 load）。
+
+        注入 PluginContext（workspace/user/session_factory）；
+        execute 回 dict → context.update（輸出變數攤平進 context）；
+        回 async iterator → 帶 'event' 的視為 stream 事件轉發、其餘 dict 併入 context。
+        plugin 拋例外由外層 dispatch except 統一處理（error/retry 事件）。
+        """
+        import inspect
+
+        from staffkm_plugin_sdk.base import PluginContext
+
+        pctx = PluginContext(
+            workspace_id=str(self.workspace_id or ""),
+            user_id=str(self.user_id) if self.user_id else None,
+            session_factory=_db._session_factory,
+        )
+        res = pnode.execute(config, pctx, context)
+        if inspect.isasyncgen(res):
+            async for ev in res:
+                if isinstance(ev, dict) and "event" in ev:
+                    yield ev
+                elif isinstance(ev, dict):
+                    context.update(ev)
+        else:
+            result = await res
+            if isinstance(result, dict):
+                context.update(result)
+        yield {"event": "plugin_node_done", "data": json.dumps(
+            {"type": node_type}, ensure_ascii=False,
+        )}
 
     # ── v2.1 / RFC-013：寫入 workflow KB ───────────────────────────
     async def _exec_kb_writer(self, config: dict, context: dict):

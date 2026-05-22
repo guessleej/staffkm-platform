@@ -1,22 +1,10 @@
-"""Plugin runtime integration — v4.3.
+"""Plugin runtime integration — v4.3 / v5.10.12。
 
 啟動時 load `/app/plugins/`（可用 STAFFKM_PLUGINS_DIR 覆寫）內所有 plugin。
 
-TODO (v4.4): executor.py 的 _exec_* dispatch 鏈最後加 fallback：
-    from app.core.plugin_loader import get_plugin_node
-    pnode = get_plugin_node(node_type)
-    if pnode:
-        from staffkm_plugin_sdk.base import PluginContext
-        ctx = PluginContext(
-            workspace_id=self.workspace_id,
-            user_id=self.user_id,
-            session_factory=lambda: _db._session_factory,
-        )
-        result = await pnode.execute(config, ctx, context)
-        if isinstance(result, dict):
-            context.update(result)
-
-本 PR 故意不動 executor.py（避免 break workflow runtime），只 load + expose registry。
+v5.10.12：executor.py dispatch 鏈尾端已接 plugin fallback — 非內建 node_type
+會經 `get_plugin_node(node_type)` 取 BaseNode，注入 PluginContext 執行
+（見 WorkflowExecutor._exec_plugin_node）。本檔負責 load + expose registry。
 """
 from __future__ import annotations
 
