@@ -33,6 +33,7 @@ AVAILABLE_NODES = [
     {"type": "webhook", "desc": "receive external trigger. config: { path, secret, output_variable }"},
     {"type": "transform", "desc": "transform data. config: { input_variable, expression, output_variable }"},
     {"type": "mcp_tool", "desc": "MCP tool call. config: { server_url, tool_name, tool_params_template, output_variable }"},
+    {"type": "code", "desc": "run sandboxed Python `def run(**kwargs)->dict`. config: { code, inputs:[{name,value_expression}], output_variable }"},
 ]
 
 

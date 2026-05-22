@@ -114,6 +114,7 @@ async def hybrid_search(
         result = await session.execute(
             text("""
                 SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
+                       p.document_id, p.order_index,
                        (1 - (pe.embedding <=> CAST(:emb AS vector))) AS score,
                        (1 - (pe.embedding <=> CAST(:emb AS vector))) AS vector_score
                 FROM paragraph_embeddings pe
@@ -137,6 +138,7 @@ async def hybrid_search(
         result = await session.execute(
             text("""
                 SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
+                       p.document_id, p.order_index,
                        ts_rank_cd(p.search_vector,
                                   websearch_to_tsquery('simple', :fts_query)) AS score,
                        0.0::float AS vector_score
@@ -202,6 +204,7 @@ async def hybrid_search(
                 )
                 SELECT
                     p.id, p.content, p.title, p.meta, d.name AS doc_name,
+                    p.document_id, p.order_index,
                     m.rrf_score   AS score,
                     m.vector_score
                 FROM merged m

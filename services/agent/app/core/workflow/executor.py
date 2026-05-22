@@ -390,6 +390,11 @@ class WorkflowExecutor:
                     async for ev in self._exec_shell(config, context):
                         yield ev
 
+                # ── v5.10.8：code 節點 — sandbox 跑 def run(**kwargs)（對標 MaxKB 函數庫）──
+                elif node_type == "code":
+                    async for ev in self._exec_code_node(config, context):
+                        yield ev
+
                 # ── v2.1 / RFC-013：寫入 workflow KB ───────────────
                 elif node_type == "kb_writer":
                     async for ev in self._exec_kb_writer(config, context):
@@ -1520,8 +1525,8 @@ class WorkflowExecutor:
     async def _exec_document_tag_retrieval(self, config: dict, context: dict) -> list[dict]:
         """tag-filtered 知識庫檢索：在 _exec_knowledge 基礎上多帶 tags + tag_match_mode。
 
-        假設 knowledge service /search 已支援 tags / tag_match_mode（'any' | 'all'）。
-        若 service 不支援（400 / 422），TODO 後續可加 fallback：先普通 retrieve 再 post-filter。
+        v5.10.11：knowledge service /search 已真正支援 tags / tag_match_mode
+        （'any' = jsonb_exists_any、'all' = @>），依文件 tags 過濾命中段落。
         """
         kb_ids = config.get("kb_ids", [])
         if not kb_ids:
@@ -1547,8 +1552,6 @@ class WorkflowExecutor:
                 )
                 if resp.status_code == 200:
                     return resp.json().get("data", {}).get("citations", [])
-                # TODO: 若 knowledge service 還沒支援 tag filter（400/422），改 fallback：
-                # 先 _exec_knowledge 普通 retrieve、再用 citation.tags 做 post-filter。
                 log.warning(
                     "workflow_document_tag_retrieval_non_200",
                     status=resp.status_code, body=resp.text[:200],
@@ -2271,30 +2274,90 @@ class WorkflowExecutor:
             context[output_var] = context.get("webhook_payload", {})
 
     async def _exec_notify(self, config: dict, context: dict) -> None:
-        """推播通知（in_app / email / slack）— 目前只 log + 寫入 context.notify_sent。
-        實際發送通道整合（後續 PR）由 channel 分派至對應 worker。"""
+        """推播通知（v5.10.9 真實發送）：
+          - email：走 SMTP（settings.SMTP_*；未配置則 sent=False）
+          - slack：POST 到 incoming webhook（SSRF guard 保護 URL）
+          - in_app：無外部通道，寫入 context 供前端/後續節點取用
+
+        config: { channel, target_var | to, subject, template, webhook_url }
+        """
         channel = config.get("channel", "in_app")
         target = context.get(config.get("target_var", "")) if config.get("target_var") else None
         message = self._render_template(config.get("template", ""), context)
+        sent = False
+        detail = ""
+        try:
+            if channel == "email":
+                from app.core.email import send_email
+                to = (str(target) if target else self._render_template(config.get("to", ""), context)).strip()
+                if "@" in to:
+                    sent = await send_email(
+                        to=to,
+                        subject=self._render_template(config.get("subject", "staffKM 通知"), context),
+                        body=message,
+                    )
+                    detail = "SMTP ok" if sent else "SMTP 未配置或寄送失敗"
+                else:
+                    detail = "email channel 缺有效收件者"
+            elif channel == "slack":
+                from staffkm_core.utils.net import UnsafeURLError, safe_request
+                webhook = (self._render_template(config.get("webhook_url", ""), context) or str(target or "")).strip()
+                if webhook:
+                    try:
+                        async with httpx.AsyncClient(timeout=15.0) as client:
+                            resp = await safe_request(client, "POST", webhook, json={"text": message})
+                        sent = resp.status_code < 400
+                        detail = f"HTTP {resp.status_code}"
+                    except UnsafeURLError as e:
+                        detail = f"webhook URL 被 SSRF 防護擋下：{e}"
+                else:
+                    detail = "slack channel 缺 webhook_url"
+            else:  # in_app — 無外部通道，視為已記錄
+                sent = True
+                detail = "in_app recorded"
+        except Exception as e:  # noqa: BLE001
+            detail = str(e)[:200]
         log.info(
             "notify_dispatch",
-            channel=channel, target=str(target)[:64], message=message[:200],
+            channel=channel, target=str(target)[:64], sent=sent, detail=detail[:120],
             **self._audit_fields(context),
         )
-        context["notify_sent"] = {"channel": channel, "target": target, "message": message}
+        context["notify_sent"] = {
+            "channel": channel, "target": target, "message": message,
+            "sent": sent, "detail": detail,
+        }
 
     async def _exec_email(self, config: dict, context: dict) -> None:
-        """Email 寄送節點 — 目前 stub：render subject + body，log 後寫 context.email_drafted。
-        實際 SMTP 整合（後續 PR）由 application config 設定 SMTP server。"""
-        to = str(context.get(config.get("to_var", "recipient_email"), ""))
+        """Email 寄送節點（v5.10.9 真實 SMTP 發送）。
+
+        config: { to | to_var, subject_template, body_template, html, output_variable }
+        收件者：config.to（模板）優先，否則 context[to_var]（預設 recipient_email）。
+        SMTP 未配置（settings.SMTP_HOST 空）→ send_email log skip 回 False，sent=False（不視為錯誤）。
+        """
+        from app.core.email import send_email
+
+        to_tpl = config.get("to")
+        to = (
+            self._render_template(to_tpl, context) if to_tpl
+            else str(context.get(config.get("to_var", "recipient_email"), ""))
+        ).strip()
         subject = self._render_template(config.get("subject_template", ""), context)
         body = self._render_template(config.get("body_template", ""), context)
+
+        sent = False
+        if "@" in to:
+            sent = await send_email(
+                to=to, subject=subject, body=body, html=bool(config.get("html", False)),
+            )
+        else:
+            log.warning("email_node_invalid_recipient", to=to[:64], **self._audit_fields(context))
+
+        out_var = config.get("output_variable", "email_drafted")  # 維持舊 key 預設（向後相容）
+        context[out_var] = {"to": to, "subject": subject, "body": body, "sent": sent}
         log.info(
-            "email_drafted",
-            to=to[:128], subject=subject[:128],
+            "email_node", to=to[:128], subject=subject[:128], sent=sent,
             **self._audit_fields(context),
         )
-        context["email_drafted"] = {"to": to, "subject": subject, "body": body}
 
     async def _exec_schedule(self, config: dict, context: dict) -> None:
         """排程觸發節點：實際排程由 scheduler worker 註冊；本節點僅標記 metadata
@@ -2443,6 +2506,55 @@ class WorkflowExecutor:
             "timed_out": res.timed_out,
             "elapsed_ms": res.elapsed_ms,
         })}
+
+    # ── v5.10.8：code 節點 — 跑使用者 def run(**kwargs)（對標 MaxKB 函數庫）──
+    async def _exec_code_node(self, config: dict, context: dict):
+        """在 sandbox 執行使用者 Python `def run(**kwargs) -> dict`，結果寫 output_variable。
+
+        config:
+          code:            Python def run(**kwargs) -> dict 原碼（必填）
+          inputs:          [{name, value_expression}] — 從 context 渲染後當 kwargs（選填）
+          output_variable: 結果寫入的 context key（預設 'code_result'）
+          timeout_sec / mem_mb / cpu_secs: sandbox 上限（選填）
+
+        隔離靠 run_python_code（rlimit + timeout + 清空環境 + -I）；
+        與 custom tool 共用同一 sandbox helper（DRY）。
+        """
+        from app.core.sandbox import run_python_code
+
+        out_var = config.get("output_variable", "code_result")
+        code = config.get("code") or ""
+        if "def run" not in code:
+            context[out_var] = {"error": "code 缺少 def run(**kwargs)"}
+            yield {"event": "code_error", "data": json.dumps({"error": "code 缺少 def run(**kwargs)"}, ensure_ascii=False)}
+            return
+
+        kwargs: dict = {}
+        for item in config.get("inputs", []) or []:
+            name = item.get("name")
+            if name:
+                kwargs[name] = self._render_template(item.get("value_expression", ""), context)
+
+        res = await run_python_code(
+            code, kwargs,
+            timeout_sec=int(config.get("timeout_sec", 15)),
+            mem_mb=int(config.get("mem_mb", 256)),
+            cpu_secs=int(config.get("cpu_secs", 10)),
+        )
+        output = res.get("output") if res.get("ok") else {"error": res.get("error")}
+        context[out_var] = output
+        # 把 dict 結果的頂層 key 攤平進 context，讓 {{field}} 可直接用於後續節點模板
+        # （_render_template 只渲染扁平的 str/int/float；dict 本身無法 {{}} 取用）
+        if isinstance(output, dict):
+            for k, v in output.items():
+                if isinstance(k, str) and not k.startswith("_"):
+                    context[k] = v
+        yield {"event": "code_done", "data": json.dumps({
+            "ok": res.get("ok"),
+            "elapsed_ms": res.get("elapsed_ms"),
+            "error": res.get("error"),
+            "output_variable": out_var,
+        }, ensure_ascii=False)}
 
     # ── v2.1 / RFC-013：寫入 workflow KB ───────────────────────────
     async def _exec_kb_writer(self, config: dict, context: dict):

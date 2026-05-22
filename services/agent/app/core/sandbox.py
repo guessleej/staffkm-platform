@@ -135,3 +135,73 @@ async def run_sandboxed(
         timed_out=timed_out,
         elapsed_ms=elapsed_ms,
     )
+
+
+async def run_python_code(
+    code: str,
+    inputs: dict,
+    *,
+    timeout_sec: int = 15,
+    mem_mb:      int = 256,
+    cpu_secs:    int = 10,
+) -> dict:
+    """在 sandbox 子程序執行使用者 `def run(**kwargs) -> dict` 程式碼。
+
+    供 custom / AI 生成工具（tool_exec）與 workflow code 節點共用（DRY）。
+    以 stdin 傳 JSON 參數，從 stdout 的 marker 之後取回 JSON 結果。
+
+    回傳 dict：
+      ok:         成功且 output 不含 error
+      output:     run() 回傳的 dict（解析失敗為 None）
+      error:      失敗原因（逾時 / 非零碼 / run() 內部回傳 error）
+      elapsed_ms: 耗時
+      raw:        無法解析 marker 時的原始 stdout（debug；成功時 None）
+
+    隔離：rlimit（CPU/記憶體/開檔/子程序）+ wall-clock timeout + 清空環境
+    + `-I` isolated 模式。網路 / fs namespace 隔離待 M4（見本檔頭）。
+    """
+    import json as _json
+    import sys
+    import time
+
+    if not code or "def run" not in code:
+        return {"ok": False, "output": None, "error": "code 缺少 def run(**kwargs)", "elapsed_ms": 0, "raw": None}
+
+    marker = "__STAFFKM_RESULT__"
+    harness = (
+        "import sys, json\n"
+        f"{code}\n"
+        "\nif __name__ == '__main__':\n"
+        "    _args = json.loads(sys.stdin.read() or '{}')\n"
+        "    try:\n"
+        "        _res = run(**_args)\n"
+        "    except Exception as _e:\n"
+        "        _res = {'error': str(_e)}\n"
+        f"    sys.stdout.write({marker!r} + json.dumps(_res, ensure_ascii=False, default=str))\n"
+    )
+    started = time.monotonic()
+    res = await run_sandboxed(
+        [sys.executable, "-I", "-c", harness],
+        stdin=_json.dumps(inputs, ensure_ascii=False),
+        timeout_sec=timeout_sec, mem_mb=mem_mb, cpu_secs=cpu_secs,
+    )
+    elapsed = int((time.monotonic() - started) * 1000)
+    if res.timed_out:
+        return {"ok": False, "output": None, "error": f"執行逾時（>{timeout_sec}s）", "elapsed_ms": elapsed, "raw": None}
+    if res.exit_code != 0:
+        return {"ok": False, "output": None, "error": (res.stderr or "程式以非零碼結束").strip()[:1000], "elapsed_ms": elapsed, "raw": None}
+    out = None
+    idx = res.stdout.rfind(marker)
+    if idx >= 0:
+        try:
+            out = _json.loads(res.stdout[idx + len(marker):])
+        except Exception:
+            out = None
+    err = out.get("error") if isinstance(out, dict) else None
+    return {
+        "ok": isinstance(out, dict) and err is None,
+        "output": out if isinstance(out, dict) else None,
+        "error": err,
+        "elapsed_ms": elapsed,
+        "raw": None if isinstance(out, dict) else (res.stdout[:2000] or None),
+    }
