@@ -97,11 +97,27 @@
               </button>
             </header>
             <!-- 訊息內容：user 純文字、assistant 渲染 markdown (v5.9.31) -->
-            <MarkdownMessage
-              v-if="msg.role === 'assistant'"
-              :content="msg.content"
-              class="text-neutral-800"
-            />
+            <template v-if="msg.role === 'assistant'">
+              <MarkdownMessage
+                v-if="msg.content"
+                :content="msg.content"
+                class="text-neutral-800"
+              />
+              <!-- v5.10.15：提交後到首 token 前的「思考中」閃爍 → 讓使用者知道還活著；
+                   無法回答時 streaming 會被關閉 → 不閃（見 onError / catch） -->
+              <div
+                v-else-if="msg.streaming"
+                class="flex items-center gap-2 py-1 text-neutral-400"
+                aria-label="思考中"
+              >
+                <span class="inline-flex gap-1 items-center">
+                  <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse [animation-delay:200ms]"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse [animation-delay:400ms]"></span>
+                </span>
+                <span class="text-xs animate-pulse">思考中…</span>
+              </div>
+            </template>
             <div
               v-else
               class="whitespace-pre-wrap text-neutral-900"
@@ -155,19 +171,9 @@
             </div>
           </article>
 
-          <!-- v5.9.15: 移除重複的串流 article — store.messages 透過 appendToken
-               已 reactive 累積，這裡 streamingText 會顯示第二次（duplicate）。
-               改成：sending 狀態下在最後一條 assistant message 末加一個 cursor。
-               若還沒有 assistant message（剛起步）顯示一個 placeholder。 -->
-          <article v-if="sending && !convStore.messages.some(m => m.role === 'assistant')"
-                   class="text-[15px] leading-7">
-            <header class="mb-1 text-[11px] uppercase tracking-widest text-neutral-400">
-              staffKM
-            </header>
-            <div class="whitespace-pre-wrap text-neutral-500">
-              <span class="animate-pulse">思考中…▌</span>
-            </div>
-          </article>
+          <!-- v5.10.15：思考中指示已移到 assistant 訊息本身（streaming && !content），
+               提交後到首 token 前閃爍、無法回答則停止 → 此處舊 placeholder 已不需要 -->
+
         </div>
       </div>
 
@@ -365,6 +371,8 @@ async function onSubmit() {
         nextTick(scrollToBottom)
       },
       () => {
+        // v5.10.15：無法回答 → 關閉 streaming（停止閃爍）；空回應就不留內容
+        convStore.finishAssistantMessage(assistant.id, [])
         sending.value = false
         streamingText.value = ''
       },
@@ -385,6 +393,8 @@ async function onSubmit() {
       },
     )
   } catch {
+    // v5.10.15：例外也要關 streaming，否則思考中浮標會一直閃
+    convStore.finishAssistantMessage(assistant.id, [])
     sending.value = false
     streamingText.value = ''
   }
