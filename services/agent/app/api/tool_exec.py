@@ -131,53 +131,19 @@ async def _exec_code(code: str, inputs: dict) -> ToolExecResponse:
     以 stdin 傳 JSON 參數，從 stdout marker 之後取回 JSON 結果。
     注意：M2 sandbox 尚無網路 / fs namespace 隔離（見 sandbox.py M4 升級路徑）。
     """
-    import sys
-
-    from app.core.sandbox import run_sandboxed
+    from app.core.sandbox import run_python_code
 
     if not code or "def run" not in code:
         raise HTTPException(status_code=400, detail="tool.code 缺少 def run(**kwargs)")
 
-    marker = "__STAFFKM_RESULT__"
-    harness = (
-        "import sys, json\n"
-        f"{code}\n"
-        "\nif __name__ == '__main__':\n"
-        "    _args = json.loads(sys.stdin.read() or '{}')\n"
-        "    try:\n"
-        "        _res = run(**_args)\n"
-        "    except Exception as _e:\n"
-        "        _res = {'error': str(_e)}\n"
-        f"    sys.stdout.write({marker!r} + json.dumps(_res, ensure_ascii=False, default=str))\n"
-    )
-    started = time.monotonic()
-    res = await run_sandboxed(
-        [sys.executable, "-I", "-c", harness],
-        stdin=json.dumps(inputs, ensure_ascii=False),
-        timeout_sec=15, mem_mb=256, cpu_secs=10,
-    )
-    elapsed = int((time.monotonic() - started) * 1000)
-    if res.timed_out:
-        return ToolExecResponse(success=False, elapsed_ms=elapsed, error="執行逾時（>15s）")
-    if res.exit_code != 0:
-        return ToolExecResponse(
-            success=False, elapsed_ms=elapsed,
-            error=(res.stderr or "程式以非零碼結束").strip()[:1000],
-        )
-    out_dict = None
-    idx = res.stdout.rfind(marker)
-    if idx >= 0:
-        try:
-            out_dict = json.loads(res.stdout[idx + len(marker):])
-        except Exception:
-            out_dict = None
-    err = out_dict.get("error") if isinstance(out_dict, dict) else None
+    # v5.10.8：harness/sandbox 已抽到 core.sandbox.run_python_code，與 workflow code 節點共用
+    r = await run_python_code(code, inputs)
     return ToolExecResponse(
-        success=isinstance(out_dict, dict) and err is None,
-        output=out_dict if isinstance(out_dict, dict) else None,
-        text=None if isinstance(out_dict, dict) else (res.stdout[:2000] or None),
-        elapsed_ms=elapsed,
-        error=err,
+        success=r["ok"],
+        output=r.get("output"),
+        text=r.get("raw"),
+        elapsed_ms=r["elapsed_ms"],
+        error=r.get("error"),
     )
 
 

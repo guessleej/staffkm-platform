@@ -390,6 +390,11 @@ class WorkflowExecutor:
                     async for ev in self._exec_shell(config, context):
                         yield ev
 
+                # ── v5.10.8：code 節點 — sandbox 跑 def run(**kwargs)（對標 MaxKB 函數庫）──
+                elif node_type == "code":
+                    async for ev in self._exec_code_node(config, context):
+                        yield ev
+
                 # ── v2.1 / RFC-013：寫入 workflow KB ───────────────
                 elif node_type == "kb_writer":
                     async for ev in self._exec_kb_writer(config, context):
@@ -2443,6 +2448,55 @@ class WorkflowExecutor:
             "timed_out": res.timed_out,
             "elapsed_ms": res.elapsed_ms,
         })}
+
+    # ── v5.10.8：code 節點 — 跑使用者 def run(**kwargs)（對標 MaxKB 函數庫）──
+    async def _exec_code_node(self, config: dict, context: dict):
+        """在 sandbox 執行使用者 Python `def run(**kwargs) -> dict`，結果寫 output_variable。
+
+        config:
+          code:            Python def run(**kwargs) -> dict 原碼（必填）
+          inputs:          [{name, value_expression}] — 從 context 渲染後當 kwargs（選填）
+          output_variable: 結果寫入的 context key（預設 'code_result'）
+          timeout_sec / mem_mb / cpu_secs: sandbox 上限（選填）
+
+        隔離靠 run_python_code（rlimit + timeout + 清空環境 + -I）；
+        與 custom tool 共用同一 sandbox helper（DRY）。
+        """
+        from app.core.sandbox import run_python_code
+
+        out_var = config.get("output_variable", "code_result")
+        code = config.get("code") or ""
+        if "def run" not in code:
+            context[out_var] = {"error": "code 缺少 def run(**kwargs)"}
+            yield {"event": "code_error", "data": json.dumps({"error": "code 缺少 def run(**kwargs)"}, ensure_ascii=False)}
+            return
+
+        kwargs: dict = {}
+        for item in config.get("inputs", []) or []:
+            name = item.get("name")
+            if name:
+                kwargs[name] = self._render_template(item.get("value_expression", ""), context)
+
+        res = await run_python_code(
+            code, kwargs,
+            timeout_sec=int(config.get("timeout_sec", 15)),
+            mem_mb=int(config.get("mem_mb", 256)),
+            cpu_secs=int(config.get("cpu_secs", 10)),
+        )
+        output = res.get("output") if res.get("ok") else {"error": res.get("error")}
+        context[out_var] = output
+        # 把 dict 結果的頂層 key 攤平進 context，讓 {{field}} 可直接用於後續節點模板
+        # （_render_template 只渲染扁平的 str/int/float；dict 本身無法 {{}} 取用）
+        if isinstance(output, dict):
+            for k, v in output.items():
+                if isinstance(k, str) and not k.startswith("_"):
+                    context[k] = v
+        yield {"event": "code_done", "data": json.dumps({
+            "ok": res.get("ok"),
+            "elapsed_ms": res.get("elapsed_ms"),
+            "error": res.get("error"),
+            "output_variable": out_var,
+        }, ensure_ascii=False)}
 
     # ── v2.1 / RFC-013：寫入 workflow KB ───────────────────────────
     async def _exec_kb_writer(self, config: dict, context: dict):
