@@ -485,3 +485,43 @@ async def get_source_info(
     if not row:
         raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
     return ApiResponse(data=dict(row._mapping))
+
+
+# ── RFC-014 GraphRAG（MVP v5.11.0）─────────────────────────────────────
+@router.post("/{kb_id}/graph/rebuild", response_model=ApiResponse)
+async def rebuild_kb_graph(
+    kb_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """開啟此 KB 的 graph_enabled 並背景重建知識圖譜（對既有文件）。"""
+    kb = (await session.execute(
+        WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    )).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+    kb.graph_enabled = True
+    await session.commit()
+    from app.tasks.build_graph import build_graph
+    task = build_graph.delay(str(kb_id), str(ctx.workspace_id), None)
+    return ApiResponse(
+        message="已開啟 GraphRAG 並排程重建圖譜（背景處理中）",
+        data={"kb_id": str(kb_id), "graph_enabled": True, "task_id": task.id},
+    )
+
+
+@router.post("/{kb_id}/graph/disable", response_model=ApiResponse)
+async def disable_kb_graph(
+    kb_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_writer),
+    session: AsyncSession = Depends(get_session),
+):
+    """關閉此 KB 的 GraphRAG（查詢即不再走 graph 召回；既有圖資料保留）。"""
+    kb = (await session.execute(
+        WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    )).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+    kb.graph_enabled = False
+    await session.commit()
+    return ApiResponse(message="已關閉 GraphRAG", data={"kb_id": str(kb_id), "graph_enabled": False})

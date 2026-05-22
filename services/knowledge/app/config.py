@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: set[str] = {
         ".pdf", ".docx", ".doc", ".txt", ".md", ".xlsx", ".xls", ".csv", ".html",
         ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp",
+        ".odt", ".ods",   # v5.11.x: ODF（政府/教育公文常用 OpenDocument）
     }
 
     # v5.9.23: OCR 引擎切換
@@ -42,6 +43,15 @@ class Settings(BaseSettings):
     VISION_OCR_API_KEY: str = ""   # 地端 Ollama 不需要；cloud (Kimi/OpenAI) 才填
     # Vision OCR 失敗 → 是否自動 fallback 回 Tesseract
     VISION_OCR_FALLBACK_TESSERACT: bool = True
+
+    # ── RFC-014 GraphRAG 加法層（MVP v5.11.0）─────────────────────
+    # 實體抽取 LLM：預設用地端 Ollama 既有的 gemma4:e4b（閒置中，零新下載/零雲端成本/
+    # 無 Kimi content-filter）。要更高品質才切雲端（換 base_url + api_key + model）。
+    GRAPH_EXTRACT_MODEL:    str = "gemma4:e4b"
+    GRAPH_EXTRACT_BASE_URL: str = "http://embedder:11434/v1"
+    GRAPH_EXTRACT_API_KEY:  str = "dummy"          # 地端 Ollama 不檢查
+    # query→實體 比對：取相似度前 N 個實體，再 JOIN mentions 取候選段落
+    GRAPH_QUERY_TOP_ENTITIES: int = 5
 
 
 settings = Settings()

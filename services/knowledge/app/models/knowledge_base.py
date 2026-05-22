@@ -45,6 +45,8 @@ class KnowledgeBase(Base, UUIDPrimaryKeyMixin, AuditMixin):
     chunk_strategy: Mapped[str] = mapped_column(String(16), default="auto")
     chunk_size:     Mapped[int] = mapped_column(default=512)
     chunk_overlap:  Mapped[int] = mapped_column(default=64)
+    # RFC-014 GraphRAG 加法層（MVP v5.11.0）：per-KB opt-in，預設關閉
+    graph_enabled:  Mapped[bool] = mapped_column(Boolean, default=False)
 
     # ── KB 來源（Round 10-5 / RFC-013 / Sprint 16 Web KB）──
     # 欄位由 main.py bootstrap DDL 補；此處宣告供 ORM / Pydantic from_attributes 使用
