@@ -572,12 +572,68 @@ class ApplicationAgent:
 
     # ── simple mode：單輪 RAG（原行為）──────────────────────────────────────
 
+    async def _maybe_rewrite_query(self, ctx: AgentContext, query: str) -> str:
+        """問題優化（v5.10.7）：多輪對話時用歷史把含代詞/省略的後續問題
+        改寫成「不依賴上下文、可獨立檢索」的 standalone query，提升召回。
+
+        僅在 (1) config.query_rewrite 未關閉 (2) 有先前對話歷史 時啟用。
+        多一次輕量 LLM call；逾時(8s)/失敗/異常一律 fallback 原問題，絕不阻斷檢索。
+        注意：只改寫「檢索用」query，回答仍針對使用者原本的問題。
+        """
+        import asyncio
+
+        if self.config.get("query_rewrite") is False:
+            return query
+        history = ctx.messages[:-1] if ctx.messages else []
+        if not history or not query.strip():
+            return query  # 首輪無上下文可解析
+
+        recent = history[-6:]
+        hist_text = "\n".join(
+            f"{m.get('role', 'user')}: {str(m.get('content', ''))[:500]}" for m in recent
+        )
+        sys_prompt = (
+            "你是檢索查詢改寫器。依對話歷史，把使用者最新問題改寫成不依賴上下文、"
+            "可獨立檢索的完整查詢：補齊代詞與省略的主詞、保留關鍵實體。"
+            "只輸出改寫後的查詢，不要解釋、不要加引號。"
+        )
+        usr_prompt = f"對話歷史：\n{hist_text}\n\n最新問題：{query}\n\n改寫後查詢："
+        try:
+            resp = await asyncio.wait_for(
+                self._llm.chat.completions.create(
+                    model=self._model,
+                    messages=[
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": usr_prompt},
+                    ],
+                    temperature=self._effective_temperature(),
+                    max_tokens=200,
+                    stream=False,
+                ),
+                timeout=8.0,
+            )
+            rewritten = (resp.choices[0].message.content or "").strip().strip('"').strip()
+            # 防呆：空 / 異常膨脹 → 用原問題
+            if rewritten and len(rewritten) <= len(query) + 400:
+                if rewritten != query:
+                    log.info(
+                        "query_rewritten", app_id=self.app_id,
+                        orig=query[:60], rewritten=rewritten[:60],
+                    )
+                return rewritten
+        except Exception as e:  # noqa: BLE001 — 含 TimeoutError
+            log.warning("query_rewrite_failed", app_id=self.app_id, error=str(e))
+        return query
+
     async def _stream_simple(self, ctx: AgentContext) -> AsyncIterator[dict]:
         user_query = ctx.messages[-1]["content"] if ctx.messages else ""
 
+        # 問題優化：多輪時改寫成 standalone 檢索 query（回答仍針對原問題）
+        search_query = await self._maybe_rewrite_query(ctx, user_query)
+
         # RAG 檢索（合併 ctx.kb_ids；帶 workspace + 認證 header 給下游 knowledge service）
         citations = await self.retrieve_context(
-            user_query,
+            search_query,
             ctx.kb_ids,
             workspace_id=ctx.workspace_id,
             user_id=ctx.user_id,
