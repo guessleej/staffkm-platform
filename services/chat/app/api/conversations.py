@@ -23,7 +23,9 @@ log = structlog.get_logger()
 
 
 class ConversationCreate(BaseModel):
-    scenario_id: str
+    # v5.10.14：scenario_id（代理人）或 application_id（應用）二擇一
+    scenario_id: str | None = None
+    application_id: str | None = None
     kb_ids: list[str] = []
     title: str | None = None
 
@@ -42,15 +44,27 @@ async def create_conversation(
     session: AsyncSession = Depends(get_session),
 ):
     user_id = getattr(request.state, "user_id", "anonymous")
+    if not body.scenario_id and not body.application_id:
+        raise HTTPException(status_code=422, detail="需指定 scenario_id 或 application_id")
+    default_title = (
+        body.title
+        or (f"新對話 ({body.scenario_id})" if body.scenario_id else "新對話")
+    )
     conv = Conversation(
         user_id=user_id,
         scenario_id=body.scenario_id,
+        application_id=uuid.UUID(body.application_id) if body.application_id else None,
         kb_ids=body.kb_ids,
-        title=body.title or f"新對話 ({body.scenario_id})",
+        title=default_title,
     )
     session.add(conv)
     await session.flush()
-    return ApiResponse(data={"conversation_id": str(conv.id), "title": conv.title})
+    return ApiResponse(data={
+        "conversation_id": str(conv.id),
+        "title": conv.title,
+        "application_id": str(conv.application_id) if conv.application_id else None,
+        "scenario_id": conv.scenario_id,
+    })
 
 
 @router.get("", response_model=PagedResponse, summary="查詢對話清單")
@@ -72,6 +86,7 @@ async def list_conversations(
     return PagedResponse(
         data=[{
             "id": str(c.id), "title": c.title, "scenario_id": c.scenario_id,
+            "application_id": str(c.application_id) if c.application_id else None,
             "message_count": c.message_count, "updated_at": c.updated_at.isoformat()
         } for c in convs],
         meta=PageMeta(page=page, page_size=page_size, total=total, total_pages=max(1, -(-total // page_size))),
@@ -127,38 +142,78 @@ async def stream_message(
         if v:
             upstream_headers[h] = v
 
+    # v5.10.14：對話可綁 application（應用）或 scenario（代理人）→ 路由不同上游端點
+    is_app = conv.application_id is not None
+
     async def event_generator():
         full_response = ""
         citations = []
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 upstream_kb_ids = body.kb_ids_override if body.kb_ids_override is not None else conv.kb_ids
-                upstream_body = {
-                    "scenario_id": conv.scenario_id,
-                    "session_id": str(conv_id),
-                    "messages": messages,
-                    "kb_ids": upstream_kb_ids,
-                }
+                ws_prefix = f"/workspace/{ws_id}" if ws_id else ""
+                if is_app:
+                    upstream_body = {
+                        "session_id": str(conv_id),
+                        "messages": messages,
+                        "kb_ids": upstream_kb_ids or [],
+                    }
+                    upstream_url = (
+                        f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}"
+                        f"/applications/{conv.application_id}/chat"
+                    )
+                else:
+                    upstream_body = {
+                        "scenario_id": conv.scenario_id,
+                        "session_id": str(conv_id),
+                        "messages": messages,
+                        "kb_ids": upstream_kb_ids,
+                    }
+                    upstream_url = (
+                        f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}"
+                        f"/agents/{conv.scenario_id}/chat"
+                    )
                 if body.model_override:
                     upstream_body["model_override"] = body.model_override
-                # workspace-scoped URL (v4.0 之後唯一可接的路徑)
-                ws_prefix = f"/workspace/{ws_id}" if ws_id else ""
-                upstream_url = (
-                    f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}"
-                    f"/agents/{conv.scenario_id}/chat"
-                )
+
+                # 事件感知中繼：累積一個 event 的 data: 行，遇空行才用 \n 重組分派。
+                # （修 v5.10.13 同類雷：原本 .strip()+跳空 data → token 內換行全遺失、答案擠成一坨）
+                ev_type = ""
+                data_lines: list[str] = []
                 async with client.stream(
                     "POST", upstream_url,
                     json=upstream_body,
                     headers=upstream_headers,
                 ) as upstream:
-                    async for line in upstream.aiter_lines():
+                    async for raw in upstream.aiter_lines():
                         if await request.is_disconnected():
                             break
-                        if line.startswith("data:"):
-                            data = line[5:].strip()
-                            if not data or data == "[DONE]":
-                                continue
+                        line = raw.rstrip("\r")
+                        if line != "":
+                            if line.startswith("event:"):
+                                ev_type = line[6:].lstrip()
+                            elif line.startswith("data:"):
+                                s = line[5:]
+                                data_lines.append(s[1:] if s.startswith(" ") else s)
+                            continue
+                        # 空行 = event 邊界 → flush
+                        if not data_lines and not ev_type:
+                            continue
+                        data = "\n".join(data_lines)
+                        etype = ev_type
+                        ev_type = ""
+                        data_lines = []
+                        if etype == "tool_call":
+                            yield {"event": "tool_call", "data": data}      # 工具呼叫過程透傳
+                        elif etype == "citations":
+                            try: citations = json.loads(data)
+                            except json.JSONDecodeError: pass
+                        elif etype == "error":
+                            yield {"event": "error", "data": data}
+                        elif etype == "done" or data == "[DONE]":
+                            pass
+                        else:
+                            # token（或 agents 端無 event: 標記）：內容是 list → 視為 citations（相容）
                             try:
                                 parsed = json.loads(data)
                                 if isinstance(parsed, list):

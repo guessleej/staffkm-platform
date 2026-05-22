@@ -321,6 +321,15 @@ async function startWithScenario(scenarioId: string) {
   history.replaceState(null, '', `?conv=${(conv as any)?.id || ''}`)
 }
 
+// v5.10.14：應用「開始問答」匯流進統一對話（取代獨立 ApplicationChatView）
+async function startWithApplication(appId: string, appName?: string) {
+  const projectKbs = projectStore.active?.knowledge_base_ids ?? []
+  const title = appName ? `${appName}` : undefined
+  const conv = await convStore.createApplicationConversation(appId, title, projectKbs)
+  if (conv) convStore.selectConversation(conv as any)
+  history.replaceState(null, '', `?conv=${(conv as any)?.id || ''}`)
+}
+
 async function onSubmit() {
   const text = draft.value.trim()
   if (!text || sending.value) return
@@ -363,6 +372,17 @@ async function onSubmit() {
         model_override:  chatOverride.model || null,
         kb_ids_override: chatOverride.kb_ids.length ? chatOverride.kb_ids : null,
       },
+      // v5.10.14：應用對話的 function-calling 工具呼叫過程 → 折疊式 ToolCallBlock
+      (tc) => {
+        convStore.appendToolCall(assistant.id, {
+          name: tc.name,
+          status: tc.status === 'error' ? 'error' : 'success',
+          input: (tc.input as Record<string, unknown>) ?? null,
+          output: tc.output ?? null,
+          error: tc.error ?? null,
+        })
+        scrollToBottom()
+      },
     )
   } catch {
     sending.value = false
@@ -379,6 +399,12 @@ watch(() => route.query.conv, selectFromRoute, { immediate: false })
 
 onMounted(async () => {
   await loadAgents()
-  await selectFromRoute()
+  // v5.10.14：?app={id} 來自應用「開始問答」→ 自動建立應用對話（統一進對話）
+  const appId = route.query.app as string
+  if (appId) {
+    await startWithApplication(appId, (route.query.appName as string) || undefined)
+  } else {
+    await selectFromRoute()
+  }
 })
 </script>
