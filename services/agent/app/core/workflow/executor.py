@@ -1525,8 +1525,8 @@ class WorkflowExecutor:
     async def _exec_document_tag_retrieval(self, config: dict, context: dict) -> list[dict]:
         """tag-filtered 知識庫檢索：在 _exec_knowledge 基礎上多帶 tags + tag_match_mode。
 
-        假設 knowledge service /search 已支援 tags / tag_match_mode（'any' | 'all'）。
-        若 service 不支援（400 / 422），TODO 後續可加 fallback：先普通 retrieve 再 post-filter。
+        v5.10.11：knowledge service /search 已真正支援 tags / tag_match_mode
+        （'any' = jsonb_exists_any、'all' = @>），依文件 tags 過濾命中段落。
         """
         kb_ids = config.get("kb_ids", [])
         if not kb_ids:
@@ -1552,8 +1552,6 @@ class WorkflowExecutor:
                 )
                 if resp.status_code == 200:
                     return resp.json().get("data", {}).get("citations", [])
-                # TODO: 若 knowledge service 還沒支援 tag filter（400/422），改 fallback：
-                # 先 _exec_knowledge 普通 retrieve、再用 citation.tags 做 post-filter。
                 log.warning(
                     "workflow_document_tag_retrieval_non_200",
                     status=resp.status_code, body=resp.text[:200],

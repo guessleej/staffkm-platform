@@ -1,4 +1,5 @@
 """語意檢索 API — 向量 + PostgreSQL FTS Hybrid Search（RRF）"""
+import json
 import uuid
 from typing import Literal
 
@@ -42,6 +43,29 @@ async def _filter_kbs_in_workspace(
         except Exception:
             continue
     return allowed
+
+
+async def _docs_matching_tags(
+    session: AsyncSession, kb_ids: list[uuid.UUID], tags: list[str], mode: str
+) -> set[str] | None:
+    """回傳 kb_ids 內、tags 符合的文件 id 集合；tags 空 → None（不過濾）。
+
+    all  → d.tags @> [...]（含全部）；any → jsonb_exists_any（含任一）。
+    用 jsonb_exists_any 函式而非 ?| 運算子，避開 SQLAlchemy 對 ? 的 bind 解析衝突。
+    """
+    if not tags:
+        return None
+    if mode == "all":
+        cond = "d.tags @> CAST(:tags_json AS jsonb)"
+        params = {"tags_json": json.dumps(tags)}
+    else:  # any
+        cond = "jsonb_exists_any(d.tags, :tags_arr)"
+        params = {"tags_arr": tags}  # Python list → text[]（CLAUDE.md array bind 紀律）
+    rows = await session.execute(
+        text(f"SELECT id FROM documents d WHERE d.knowledge_base_id = ANY(:kbs) AND {cond}"),
+        {"kbs": [str(k) for k in kb_ids], **params},
+    )
+    return {str(r[0]) for r in rows.fetchall()}
 
 
 async def _expand_context(
@@ -91,6 +115,9 @@ class SearchRequest(BaseModel):
     retrieval_top_k: int = Field(default=20, ge=1, le=50, description="有 Reranker 時先取更多候選，再重排")
     # P2 上下文窗口召回：命中段落額外帶回同文件前後 N 段（0=關閉）
     context_window: int = Field(default=0, ge=0, le=5, description="每個命中段落額外帶回同文件前後 N 段的內容")
+    # P3 tag 過濾：限定命中段落所屬文件需符合 tags（any=任一/all=全部）
+    tags: list[str] = Field(default_factory=list, description="文件標籤過濾；空=不過濾")
+    tag_match_mode: Literal["any", "all"] = Field(default="any", description="any=符合任一標籤；all=需符合全部")
 
 
 class Citation(BaseModel):
@@ -131,6 +158,15 @@ async def search(
 
     fetch_k = body.retrieval_top_k if body.reranker else body.top_k
 
+    # P3 tag 過濾：先算出符合標籤的文件集合；有過濾時多撈候選避免 top_k 不足
+    tag_doc_ids = await _docs_matching_tags(
+        session, allowed_kb_ids, body.tags, body.tag_match_mode
+    )
+    if tag_doc_ids is not None:
+        if not tag_doc_ids:  # 沒有任何文件符合標籤 → 直接空結果
+            return ApiResponse(data=SearchResponse(citations=[], total=0, search_mode=body.search_mode))
+        fetch_k = max(fetch_k, 50)
+
     all_results: list[dict] = []
     for kb_id in allowed_kb_ids:
         hits = await hybrid_search(
@@ -154,6 +190,10 @@ async def search(
         if pid not in seen:
             seen.add(pid)
             deduped.append(r)
+
+    # P3 tag 過濾：只保留所屬文件符合標籤的命中（rerank 前，確保排名/取數在過濾後的集合上）
+    if tag_doc_ids is not None:
+        deduped = [r for r in deduped if str(r.get("document_id")) in tag_doc_ids]
 
     # Reranker 重排（若設定存在）
     if body.reranker:
