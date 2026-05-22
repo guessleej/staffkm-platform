@@ -297,7 +297,39 @@ async function sendMessage() {
     const decoder = new TextDecoder()
     let buffer = ''
     let citations: any[] = []
-    let pendingEvent = ''
+    let evType = ''
+    let dataLines: string[] = []
+
+    // v5.10.13: SSE 規範 — 一個 event 的多個 data: 行要用 \n 重組（token 內含換行
+    // 會被 sse-starlette 拆成多行）。累積 data 行、遇空行(event 邊界)才 flush。
+    const flush = () => {
+      if (!evType && dataLines.length === 0) return
+      const data = dataLines.join('\n')
+      const ev = evType
+      evType = ''
+      dataLines = []
+      if (ev === 'token') {
+        convStore.appendToken(assistantMsg.id, data)
+        scrollBottom()
+      } else if (ev === 'citations') {
+        try { citations = JSON.parse(data) } catch { /* ignore */ }
+      } else if (ev === 'tool_call') {
+        // MaxKB v2.7：function-calling 工具呼叫過程 → 折疊式 ToolCallBlock
+        try {
+          const tc = JSON.parse(data)
+          convStore.appendToolCall(assistantMsg.id, {
+            name: tc.name,
+            status: tc.status === 'error' ? 'error' : 'success',
+            input: tc.input ?? null,
+            output: tc.output ?? null,
+            error: tc.error ?? null,
+          })
+          scrollBottom()
+        } catch { /* ignore malformed tool_call */ }
+      } else if (ev === 'error') {
+        convStore.appendToken(assistantMsg.id, `\n\n錯誤：${data}`)
+      }
+    }
 
     while (true) {
       const { done, value } = await reader.read()
@@ -306,40 +338,18 @@ async function sendMessage() {
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          pendingEvent = line.slice(7).trim()
-        } else if (line.startsWith('data: ')) {
-          // v5.9.32: SSE 是 CRLF，去尾 \r 但保留 token 內的有意義空格 (不能用 trim)
-          const data = line.slice(6).replace(/\r$/, '')
-          if (pendingEvent === 'token') {
-            convStore.appendToken(assistantMsg.id, data)
-            scrollBottom()
-          } else if (pendingEvent === 'citations') {
-            try { citations = JSON.parse(data) } catch { /* ignore */ }
-          } else if (pendingEvent === 'tool_call') {
-            // MaxKB v2.7：function-calling 工具呼叫過程 → 折疊式 ToolCallBlock
-            try {
-              const tc = JSON.parse(data)
-              convStore.appendToolCall(assistantMsg.id, {
-                name: tc.name,
-                status: tc.status === 'error' ? 'error' : 'success',
-                input: tc.input ?? null,
-                output: tc.output ?? null,
-                error: tc.error ?? null,
-              })
-              scrollBottom()
-            } catch { /* ignore malformed tool_call */ }
-          } else if (pendingEvent === 'error') {
-            convStore.appendToken(assistantMsg.id, `\n\n錯誤：${data}`)
-          }
-          // reset after data line consumed
-          pendingEvent = ''
-        } else if (line === '') {
-          pendingEvent = ''
+      for (const raw of lines) {
+        const line = raw.replace(/\r$/, '')           // 去 CRLF 尾 \r
+        if (line === '') { flush(); continue }          // event 邊界
+        if (line.startsWith('event:')) {
+          evType = line.slice(6).replace(/^ /, '').trim()
+        } else if (line.startsWith('data:')) {
+          // 去 "data:" + 一個 SSE 分隔空格（保留 token 真正的前導空格）
+          dataLines.push(line.slice(5).replace(/^ /, ''))
         }
       }
     }
+    flush()   // 收尾：最後一個未以空行結束的 event
 
     convStore.finishAssistantMessage(assistantMsg.id, citations)
   } catch (e) {

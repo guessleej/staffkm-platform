@@ -78,6 +78,22 @@ export async function streamChat(
   const reader = resp.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let dataLines: string[] = []
+
+  // v5.10.13: SSE 多行 data 用 \n 重組（token 含換行被 sse-starlette 拆成多行）。
+  // 累積一個 event 的 data 行、遇空行(event 邊界)才依內容分派。
+  const flush = () => {
+    if (dataLines.length === 0) return
+    const data = dataLines.join('\n')
+    dataLines = []
+    const trimmed = data.trim()
+    if (!trimmed || trimmed === '[DONE]') { onDone(); return }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) { onCitations(parsed); return }
+    } catch { /* token text */ }
+    onToken(data)
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -86,22 +102,17 @@ export async function streamChat(
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
 
-    for (const line of lines) {
+    for (const raw of lines) {
+      const line = raw.replace(/\r$/, '')              // 去 CRLF 尾 \r
+      if (line === '') { flush(); continue }            // event 邊界
       if (line.startsWith('event:')) continue
       if (line.startsWith('data:')) {
-        // v5.9.32: 去尾 \r (CRLF) 但保留 token 內空格 (trim 會誤刪 " RTX" 前導空格)
-        const raw = line.slice(5).replace(/\r$/, '')
-        const trimmed = raw.trim()
-        if (!trimmed || trimmed === '[DONE]') { onDone(); continue }
-        try {
-          const parsed = JSON.parse(trimmed)
-          if (Array.isArray(parsed)) { onCitations(parsed); continue }
-        } catch { /* token text */ }
-        // data: 後通常有一個空格分隔符，去掉它但保留 token 真正的前導空格
-        onToken(raw.startsWith(' ') ? raw.slice(1) : raw)
+        // 去 "data:" + 一個 SSE 分隔空格（保留 token 真正的前導空格，如 " RTX"）
+        dataLines.push(line.slice(5).replace(/^ /, ''))
       }
     }
   }
+  flush()
 }
 
 // Sprint 19-B：模板 preview 串流（無持久化、不計 usage）
@@ -137,23 +148,36 @@ export async function streamPreviewChat(
   const reader = resp.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let dataLines: string[] = []
+
+  // v5.10.13: 同 streamChat — 多行 data 用 \n 重組，遇空行才分派
+  const flush = () => {
+    if (dataLines.length === 0) return
+    const data = dataLines.join('\n')
+    dataLines = []
+    const trimmed = data.trim()
+    if (!trimmed || trimmed === '[DONE]') { onDone(); return }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return  // citations — preview 不顯示
+    } catch { /* token text */ }
+    onToken(data)
+  }
+
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() ?? ''
-    for (const line of lines) {
+    for (const raw of lines) {
+      const line = raw.replace(/\r$/, '')
+      if (line === '') { flush(); continue }
       if (line.startsWith('event:')) continue
       if (line.startsWith('data:')) {
-        const data = line.slice(5).trim()
-        if (!data || data === '[DONE]') { onDone(); continue }
-        try {
-          const parsed = JSON.parse(data)
-          if (Array.isArray(parsed)) continue  // citations — preview 不顯示
-        } catch { /* token text */ }
-        onToken(data)
+        dataLines.push(line.slice(5).replace(/^ /, ''))
       }
     }
   }
+  flush()
 }
