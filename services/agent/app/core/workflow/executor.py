@@ -2276,30 +2276,90 @@ class WorkflowExecutor:
             context[output_var] = context.get("webhook_payload", {})
 
     async def _exec_notify(self, config: dict, context: dict) -> None:
-        """推播通知（in_app / email / slack）— 目前只 log + 寫入 context.notify_sent。
-        實際發送通道整合（後續 PR）由 channel 分派至對應 worker。"""
+        """推播通知（v5.10.9 真實發送）：
+          - email：走 SMTP（settings.SMTP_*；未配置則 sent=False）
+          - slack：POST 到 incoming webhook（SSRF guard 保護 URL）
+          - in_app：無外部通道，寫入 context 供前端/後續節點取用
+
+        config: { channel, target_var | to, subject, template, webhook_url }
+        """
         channel = config.get("channel", "in_app")
         target = context.get(config.get("target_var", "")) if config.get("target_var") else None
         message = self._render_template(config.get("template", ""), context)
+        sent = False
+        detail = ""
+        try:
+            if channel == "email":
+                from app.core.email import send_email
+                to = (str(target) if target else self._render_template(config.get("to", ""), context)).strip()
+                if "@" in to:
+                    sent = await send_email(
+                        to=to,
+                        subject=self._render_template(config.get("subject", "staffKM 通知"), context),
+                        body=message,
+                    )
+                    detail = "SMTP ok" if sent else "SMTP 未配置或寄送失敗"
+                else:
+                    detail = "email channel 缺有效收件者"
+            elif channel == "slack":
+                from staffkm_core.utils.net import UnsafeURLError, safe_request
+                webhook = (self._render_template(config.get("webhook_url", ""), context) or str(target or "")).strip()
+                if webhook:
+                    try:
+                        async with httpx.AsyncClient(timeout=15.0) as client:
+                            resp = await safe_request(client, "POST", webhook, json={"text": message})
+                        sent = resp.status_code < 400
+                        detail = f"HTTP {resp.status_code}"
+                    except UnsafeURLError as e:
+                        detail = f"webhook URL 被 SSRF 防護擋下：{e}"
+                else:
+                    detail = "slack channel 缺 webhook_url"
+            else:  # in_app — 無外部通道，視為已記錄
+                sent = True
+                detail = "in_app recorded"
+        except Exception as e:  # noqa: BLE001
+            detail = str(e)[:200]
         log.info(
             "notify_dispatch",
-            channel=channel, target=str(target)[:64], message=message[:200],
+            channel=channel, target=str(target)[:64], sent=sent, detail=detail[:120],
             **self._audit_fields(context),
         )
-        context["notify_sent"] = {"channel": channel, "target": target, "message": message}
+        context["notify_sent"] = {
+            "channel": channel, "target": target, "message": message,
+            "sent": sent, "detail": detail,
+        }
 
     async def _exec_email(self, config: dict, context: dict) -> None:
-        """Email 寄送節點 — 目前 stub：render subject + body，log 後寫 context.email_drafted。
-        實際 SMTP 整合（後續 PR）由 application config 設定 SMTP server。"""
-        to = str(context.get(config.get("to_var", "recipient_email"), ""))
+        """Email 寄送節點（v5.10.9 真實 SMTP 發送）。
+
+        config: { to | to_var, subject_template, body_template, html, output_variable }
+        收件者：config.to（模板）優先，否則 context[to_var]（預設 recipient_email）。
+        SMTP 未配置（settings.SMTP_HOST 空）→ send_email log skip 回 False，sent=False（不視為錯誤）。
+        """
+        from app.core.email import send_email
+
+        to_tpl = config.get("to")
+        to = (
+            self._render_template(to_tpl, context) if to_tpl
+            else str(context.get(config.get("to_var", "recipient_email"), ""))
+        ).strip()
         subject = self._render_template(config.get("subject_template", ""), context)
         body = self._render_template(config.get("body_template", ""), context)
+
+        sent = False
+        if "@" in to:
+            sent = await send_email(
+                to=to, subject=subject, body=body, html=bool(config.get("html", False)),
+            )
+        else:
+            log.warning("email_node_invalid_recipient", to=to[:64], **self._audit_fields(context))
+
+        out_var = config.get("output_variable", "email_drafted")  # 維持舊 key 預設（向後相容）
+        context[out_var] = {"to": to, "subject": subject, "body": body, "sent": sent}
         log.info(
-            "email_drafted",
-            to=to[:128], subject=subject[:128],
+            "email_node", to=to[:128], subject=subject[:128], sent=sent,
             **self._audit_fields(context),
         )
-        context["email_drafted"] = {"to": to, "subject": subject, "body": body}
 
     async def _exec_schedule(self, config: dict, context: dict) -> None:
         """排程觸發節點：實際排程由 scheduler worker 註冊；本節點僅標記 metadata
