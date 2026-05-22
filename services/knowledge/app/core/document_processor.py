@@ -17,6 +17,9 @@ class DocumentProcessor:
         ".doc":  "_load_doc_legacy",   # OLE2 → antiword
         ".xlsx": "_load_excel",
         ".xls":  "_load_xls_legacy",   # v5.9.19: OLE2 舊版 Excel → xlrd
+        # v5.11.x: ODF（政府/教育公文常用 OpenDocument）
+        ".odt":  "_load_odt",          # ODF 文字文件
+        ".ods":  "_load_ods",          # ODF 試算表
         ".csv":  "_load_csv",
         ".md":   "_load_text",
         ".txt":  "_load_text",
@@ -69,7 +72,9 @@ class DocumentProcessor:
             return ".bmp"
         # DOCX/XLSX 等 Office Open XML：PK ZIP 容器
         if head.startswith(b"PK\x03\x04") or head.startswith(b"PK\x05\x06"):
-            # 同樣是 PK，需以副檔名區分 docx / xlsx
+            # 同樣是 PK ZIP；ODF 與 OOXML 都在此，需以副檔名區分
+            if ext in (".odt", ".ods", ".odp"):
+                return ext
             if ext in (".xlsx",):
                 return ".xlsx"
             return ".docx"
@@ -214,6 +219,43 @@ class DocumentProcessor:
                 f"Word 文件解析失敗（{e}）。請確認檔案未損毀，或以 Word 開啟後另存為 .docx 再上傳。"
             )
         return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+    def _load_odt(self, file: BinaryIO) -> str:
+        """ODF 文字文件 (.odt) — odfpy 抽段落/標題（含表格內 P）。公文常用 ODF。"""
+        import io as _io
+
+        from odf import teletype
+        from odf.opendocument import load as _odf_load
+        from odf.text import H, P
+        try:
+            doc = _odf_load(_io.BytesIO(file.read()))
+        except Exception as e:
+            raise ValueError(f"ODF 文件解析失敗（{e}）。請確認檔案未損毀或另存為 .docx 再上傳。")
+        parts = [
+            teletype.extractText(el)
+            for el in (doc.getElementsByType(H) + doc.getElementsByType(P))
+        ]
+        return "\n".join(t for t in parts if t and t.strip())
+
+    def _load_ods(self, file: BinaryIO) -> str:
+        """ODF 試算表 (.ods) — odfpy 逐列逐格抽文字。"""
+        import io as _io
+
+        from odf import teletype
+        from odf.opendocument import load as _odf_load
+        from odf.table import Table, TableCell, TableRow
+        try:
+            doc = _odf_load(_io.BytesIO(file.read()))
+        except Exception as e:
+            raise ValueError(f"ODF 試算表解析失敗（{e}）。")
+        lines = []
+        for tbl in doc.getElementsByType(Table):
+            for row in tbl.getElementsByType(TableRow):
+                cells = [teletype.extractText(c) for c in row.getElementsByType(TableCell)]
+                line = "\t".join(c for c in cells if c and c.strip())
+                if line.strip():
+                    lines.append(line)
+        return "\n".join(lines)
 
     def _load_doc_legacy(self, file: BinaryIO) -> str:
         """舊版 .doc (OLE2) 用 antiword 解析。"""

@@ -99,7 +99,7 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 # 從 KB 設定取出策略；缺值時 fallback auto
                 kb_row = await session.execute(
                     text_sql(
-                        "SELECT chunk_strategy, chunk_size, chunk_overlap "
+                        "SELECT chunk_strategy, chunk_size, chunk_overlap, graph_enabled "
                         "FROM knowledge_bases WHERE id = :id"
                     ),
                     {"id": str(doc.knowledge_base_id)},
@@ -166,7 +166,18 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 doc.char_count = len(text)
                 doc.status = DocStatus.READY
                 await set_progress(100, "處理完成")
+                await session.commit()
                 log.info("document_processed", doc_id=doc_id, paragraphs=len(chunks))
+
+                # RFC-014：KB 開啟 graph_enabled → 背景建圖（不阻塞、失敗不影響 RAG）
+                if kb_settings.get("graph_enabled"):
+                    try:
+                        from app.tasks.build_graph import build_graph
+                        build_graph.delay(
+                            str(doc.knowledge_base_id), str(doc.workspace_id), str(doc.id)
+                        )
+                    except Exception as ge:  # noqa: BLE001
+                        log.warning("graph_enqueue_failed", doc_id=doc_id, error=str(ge))
                 return {"status": "success", "paragraphs": len(chunks)}
 
             except Exception as exc:

@@ -98,6 +98,43 @@ async def _expand_context(
     return hits
 
 
+# RFC-014：graph 召回作為 RRF 第三路的權重（等同一條完整召回來源）
+_GRAPH_RRF_WEIGHT = 1.0
+
+
+async def _graph_enabled_kbs(session: AsyncSession, kb_ids: list) -> list:
+    """回傳 kb_ids 中 graph_enabled=true 的；皆否回空（→ 不跑 graph 召回）。"""
+    if not kb_ids:
+        return []
+    rows = await session.execute(
+        text("SELECT id FROM knowledge_bases WHERE id = ANY(:ids) AND graph_enabled = true"),
+        {"ids": [str(k) for k in kb_ids]},
+    )
+    return [r[0] for r in rows.fetchall()]
+
+
+async def _score_paragraphs_by_ids(
+    session: AsyncSession, pids: list, query_embedding: list[float]
+) -> list[dict]:
+    """把 graph 找到的 paragraph_id 取回（含向量分數），shape 同 hybrid_search 以便融合。"""
+    if not pids:
+        return []
+    rows = await session.execute(
+        text("""
+            SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
+                   p.document_id, p.order_index,
+                   (1 - (pe.embedding <=> CAST(:emb AS vector))) AS score,
+                   (1 - (pe.embedding <=> CAST(:emb AS vector))) AS vector_score
+            FROM paragraphs p
+            JOIN paragraph_embeddings pe ON pe.paragraph_id = p.id
+            JOIN documents d ON d.id = p.document_id
+            WHERE p.id = ANY(:pids) AND p.is_active = true
+        """),
+        {"pids": [str(x) for x in pids], "emb": str(query_embedding)},
+    )
+    return [dict(r) for r in rows.mappings().all()]
+
+
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="查詢問題")
     kb_ids: list[uuid.UUID] = Field(..., description="要搜尋的知識庫 ID 清單")
@@ -181,6 +218,30 @@ async def search(
             rrf_k=body.rrf_k,
         )
         all_results.extend(hits)
+
+    # RFC-014 GraphRAG（MVP）：實體錨定召回 → RRF 第三路融合（僅 graph_enabled 的 KB；查詢時零 LLM）
+    if query_embedding:
+        graph_kbs = await _graph_enabled_kbs(session, allowed_kb_ids)
+        if graph_kbs:
+            from app.core.graph import graph_anchored_paragraph_ids
+            g_pids = await graph_anchored_paragraph_ids(
+                session, graph_kbs, query_embedding, settings.GRAPH_QUERY_TOP_ENTITIES
+            )
+            g_rows = await _score_paragraphs_by_ids(session, g_pids, query_embedding)
+            if g_rows:
+                g_rows.sort(key=lambda r: r["score"], reverse=True)  # 按 cosine 排名
+                by_id = {str(r["id"]): r for r in all_results}
+                for idx, gr in enumerate(g_rows):
+                    pid = str(gr["id"])
+                    contrib = _GRAPH_RRF_WEIGHT / (body.rrf_k + idx)  # RRF 第三路貢獻
+                    if pid in by_id:
+                        # hybrid_search 的 score 可能是 Decimal（PG numeric）→ 轉 float 再加
+                        by_id[pid]["score"] = float(by_id[pid].get("score") or 0.0) + contrib
+                    else:
+                        gr = dict(gr)
+                        gr["score"] = contrib
+                        all_results.append(gr)
+                        by_id[pid] = gr
 
     # 跨知識庫去重（依分數降序）
     seen: set[str] = set()
