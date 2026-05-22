@@ -4,6 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -43,6 +44,36 @@ async def _filter_kbs_in_workspace(
     return allowed
 
 
+async def _expand_context(
+    session: AsyncSession, hits: list[dict], window: int
+) -> list[dict]:
+    """P2：為每個命中段落帶回同文件相鄰段落（order_index ±window），合併進 content。
+
+    在 rerank / top_k 之後執行 → 不影響排名，只增補最終勝出段落的上下文。
+    各命中獨立開窗（相鄰命中的窗口可能重疊，視為各自獨立的引用上下文）。
+    """
+    if window <= 0:
+        return hits
+    for h in hits:
+        doc_id = h.get("document_id")
+        oi = h.get("order_index")
+        if doc_id is None or oi is None:
+            continue
+        rows = await session.execute(
+            text(
+                "SELECT content FROM paragraphs "
+                "WHERE document_id = :doc AND is_active = true "
+                "AND order_index BETWEEN :lo AND :hi "
+                "ORDER BY order_index"
+            ),
+            {"doc": str(doc_id), "lo": int(oi) - window, "hi": int(oi) + window},
+        )
+        parts = [r["content"] for r in rows.mappings().all() if r["content"]]
+        if parts:
+            h["content"] = "\n".join(parts)
+    return hits
+
+
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="查詢問題")
     kb_ids: list[uuid.UUID] = Field(..., description="要搜尋的知識庫 ID 清單")
@@ -58,6 +89,8 @@ class SearchRequest(BaseModel):
     reranker: dict | None = Field(default=None, description="Reranker 設定 {type, api_key, base_url, model_name}")
     rerank_top_n: int = Field(default=5, ge=1, le=20, description="Reranker 重排後取前 N 筆")
     retrieval_top_k: int = Field(default=20, ge=1, le=50, description="有 Reranker 時先取更多候選，再重排")
+    # P2 上下文窗口召回：命中段落額外帶回同文件前後 N 段（0=關閉）
+    context_window: int = Field(default=0, ge=0, le=5, description="每個命中段落額外帶回同文件前後 N 段的內容")
 
 
 class Citation(BaseModel):
@@ -133,6 +166,10 @@ async def search(
         final_results = deduped
     else:
         final_results = deduped[: body.top_k]
+
+    # P2 上下文窗口：對最終命中段落帶回同文件相鄰段落（rerank 後執行，不影響排名）
+    if body.context_window > 0:
+        final_results = await _expand_context(session, final_results, body.context_window)
 
     citations = [
         Citation(

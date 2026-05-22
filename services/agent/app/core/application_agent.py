@@ -462,6 +462,8 @@ class ApplicationAgent:
                 "kb_ids": merged_kb_ids,
                 "top_k": self.config.get("top_k", 5),
                 "similarity_threshold": self.config.get("similarity_threshold", 0.45),
+                # P2 上下文窗口召回：命中段落帶回同文件前後 N 段（預設 1；config 可調 0~5）
+                "context_window": int(self.config.get("context_window", 1)),
             }
 
             # 若有 reranker 設定（app 自訂 or system_settings 預設），加入重排參數
