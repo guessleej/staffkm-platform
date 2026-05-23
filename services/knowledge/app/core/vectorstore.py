@@ -30,6 +30,15 @@ CREATE INDEX IF NOT EXISTS idx_para_embed_vector ON paragraph_embeddings
 )
 
 
+async def set_ivfflat_probes(session: AsyncSession) -> None:
+    """在當前 transaction 內套用 ivfflat.probes（SET LOCAL → pooling 安全、commit 即還原）。
+
+    pgvector 預設 probes=1 只掃 1 個倒排清單 → 召回極差、對 embedding 微擾敏感（同 query
+    不同 process 可能 0 筆 vs 全中）。值以 int() 內嵌（SET 不吃 bind 參數，int() 防注入）。
+    """
+    await session.execute(text(f"SET LOCAL ivfflat.probes = {int(settings.IVFFLAT_PROBES)}"))
+
+
 # ---------------------------------------------------------------------------
 # CJK 分字
 # ---------------------------------------------------------------------------
@@ -109,6 +118,10 @@ async def hybrid_search(
     # 候選集倍數：拉大後再取 top_k，確保 RRF 合併有足夠候選
     candidate_k = min(top_k * 4, 100)
     fw = round(1.0 - vector_weight, 6)
+
+    # 純 FTS 不碰向量索引；其餘模式先拉高 ivfflat.probes 以穩定召回
+    if search_mode != "fts":
+        await set_ivfflat_probes(session)
 
     if search_mode == "vector":
         result = await session.execute(

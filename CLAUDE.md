@@ -209,6 +209,7 @@ docs/
 | 非 endpoint 程式 `async with get_session()` 炸 `'async_generator' object does not support ...` | `get_session` 是 FastAPI 依賴；resolver/Celery/base_agent 改用 `_db._session_factory()`（見 §11）|
 | ollama provider verify 紅燈 `Name or service not known` / `HTTP 404` | base_url 要 `http://host.docker.internal:11434`（**不帶 /v1**，verify 走 `/api/tags`）；registry 預設別寫成 `http://ollama:11434/v1`（無此 host + /v1 多餘）|
 | admin/models 一直冒出 host 上不存在的 ollama 模型（llama3.1/qwen2.5…）| 別在 seed/registry 寫死 ollama 模型；靠 `/api/tags` 動態同步（見 §12）。agent 重啟會把寫死的種子一直種回來 |
+| GraphRAG「graph-only 段落擠掉正確 hybrid 命中」看似權重問題 → 真因是 `ivfflat.probes=1`（pgvector 預設）讓 hybrid 召回崩壞、graph 在替它擦屁股；且外部 A/B harness 的 copy bug 偽造了退步 | 向量查詢一律 `SET LOCAL ivfflat.probes`（settings 可調，≈sqrt(lists)）；融合的 `by_id` 必須持 all_results 同一 ref；graph 權重別調低（會砍增益）。v5.11.4 修，`tools/eval/graphrag_ab.py` + `test_search_fusion.py` 守 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
@@ -306,12 +307,19 @@ grep -rnE "json\.dumps\([^)]+\) if [^)]+ else None" services/ --include="*.py" 2
 | v5.11.1 | #322 | Ollama 接本機 + admin/models 動態同步 `/api/tags` + 系統預設聊天模型接 runtime + Big5/CP950 編碼偵測 |
 | v5.11.2 | — | vision OCR 接 runtime（default.vision）+ Big5 CI 守衛 |
 | v5.11.3 | — | reranker 接 runtime（default.rerank） |
+| v5.11.4 | — | GraphRAG 召回調校：修 `ivfflat.probes`（根因）+ graph-only cosine 門檻 + 融合重構（可測） |
 
-**GraphRAG A/B 實測（台灣公文「完整語料」KB，5 query，gemma4 抽的 29 entities）**：
-- 平均 recall@5：hybrid 0.36 → graph 融合 0.68（**+89%**）。實體中心查詢（query 用語 ≠ 公文正式名）增益最大。
-- hybrid top-20 候選池 31 個相關段落只命中 7；graph 錨定額外**獨家補回 24 個** hybrid 完全漏掉的相關段落 → graph 主要補的是「召回/路由」。
-- **已知調校點**：`_GRAPH_RRF_WEIGHT=1.0` 讓 graph-only 段落分數（≈1/60）跟 hybrid 的 RRF 分數同量級 → 5 題中 1 題（hybrid 本來就準的）被 graph-only 段落擠掉而**退步**（recall 1.0→0.4）。建議：調低 graph 權重、或改「只 boost 既有 hybrid 命中、不硬塞低分 graph-only 段落」、或先取大再 rerank。
+**GraphRAG A/B 實測（台灣公文「完整語料」KB f3281a2b，5 query，gemma4 抽的實體）**：
+- 召回門檻 `tools/eval/graphrag_ab.py`（忠實版，直接 import 真實 `_fuse_graph_results`）。
+- **v5.11.4 修正後**：平均 recall@5 base(hybrid) **0.40 → graph 融合 0.88**，**0 退步**（5 題全進步或持平；原本看似退步的性平題 0.80→1.00）。
+- graph 仍主要補「召回/路由」：把 hybrid 漏掉的相關段落補進 top-k（如教育部司題 0.00→0.80）。
 - 數字精確性：graph 只回 paragraph_id，答案仍由 LLM 讀**原始段落內容**（`_score_paragraphs_by_ids` 回 `p.content` 原文）→ 不經 graph 改寫，數字不失真（符合 RFC-014 設計）。
+
+**v5.11.4 調校三件事（重要：別再走回頭路）**：
+1. **根因是 `ivfflat.probes=1`（pgvector 預設），不是融合權重**。只掃 1 個倒排清單 → hybrid 召回極差（base 0.12）且對 embedding 微擾敏感（同 query 不同 process 可能 0 筆 vs 全中）。設 `IVFFLAT_PROBES=10`（≈sqrt(lists)），每條向量查詢以 `SET LOCAL` 套用（pooling 安全）→ base 0.12→0.40。`hybrid_search` 與 `graph_anchored_paragraph_ids`（kb_entities 也走 ivfflat）都套。
+2. **`_GRAPH_RRF_WEIGHT` 維持 1.0，不要調低**。A/B 實證：W_only≤0.5 時 graph-only 進不了 top-k → graph 增益**整個歸零**（0.88→0.40）。增益全靠 graph-only 擠掉「錯的」hybrid 命中。
+3. **graph-only 設 cosine 門檻（= `similarity_threshold`，預設 0.5）**：低相關 graph-only 不得併入，防呆但增益全保（門檻>0.55 才開始侵蝕）。交集（hybrid∩graph）一律加分（共識）。
+- ⚠ 「退步」曾被外部 harness 誤判：`merged_top` 用 `dict(r)` copy 建索引、boost 寫進孤兒物件 → 交集加分遺失、正確命中被擠掉。真實 `search.py` 的 `by_id` 必須持 all_results 的**同一 ref**（已收斂進 `_fuse_graph_results` + 單元測試 `test_search_fusion.py` 守住）。
 
 ## 跟使用者溝通
 
