@@ -38,6 +38,51 @@ class DocumentProcessor:
     # PDF 純文字層抽出少於此字數 → 視為掃描件，觸發 OCR fallback
     OCR_PDF_TEXT_THRESHOLD = 20
 
+    @staticmethod
+    def _decode_bytes(data: bytes) -> str:
+        """文字位元組 → str：先試 UTF-8，失敗再偵測編碼。
+
+        台灣公文 / 舊版 Excel 匯出常見 Big5 / CP950（甚至簡中 GB18030），
+        直接用 UTF-8 解會炸成 mojibake，故偵測時優先試這些編碼。
+        """
+        if not data:
+            return ""
+        # 1. UTF-8（含 BOM）strict — 最常見、誤判率最低
+        try:
+            return data.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            pass
+        # 2. charset-normalizer 偵測 — 對 Big5 vs GB18030 的區辨力佳，
+        #    避免「GB bytes 剛好是合法 Big5 → 解成亂碼」這類 false positive。
+        detected_text: str | None = None
+        detected_enc = ""
+        try:
+            from charset_normalizer import from_bytes
+            best = from_bytes(data).best()
+            if best is not None:
+                detected_text = str(best)
+                detected_enc = (best.encoding or "").lower().replace("-", "_")
+        except ImportError:
+            pass
+        # 偵測為 CJK 編碼時可信（big5/cp950/gb* 互斥度高）→ 直接採用
+        _CJK = {"big5", "big5hkscs", "cp950", "gb18030", "gbk", "gb2312", "hz", "euc_cn"}
+        if detected_enc in _CJK and detected_text is not None:
+            return detected_text
+        # 3. 偵測沒把握或猜成 Latin 系（短 Big5 文本常見誤判）→
+        #    明確優先試台灣公文 / 舊 Excel 常見的 Big5 / CP950
+        for enc in ("big5", "cp950"):
+            try:
+                return data.decode(enc)
+            except (UnicodeDecodeError, LookupError):
+                continue
+        # 4. 用偵測結果，否則 GB18030 保底 → 最終 utf-8 replace
+        if detected_text is not None:
+            return detected_text
+        try:
+            return data.decode("gb18030")
+        except (UnicodeDecodeError, LookupError):
+            return data.decode("utf-8", errors="replace")
+
     def load(self, file: BinaryIO, filename: str) -> str:
         ext = Path(filename).suffix.lower()
         # 以 magic bytes 偵測真實格式（副檔名常常與內容不符）
@@ -299,12 +344,24 @@ class DocumentProcessor:
                 "舊版 Excel (.xls) 解析需 xlrd library — 環境未安裝。"
                 "請以 Excel 開啟後另存為 .xlsx 再上傳。"
             ) from e
-        try:
-            data = file.read()
-            wb = xlrd.open_workbook(file_contents=data)
-        except Exception as e:
+        data = file.read()
+        # BIFF8 (.xls Excel97+) 字串走 UTF-16，xlrd 自解；
+        # 但 BIFF5 / codepage 缺失的舊台灣公文檔，xlrd 預設可能解不出中文 →
+        # 依序 fallback encoding_override（cp950 / big5 / gb18030）。
+        wb = None
+        last_err: Exception | None = None
+        for override in (None, "cp950", "big5", "gb18030"):
+            try:
+                kwargs = {"file_contents": data}
+                if override is not None:
+                    kwargs["encoding_override"] = override
+                wb = xlrd.open_workbook(**kwargs)
+                break
+            except Exception as e:  # noqa: BLE001 — 換編碼重試
+                last_err = e
+        if wb is None:
             raise ValueError(
-                f"舊版 Excel (.xls) 解析失敗：{e}。"
+                f"舊版 Excel (.xls) 解析失敗：{last_err}。"
                 "請確認檔案未損毀，或以 Excel 開啟後另存為 .xlsx 再上傳。"
             )
         rows = []
@@ -321,12 +378,12 @@ class DocumentProcessor:
 
     def _load_csv(self, file: BinaryIO) -> str:
         import csv
-        content = file.read().decode("utf-8-sig")
+        content = self._decode_bytes(file.read())
         reader = csv.reader(io.StringIO(content))
         return "\n".join("\t".join(row) for row in reader)
 
     def _load_text(self, file: BinaryIO) -> str:
-        return file.read().decode("utf-8", errors="replace")
+        return self._decode_bytes(file.read())
 
 
 class TextSplitter:
