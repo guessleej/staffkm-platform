@@ -68,6 +68,28 @@ Monorepo（apps/* + services/* + packages/*），Vue 3 + FastAPI + PostgreSQL + 
 - `highlight.js/lib/common` 取代預設 192 languages，省 800 KB
 - 首進 /chat 載入 ~250 KB（gz 90KB）
 
+### 11. 模型設定：admin/models 選了要「真生效」— `system_settings.default.*` → runtime 解析（v5.11.x）
+`/admin/models` 的「設定預設模型」下拉只是把 model_name 存進 `system_settings.default.{llm,vision,rerank,embedding,stt}`。
+**存進去 ≠ 生效** — 過去這些是 advisory（runtime 只讀 env）。要生效**必須**有對應的 runtime resolver：
+
+- **default.llm** → `services/agent/app/core/base_agent.resolve_system_llm()`（base_agent + application_agent 都用）
+- **default.vision** → `services/knowledge/app/core/runtime_models.resolve_vision_ocr()`（process_document ingest 時）
+- **default.rerank** → `services/knowledge/app/core/runtime_models.resolve_reranker()`（search 未帶 reranker 時 fallback）
+- **default.embedding / default.stt** — **刻意不接**：embedding 換了要全庫重嵌且維度需相容；stt 無對應 pipeline。UI 要標清楚哪些是 advisory。
+
+Resolver 共同套路（新增 default.X 一律照做）：讀 `system_settings.default.X`（jsonb 字串或 `{model_name}`）→ JOIN `ai_models`(model_type=X)+`model_providers` 取 base_url/api_key → **env 後備**、查無設定回 None/env、DB 不可達不致命。每次請求重解 → 改設定按儲存即時生效、不需重啟。
+
+雷點：
+- **base_url 的 /v1**：ollama provider base_url 存「不帶 /v1」（verify 走原生 `/api/tags`）。OpenAI 相容聊天/vision 要 `/v1` → resolver 補上；reranker 走 `/rerank`、`/api/rerank` → **不補 /v1**。
+- **`get_session()` 不能直接 `async with`**：它是 FastAPI 依賴用的 async generator。非 endpoint（resolver / Celery / base_agent）要用底層 `from staffkm_core.utils import database as _db; async with _db._session_factory() as s:`。
+- **api_key 解碼**：auth 的 `models.py` 用 base64 存（`_encode_api_key`）；resolver 解 `base64.b64decode`。注意 `application_agent` 走的是 `decrypt_secret`（fernet:/plain:/legacy）— 兩套不一致是既有債，地端 ollama 免 key 不受影響。
+
+### 12. Ollama 模型清單：不寫死，動態同步 `/api/tags`（v5.11.x）
+- ❌ 不要在 `model_pricing.PROVIDER_DEFAULT_MODELS` / `auth models._DEFAULT_MODELS_ON_CREATE` / `registry.recommended_models` 寫死 ollama 模型名 — host 上沒有就變「抓不到的幽靈模型」，且 agent 啟動 seed 會一直種回來。
+- ✅ `auth/api/models.list_provider_models` 對 ollama 型 provider 即時打 `/api/tags`，**多補少刪** self-heal（`_sync_ollama_models`）。model_type 靠關鍵字猜（embed→embedding / rerank→reranker / ocr·vision→vision / 其餘 llm）。
+- Docker Desktop（Mac/Win）連 host ollama 用 `host.docker.internal:11434`（compose 內沒有叫 `ollama` 的服務；地端 embedding 容器叫 `embedder`）。
+- ⚠️ Kimi（Moonshot）內容過濾會擋台灣/兩岸/政府公文（400 high risk）→ 台灣公文場景的系統 LLM / GraphRAG 抽取都改本機 ollama（gemma4:e4b / TAIDE 12B）。
+
 ## 常用指令
 
 ```bash
@@ -183,6 +205,10 @@ docs/
 | 前端 raw `fetch()` 繞過 axios interceptor → 漏 `X-Workspace-ID` header → gateway 退回 legacy → 後端 404 → 對話 stream 空回應 | 任何前端 raw fetch 都要手動注入 ws header。`apps/web/src/api/chat.ts` 用 `dynamic import('../stores/workspace')` 拿 `currentId`；v5.9.14 從「對話無法回應」修出 |
 | Chat service 沒有 GatewayHeadersMiddleware → 所有 conversation 的 `user_id` 都 fallback `"anonymous"` → 跨 user 不隔離 + ownership check 失敗 | 任何 backend service 接 user-scoped resource 都要 GatewayHeadersMiddleware（從 X-User-ID header 寫 request.state.user_id）；v5.9.13 從「刪掉的對話又出現」修出 |
 | LLM 端 vendor 自動掃描公開通訊中的 sk-XXX 格式 key 並 auto-revoke | API key **永遠**只能進系統 settings 畫面，不能貼到任何對話 / Slack / GitHub / Notion；debug 時只貼前後 6 字元 |
+| admin/models 選了預設模型「按了沒反應」— runtime 只讀 env，settings 是 advisory | 新增 default.X UI 選擇器**同 PR** 要接 runtime resolver（見原則 §11），否則別讓 UI 看起來會生效 |
+| 非 endpoint 程式 `async with get_session()` 炸 `'async_generator' object does not support ...` | `get_session` 是 FastAPI 依賴；resolver/Celery/base_agent 改用 `_db._session_factory()`（見 §11）|
+| ollama provider verify 紅燈 `Name or service not known` / `HTTP 404` | base_url 要 `http://host.docker.internal:11434`（**不帶 /v1**，verify 走 `/api/tags`）；registry 預設別寫成 `http://ollama:11434/v1`（無此 host + /v1 多餘）|
+| admin/models 一直冒出 host 上不存在的 ollama 模型（llama3.1/qwen2.5…）| 別在 seed/registry 寫死 ollama 模型；靠 `/api/tags` 動態同步（見 §12）。agent 重啟會把寫死的種子一直種回來 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
@@ -272,6 +298,20 @@ grep -rnE "json\.dumps\([^)]+\) if [^)]+ else None" services/ --include="*.py" 2
 |---|---|---|
 | v5.0.0 | #246 | K: scaffolding (region middleware + CRDT helper + admin UI + conflict log) — disabled by default |
 | v5.1+ | future | region steering / 真 CRDT / conflict UI / failover automation |
+
+### v5.11.x — GraphRAG + 地端模型治理
+| Tag | 範圍 | 重點 |
+|---|---|---|
+| v5.11.0 | #321 | GraphRAG 加法層 MVP（RFC-014）+ 混合語料分流（looks_like_form）+ ODF(.odt) 支援 |
+| v5.11.1 | #322 | Ollama 接本機 + admin/models 動態同步 `/api/tags` + 系統預設聊天模型接 runtime + Big5/CP950 編碼偵測 |
+| v5.11.2 | — | vision OCR 接 runtime（default.vision）+ Big5 CI 守衛 |
+| v5.11.3 | — | reranker 接 runtime（default.rerank） |
+
+**GraphRAG A/B 實測（台灣公文「完整語料」KB，5 query，gemma4 抽的 29 entities）**：
+- 平均 recall@5：hybrid 0.36 → graph 融合 0.68（**+89%**）。實體中心查詢（query 用語 ≠ 公文正式名）增益最大。
+- hybrid top-20 候選池 31 個相關段落只命中 7；graph 錨定額外**獨家補回 24 個** hybrid 完全漏掉的相關段落 → graph 主要補的是「召回/路由」。
+- **已知調校點**：`_GRAPH_RRF_WEIGHT=1.0` 讓 graph-only 段落分數（≈1/60）跟 hybrid 的 RRF 分數同量級 → 5 題中 1 題（hybrid 本來就準的）被 graph-only 段落擠掉而**退步**（recall 1.0→0.4）。建議：調低 graph 權重、或改「只 boost 既有 hybrid 命中、不硬塞低分 graph-only 段落」、或先取大再 rerank。
+- 數字精確性：graph 只回 paragraph_id，答案仍由 LLM 讀**原始段落內容**（`_score_paragraphs_by_ids` 回 `p.content` 原文）→ 不經 graph 改寫，數字不失真（符合 RFC-014 設計）。
 
 ## 跟使用者溝通
 
