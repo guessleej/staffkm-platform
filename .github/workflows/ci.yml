@@ -53,7 +53,8 @@ jobs:
       - name: Compile check (py_compile 全 services + packages)
         run: python -m compileall -q services packages/python || exit 1
       - name: Install lint/test deps
-        run: pip install --quiet pytest==8.3.* ruff==0.8.* structlog==24.4.0
+        # charset-normalizer：document_processor 編碼偵測直接依賴（Big5/CP950 fallback）
+        run: pip install --quiet pytest==8.3.* ruff==0.8.* structlog==24.4.0 charset-normalizer==3.4.6
       - name: Lint (ruff 高訊號子集)
         run: ruff check .
       - name: Tests (雷區守衛 + 純邏輯單元)

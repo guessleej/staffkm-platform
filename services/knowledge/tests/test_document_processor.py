@@ -106,9 +106,12 @@ def test_decode_bytes_empty():
 
 
 def test_decode_bytes_gb18030_simplified():
-    # 簡中走 charset-normalizer 偵測路徑。注意：極短字串（如 6 字）在 Big5/GB
-    # byte range 上同時合法、本質無法區分，本產品以台灣 Big5 為主刻意偏向 Big5；
-    # 故此處用足夠長度的樣本讓偵測有訊號可判。
+    # 簡中走 charset-normalizer 偵測路徑 → 沒裝 charset-normalizer 時跳過
+    # （big5/cp950 fallback 是純 stdlib，不需此 guard；GB18030 區辨才需偵測器）。
+    # 注意：極短字串（如 6 字）在 Big5/GB byte range 上同時合法、本質無法區分，
+    # 本產品以台灣 Big5 為主刻意偏向 Big5；故此處用足夠長度的樣本讓偵測有訊號可判。
+    import pytest
+    pytest.importorskip("charset_normalizer")
     sample = "固态硬盘测试数据中心服务器内存条简体中文样本编码侦测"
     out = DocumentProcessor._decode_bytes(sample.encode("gb18030"))
     assert out == sample
