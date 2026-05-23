@@ -256,12 +256,16 @@ async def search(
     if tag_doc_ids is not None:
         deduped = [r for r in deduped if str(r.get("document_id")) in tag_doc_ids]
 
-    # Reranker 重排（若設定存在）
-    if body.reranker:
+    # Reranker 重排：請求未帶 reranker → fallback 系統預設（system_settings.default.rerank）
+    reranker_config = body.reranker
+    if not reranker_config:
+        from app.core.runtime_models import resolve_reranker
+        reranker_config = await resolve_reranker(session)
+    if reranker_config:
         deduped = await rerank(
             query=body.query,
             documents=deduped,
-            reranker_config=body.reranker,
+            reranker_config=reranker_config,
             top_n=body.rerank_top_n,
         )
         final_results = deduped

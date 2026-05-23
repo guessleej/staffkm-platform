@@ -73,3 +73,67 @@ async def resolve_vision_ocr(session) -> dict:
     except Exception as e:  # noqa: BLE001 — DB 問題不致命，回空 → fallback env
         log.warning("resolve_vision_ocr_failed", error=str(e))
         return {}
+
+
+# provider_type → reranker.rerank() 的 type 欄位
+_RERANK_TYPE_BY_PROVIDER = {
+    "cohere": "cohere",
+    "ollama": "ollama",
+}
+
+
+async def _read_default_model_name(session, key: str) -> str | None:
+    """讀 system_settings[key] 的模型名（jsonb 字串或 {model_name}）。"""
+    row = (await session.execute(text(
+        "SELECT value FROM system_settings WHERE key = :k"
+    ), {"k": key})).fetchone()
+    if not row or row.value in (None, "", '""'):
+        return None
+    raw = row.value
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            pass
+    return raw if isinstance(raw, str) else (
+        raw.get("model_name") if isinstance(raw, dict) else None
+    )
+
+
+async def resolve_reranker(session) -> dict | None:
+    """讀 system_settings.default.rerank → 組 reranker.rerank() 用的 config。
+
+    回傳 {type, base_url, api_key, model_name}；未設定 default.rerank 回 None
+    （search 維持「不重排」行為）。rerank 走 /rerank 或 /api/rerank，故 base_url
+    **不補 /v1**（與 OpenAI 相容端點不同）。
+    """
+    try:
+        model_name = await _read_default_model_name(session, "default.rerank")
+        if not model_name:
+            return None
+        prov = (await session.execute(text("""
+            SELECT p.provider_type, p.base_url, p.api_key_enc
+            FROM ai_models m JOIN model_providers p ON p.id = m.provider_id
+            WHERE m.model_name = :mn AND m.model_type = 'reranker' AND m.status = 'active'
+            ORDER BY m.is_default DESC
+            LIMIT 1
+        """), {"mn": model_name})).fetchone()
+
+        provider_type = prov.provider_type if prov else ""
+        base_url = (prov.base_url.rstrip("/") if prov and prov.base_url else None)
+        api_key = None
+        if prov and prov.api_key_enc:
+            try:
+                api_key = base64.b64decode(prov.api_key_enc.encode()).decode()
+            except Exception:  # noqa: BLE001
+                api_key = None
+
+        return {
+            "type": _RERANK_TYPE_BY_PROVIDER.get(provider_type, "http"),
+            "base_url": base_url,
+            "api_key": api_key,
+            "model_name": model_name,
+        }
+    except Exception as e:  # noqa: BLE001
+        log.warning("resolve_reranker_failed", error=str(e))
+        return None
