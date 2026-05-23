@@ -23,10 +23,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "text-embedding-3-small": (0.00002, 0),
     "text-embedding-3-large": (0.00013, 0),
     "bge-m3":                  (0, 0),
-    # Ollama / self-hosted
-    "llama3.1":            (0, 0),
-    "llama3.2":            (0, 0),
-    "qwen2.5":             (0, 0),
+    # Ollama / self-hosted：地端模型一律免費，不在此寫死名稱（動態同步），
+    # 查無價格的 model 預設 0 元由 meter 端處理。
     # v5.7 — 僅保留 Moonshot；其餘中國雲已移除
     # Moonshot (CNY 官價以 7.2 換算)
     "moonshot-v1-8k":      (0.00167, 0.00167),
@@ -89,13 +87,7 @@ PROVIDER_DEFAULT_MODELS: dict[str, list[tuple[str, str, str]]] = {
         ("gemini-1.5-pro",   "llm", "Gemini 1.5 Pro"),
         ("gemini-1.5-flash", "llm", "Gemini 1.5 Flash"),
     ],
-    "ollama": [
-        ("llama3.1",           "llm",       "Llama 3.1"),
-        ("llama3.2",           "llm",       "Llama 3.2"),
-        ("qwen2.5",            "llm",       "Qwen 2.5"),
-        ("bge-m3",             "embedding", "BGE-M3 embedding"),
-        ("bge-reranker-v2-m3", "reranker",  "BGE Reranker v2 M3"),
-    ],
+    # ollama 不寫死任何模型 — 由 admin/models 列模型時即時打 /api/tags 同步真實清單。
     # v5.0.6: 地端 serving framework
     "llama_cpp": [
         ("Llama-3.1-8B-Q4_K_M.gguf", "llm", "Llama 3.1 8B (Q4_K_M)"),

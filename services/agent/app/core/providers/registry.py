@@ -44,12 +44,15 @@ PROVIDER_REGISTRY: list[ProviderMeta] = [
     # ════════════════════════════════════════════════════════════════════
     # 1) 地端 LLM serving framework
     # ════════════════════════════════════════════════════════════════════
+    # Docker Desktop（Mac/Win）連 host 機 ollama 用 host.docker.internal；
+    # verify 走原生 /api/tags，base_url 不可帶 /v1（帶了會變 /v1/api/tags → 404）。
+    # 若 ollama 跑在 compose 內請改成該服務名（本專案地端 embedding 容器叫 embedder）。
     ProviderMeta("ollama", "Ollama", "openai_compat",
-                 default_base_url="http://ollama:11434/v1",
-                 recommended_models=["gemma4:e4b", "qwen2.5:7b", "llama3.1:8b", "bge-m3"],
+                 default_base_url="http://host.docker.internal:11434",
+                 recommended_models=[],  # 不寫死；建立後由 /api/tags 即時同步真實模型
                  needs_api_key=False, is_local=True,
                  capabilities=["LLM", "Embedding", "Vision"],
-                 notes="最易上手地端 serving；同時跑 LLM + embedding + vision。"),
+                 notes="最易上手地端 serving；模型清單由伺服器 /api/tags 自動同步，不需手動填。"),
     ProviderMeta("llama_cpp", "llama.cpp (llama-server)", "openai_compat",
                  default_base_url="http://llama-server:8080/v1",
                  recommended_models=["Llama-3.1-8B-Q4_K_M.gguf"],
