@@ -12,6 +12,83 @@ from app.config import settings
 log = structlog.get_logger()
 
 
+def _normalize_openai_base(base: str | None, provider_type: str) -> str | None:
+    """OpenAI 相容聊天端點需要 /v1；ollama 原生 base_url（給 verify 用）沒帶 → 補上。"""
+    if not base:
+        return base
+    b = base.rstrip("/")
+    if not b.endswith("/v1"):
+        b = b + "/v1"
+    return b
+
+
+async def resolve_system_llm() -> tuple[str, str | None, str]:
+    """解析「系統預設聊天模型」。
+
+    優先讀 system_settings.default.llm（admin/models 頁選的模型名）→ 連回
+    ai_models + model_providers 取得 base_url / api_key；查無設定或任何錯誤時
+    fallback 用環境變數（LLM_MODEL / LLM_BASE_URL / LLM_API_KEY）。
+
+    回傳 (model_name, base_url, api_key)。
+    """
+    env_model = settings.LLM_MODEL or settings.OPENAI_MODEL
+    env_base = settings.LLM_BASE_URL or None
+    env_key = settings.LLM_API_KEY or settings.OPENAI_API_KEY or "dummy"
+    try:
+        import json
+        import base64
+        from sqlalchemy import text
+        from staffkm_core.utils import database as _db
+
+        # get_session() 是 FastAPI 依賴用的 async generator，不能直接當 context
+        # manager；這裡用底層 session factory（同 chat_stream.py 的做法）。
+        sf = getattr(_db, "_read_session_factory", None) or getattr(_db, "_session_factory", None)
+        if sf is None:
+            return env_model, env_base, env_key
+        async with sf() as session:
+            row = (await session.execute(text(
+                "SELECT value FROM system_settings WHERE key = 'default.llm'"
+            ))).fetchone()
+            if not row or row.value in (None, "", '""'):
+                return env_model, env_base, env_key
+
+            raw = row.value
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except Exception:  # noqa: BLE001
+                    pass
+            model_name = raw if isinstance(raw, str) else (
+                raw.get("model_name") if isinstance(raw, dict) else None
+            )
+            if not model_name:
+                return env_model, env_base, env_key
+
+            prov = (await session.execute(text("""
+                SELECT p.provider_type, p.base_url, p.api_key_enc
+                FROM ai_models m JOIN model_providers p ON p.id = m.provider_id
+                WHERE m.model_name = :mn AND m.model_type = 'llm' AND m.status = 'active'
+                ORDER BY m.is_default DESC
+                LIMIT 1
+            """), {"mn": model_name})).fetchone()
+            if not prov:
+                # 設了模型名但找不到 provider → 至少用該模型名 + env 連線設定
+                return model_name, env_base, env_key
+
+            base = _normalize_openai_base(prov.base_url or env_base, prov.provider_type)
+            # ollama / 地端通常不需 key；有 key（如 Moonshot）才解碼（auth 用 base64 存）
+            key = "dummy"
+            if prov.api_key_enc:
+                try:
+                    key = base64.b64decode(prov.api_key_enc.encode()).decode()
+                except Exception:  # noqa: BLE001
+                    key = env_key
+            return model_name, base, key
+    except Exception as e:  # noqa: BLE001 — DB 不可達不致命，fallback env
+        log.warning("resolve_system_llm_failed", error=str(e))
+        return env_model, env_base, env_key
+
+
 class AgentContext:
     """單次對話的執行上下文（RFC-001 Stage 2: workspace-scoped）。"""
 
@@ -137,8 +214,15 @@ class BaseAdminAgent(ABC):
             {"role": "user", "content": rag_user_message},
         ]
 
+        # 解析系統預設模型（admin/models 頁選的 default.llm）→ 沒設才 fallback env。
+        # 每次請求重解，所以在 UI 改了預設、按儲存後即時生效，不必重啟 agent。
+        model_name, base_url, api_key = await resolve_system_llm()
+        client_kwargs: dict = {"api_key": api_key or "dummy"}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        llm = AsyncOpenAI(**client_kwargs)
+
         # v5.9.11: 部分 model 限定 temperature=1 (例如 Kimi K2.6 / o1 系列)
-        model_name = settings.LLM_MODEL or settings.OPENAI_MODEL
         fixed_temp_models = ("kimi-k2", "o1-", "o3-")
         if any(model_name.startswith(p) for p in fixed_temp_models):
             temp = 1.0
@@ -148,7 +232,7 @@ class BaseAdminAgent(ABC):
         # v5.9.12: API 錯誤改成中文友善訊息，不要直接把原始 JSON 當 assistant
         # 回應串給 user（之前 401 會看到 "Error code: 401 - {...}"）
         try:
-            stream = await self._llm.chat.completions.create(
+            stream = await llm.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 stream=True,

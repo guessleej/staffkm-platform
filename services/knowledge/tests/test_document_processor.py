@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 
@@ -75,3 +76,61 @@ def test_splitter_short_text_single_chunk():
     chunks = sp.split("短文字")
     assert len(chunks) == 1
     assert chunks[0] == "短文字"
+
+
+# ── 編碼偵測：台灣公文 Big5 / CP950 round-trip ───────────────────────
+# 混合中文 + 全形標點 + ASCII，模擬政府採購清單常見內容
+_BIG5_SAMPLE = "固態硬碟 M.2 USSD A400（全形括號）型號：ABC-123\n品名\t單價\t數量"
+# U+FFFD replacement char — 出現代表解碼失敗 / mojibake
+_MOJIBAKE_MARKERS = ("�", "º", "µ", "Ð", "½", "»")
+
+
+def _has_mojibake(text: str) -> bool:
+    return any(m in text for m in _MOJIBAKE_MARKERS)
+
+
+def test_decode_bytes_utf8_passthrough():
+    data = _BIG5_SAMPLE.encode("utf-8")
+    assert DocumentProcessor._decode_bytes(data) == _BIG5_SAMPLE
+
+
+def test_decode_bytes_big5_roundtrip():
+    data = _BIG5_SAMPLE.encode("big5")
+    out = DocumentProcessor._decode_bytes(data)
+    assert out == _BIG5_SAMPLE
+    assert not _has_mojibake(out)
+
+
+def test_decode_bytes_empty():
+    assert DocumentProcessor._decode_bytes(b"") == ""
+
+
+def test_decode_bytes_gb18030_simplified():
+    # 簡中走 charset-normalizer 偵測路徑。注意：極短字串（如 6 字）在 Big5/GB
+    # byte range 上同時合法、本質無法區分，本產品以台灣 Big5 為主刻意偏向 Big5；
+    # 故此處用足夠長度的樣本讓偵測有訊號可判。
+    sample = "固态硬盘测试数据中心服务器内存条简体中文样本编码侦测"
+    out = DocumentProcessor._decode_bytes(sample.encode("gb18030"))
+    assert out == sample
+    assert not _has_mojibake(out)
+
+
+def test_load_txt_big5_no_mojibake():
+    """ingest 一個 Big5 編碼的 .txt → 抽出文字正確、無亂碼。"""
+    proc = DocumentProcessor()
+    raw = _BIG5_SAMPLE.encode("big5")
+    out = proc.load(io.BytesIO(raw), "公文.txt")
+    assert "固態硬碟" in out
+    assert "（全形括號）" in out
+    assert not _has_mojibake(out)
+
+
+def test_load_csv_big5_no_mojibake():
+    """ingest 一個 Big5 編碼的 .csv → 欄位中文正確、無亂碼。"""
+    proc = DocumentProcessor()
+    csv_text = "品名,單價,數量\n固態硬碟,1200,5\n記憶體模組,800,10"
+    raw = csv_text.encode("big5")
+    out = proc.load(io.BytesIO(raw), "採購清單.csv")
+    assert "固態硬碟" in out
+    assert "記憶體模組" in out
+    assert not _has_mojibake(out)

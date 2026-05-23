@@ -30,6 +30,42 @@ log = structlog.get_logger()
 _SEARCH_KB_FUNCTION = "search_knowledge_base"
 
 
+async def _resolve_default_llm_model_id(session) -> str | None:
+    """讀 system_settings.default.llm（模型名）→ 對應 active llm ai_models 的 id。
+
+    讓 application 沒設專屬模型時，沿用 admin/models 頁設定的系統預設模型。
+    查無設定回 None（呼叫端維持 env 預設）。
+    """
+    import json
+    from sqlalchemy import text
+    try:
+        row = (await session.execute(text(
+            "SELECT value FROM system_settings WHERE key = 'default.llm'"
+        ))).fetchone()
+        if not row or row.value in (None, "", '""'):
+            return None
+        raw = row.value
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except Exception:  # noqa: BLE001
+                pass
+        model_name = raw if isinstance(raw, str) else (
+            raw.get("model_name") if isinstance(raw, dict) else None
+        )
+        if not model_name:
+            return None
+        mrow = (await session.execute(text("""
+            SELECT id FROM ai_models
+            WHERE model_name = :mn AND model_type = 'llm' AND status = 'active'
+            ORDER BY is_default DESC LIMIT 1
+        """), {"mn": model_name})).fetchone()
+        return str(mrow.id) if mrow else None
+    except Exception as e:  # noqa: BLE001
+        log.warning("resolve_default_llm_model_id_failed", error=str(e))
+        return None
+
+
 class ApplicationAgent:
     """
     從資料庫 applications 資料表載入設定的 AI 代理人。
@@ -282,6 +318,13 @@ class ApplicationAgent:
         """從 DB 的 ai_models + model_providers 資料表載入 LLM 設定。"""
         from sqlalchemy import text
 
+        # application 沒指定專屬模型 → 用系統預設模型（system_settings.default.llm）。
+        # 個別 application 設了 llm_model_id 則覆寫系統預設。
+        if not self._llm_model_id:
+            self._llm_model_id = await _resolve_default_llm_model_id(session)
+            if not self._llm_model_id:
+                return  # 仍無 → 維持 env 預設
+
         try:
             row = await session.execute(
                 text(
@@ -325,6 +368,11 @@ class ApplicationAgent:
             model_config = mapping.get("model_config") or {}
             if isinstance(model_config, str):
                 model_config = json.loads(model_config)
+
+            # OpenAI 相容聊天端點需 /v1；ollama 原生 base_url（給 verify）沒帶 → 補上
+            if base_url and provider_type in ("ollama", "openai_compat") \
+                    and not base_url.rstrip("/").endswith("/v1"):
+                base_url = base_url.rstrip("/") + "/v1"
 
             # 更新 LLM 客戶端
             client_kwargs: dict[str, Any] = {"api_key": api_key}

@@ -41,12 +41,7 @@ _DEFAULT_MODELS_ON_CREATE: dict[str, list[tuple[str, str, str]]] = {
         ("gemini-1.5-pro",   "llm", "Gemini 1.5 Pro"),
         ("gemini-1.5-flash", "llm", "Gemini 1.5 Flash"),
     ],
-    "ollama": [
-        ("gemma3:e4b",  "llm", "Gemma 3 e4b"),
-        ("qwen2.5",     "llm", "Qwen 2.5"),
-        ("llama3.1",    "llm", "Llama 3.1"),
-        ("bge-m3",      "embedding", "BGE M3"),
-    ],
+    # ollama 不寫死 — 模型清單由 list_provider_models 即時打 /api/tags 動態同步。
     "cohere": [
         ("command-r-plus",          "llm",      "Command R+"),
         ("rerank-multilingual-v3.0","reranker", "Rerank multilingual v3"),
@@ -477,13 +472,19 @@ async def list_provider_models(
     _require_admin(request)
     from sqlalchemy import text
 
-    # 確認供應商存在
+    # 確認供應商存在，並取得 type / base_url（ollama 要即時同步真實模型）
     exist = await session.execute(
-        text("SELECT id FROM model_providers WHERE id = :id"),
+        text("SELECT id, provider_type, base_url FROM model_providers WHERE id = :id"),
         {"id": str(provider_id)},
     )
-    if not exist.fetchone():
+    prov = exist.fetchone()
+    if not prov:
         raise HTTPException(status_code=404, detail="供應商不存在")
+
+    # ollama：打 /api/tags 動態同步伺服器上「實際存在」的模型（多了補、少了刪），
+    # 不寫死任何模型名。失敗（伺服器沒開）時靜默略過，沿用 DB 既有清單。
+    if prov.provider_type == "ollama":
+        await _sync_ollama_models(session, str(provider_id), prov.base_url)
 
     offset = (page - 1) * page_size
     count_result = await session.execute(
@@ -717,6 +718,71 @@ async def list_all_models(
 # ---------------------------------------------------------------------------
 # 私有輔助函式
 # ---------------------------------------------------------------------------
+
+def _guess_ollama_model_type(name: str, family: str = "") -> str:
+    """從模型名稱/family 推測 model_type（不寫死特定模型，靠關鍵字判斷）。"""
+    low = f"{name} {family}".lower()
+    if any(k in low for k in ("embed", "bge-m3", "nomic-embed", "bert")):
+        return "embedding"
+    if "rerank" in low:
+        return "reranker"
+    if any(k in low for k in ("ocr", "vision", "-vl", "llava", "vl-", "minicpm-v")):
+        return "vision"
+    return "llm"
+
+
+async def _sync_ollama_models(session: AsyncSession, provider_id: str, base_url: str | None) -> None:
+    """打 ollama /api/tags，把伺服器上實際存在的模型同步進 ai_models。
+
+    - 多了：INSERT（ON CONFLICT DO NOTHING）
+    - 少了：DELETE（DB 有但伺服器已無）— ollama 模型一定列在 /api/tags，
+      不在清單上的等於抓不到，移除以反映現況
+    - is_default：若預設模型仍存在則保留；不存在則一併移除（合理，模型已不在）
+    伺服器不可達時靜默 return，不動 DB。
+    """
+    from sqlalchemy import text
+    url = (base_url or "http://localhost:11434").rstrip("/")
+    # base_url 可能帶 /v1（OpenAI 相容用），原生 tags 不需要 → 去掉
+    if url.endswith("/v1"):
+        url = url[:-3]
+    url += "/api/tags"
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0)) as client:
+            resp = await client.get(url)
+        if resp.status_code != 200:
+            return
+        payload = resp.json()
+    except Exception as exc:  # noqa: BLE001 — 伺服器沒開不致命
+        import structlog
+        structlog.get_logger().info("ollama_tags_sync_skipped", error=str(exc), url=url)
+        return
+
+    live: dict[str, str] = {}  # model_name -> model_type
+    for m in payload.get("models", []) or []:
+        name = m.get("name") or m.get("model")
+        if not name:
+            continue
+        family = (m.get("details") or {}).get("family", "")
+        live[name] = _guess_ollama_model_type(name, family)
+    if not live:
+        return
+
+    # 補：伺服器有、DB 沒有的
+    for name, mtype in live.items():
+        await session.execute(text("""
+            INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default, config)
+            VALUES (CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE, '{}'::jsonb)
+            ON CONFLICT (provider_id, model_name) DO NOTHING
+        """), {"pid": provider_id, "n": name, "t": mtype, "d": name})
+
+    # 刪：DB 有、伺服器已無的（用 Python list bind + ANY，避免 PG literal 雷）
+    await session.execute(text("""
+        DELETE FROM ai_models
+        WHERE provider_id = CAST(:pid AS uuid)
+          AND model_name <> ALL(:keep)
+    """), {"pid": provider_id, "keep": list(live.keys())})
+    await session.commit()
+
 
 def _require_admin(request: Request | None) -> None:
     """檢查請求者是否擁有 admin 角色（從 Gateway 注入的標頭）。"""

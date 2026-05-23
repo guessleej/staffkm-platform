@@ -378,10 +378,11 @@ services:
       VISION_OCR_MODEL: ${VISION_OCR_MODEL:-llama3.2-vision}
       VISION_OCR_BASE_URL: ${VISION_OCR_BASE_URL:-http://embedder:11434/v1}
       VISION_OCR_API_KEY: ${VISION_OCR_API_KEY:-}
-      # RFC-014 GraphRAG 抽取 LLM：本機 RAM(7.65G) 放不下 gemma4(9.6G) → 用系統 LLM(Kimi)
-      GRAPH_EXTRACT_MODEL: ${LLM_MODEL:-gemma4:e4b}
-      GRAPH_EXTRACT_BASE_URL: ${LLM_BASE_URL:-http://embedder:11434/v1}
-      GRAPH_EXTRACT_API_KEY: ${LLM_API_KEY:-dummy}
+      # RFC-014 GraphRAG 抽取 LLM：用 host Mac 的 Ollama gemma4:e4b（容器 VM RAM 不夠，
+      # host Mac 放得下）→ 經 host.docker.internal 連；地端、不受 Kimi 內容審查限制
+      GRAPH_EXTRACT_MODEL: ${GRAPH_EXTRACT_MODEL:-gemma4:e4b}
+      GRAPH_EXTRACT_BASE_URL: ${GRAPH_EXTRACT_BASE_URL:-http://host.docker.internal:11434/v1}
+      GRAPH_EXTRACT_API_KEY: ${GRAPH_EXTRACT_API_KEY:-dummy}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     healthcheck:
       <<: *api-healthcheck
@@ -431,9 +432,9 @@ services:
       VISION_OCR_BASE_URL: ${VISION_OCR_BASE_URL:-http://embedder:11434/v1}
       VISION_OCR_API_KEY: ${VISION_OCR_API_KEY:-}
       # RFC-014 GraphRAG 抽取 LLM（worker 跑 build_graph）：用系統 LLM(Kimi)
-      GRAPH_EXTRACT_MODEL: ${LLM_MODEL:-gemma4:e4b}
-      GRAPH_EXTRACT_BASE_URL: ${LLM_BASE_URL:-http://embedder:11434/v1}
-      GRAPH_EXTRACT_API_KEY: ${LLM_API_KEY:-dummy}
+      GRAPH_EXTRACT_MODEL: ${GRAPH_EXTRACT_MODEL:-gemma4:e4b}
+      GRAPH_EXTRACT_BASE_URL: ${GRAPH_EXTRACT_BASE_URL:-http://host.docker.internal:11434/v1}
+      GRAPH_EXTRACT_API_KEY: ${GRAPH_EXTRACT_API_KEY:-dummy}
     healthcheck:
       test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME | grep -q OK || exit 1"]
       interval: 30s

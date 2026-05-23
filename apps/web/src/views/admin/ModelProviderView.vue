@@ -38,6 +38,18 @@
               </select>
             </div>
           </div>
+
+          <div class="flex items-center gap-3 mt-5 pt-4 border-t border-bd">
+            <button
+              @click="saveAllDefaults"
+              :disabled="savingDefaults"
+              class="px-4 py-2 text-sm bg-brand-600 text-white rounded-md hover:bg-brand-700 disabled:opacity-50"
+            >{{ savingDefaults ? '儲存中…' : '儲存設定' }}</button>
+            <span v-if="defaultsSaved" class="text-sm text-success-600 flex items-center gap-1">
+              <SIcon name="check" :size="14" /> 已儲存並生效（下一則對話起套用，不需重啟）
+            </span>
+            <span class="text-xs text-fg-tertiary">聊天模型即為系統對話使用的 LLM</span>
+          </div>
         </section>
 
         <!-- 2. 已加供應商 -->
@@ -468,6 +480,26 @@ async function saveDefault(key: string) {
   } catch (e) {
     console.error('save default failed', e)
     alert('儲存失敗，請重試')
+  }
+}
+
+// 明確「儲存設定」按鈕：一次存所有預設模型，並給成功提示
+const savingDefaults = ref(false)
+const defaultsSaved = ref(false)
+async function saveAllDefaults() {
+  savingDefaults.value = true
+  defaultsSaved.value = false
+  try {
+    for (const kind of MODEL_KINDS) {
+      await systemSettingsApi.update(kind.key, defaults.value[kind.key] ?? '')
+    }
+    defaultsSaved.value = true
+    setTimeout(() => { defaultsSaved.value = false }, 3000)
+  } catch (e) {
+    console.error('save defaults failed', e)
+    alert('儲存失敗，請重試')
+  } finally {
+    savingDefaults.value = false
   }
 }
 
