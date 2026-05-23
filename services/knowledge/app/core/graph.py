@@ -238,6 +238,9 @@ async def graph_anchored_paragraph_ids(
     """query-時：向量比對 kb_entities（不呼叫 LLM）→ JOIN mentions 取候選 paragraph_id。"""
     if not query_embedding or not kb_ids:
         return []
+    # kb_entities 也走 ivfflat（ix_kb_entities_vec）→ 拉高 probes 避免 probes=1 漏實體
+    from app.core.vectorstore import set_ivfflat_probes
+    await set_ivfflat_probes(session)
     ent_rows = await session.execute(
         text("""
             SELECT id FROM kb_entities

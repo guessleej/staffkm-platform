@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int = 1024
     OPENAI_API_KEY: str = ""
 
+    # ivfflat 近似向量搜尋掃描的倒排清單數（pgvector 預設 1 → 召回極差且對 embedding 微擾敏感）。
+    # 建議 ≈ sqrt(lists)（索引 lists=100 → 10）。每條向量查詢以 SET LOCAL 套用（pooling 安全）。
+    IVFFLAT_PROBES: int = 10
+
     # 文件分塊設定
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 64
