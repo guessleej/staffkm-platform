@@ -90,9 +90,11 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 # 從 MinIO 下載（同步 I/O → 移至執行緒以免卡住 event loop）
                 file_bytes = await asyncio.to_thread(download_document, minio_key)
 
-                # 解析文件
+                # 解析文件（vision OCR 模型 / 引擎依 system_settings.default.vision 解析）
                 await set_progress(20, "正在解析文件內容…")
-                processor = DocumentProcessor()
+                from app.core.runtime_models import resolve_vision_ocr
+                ocr_cfg = await resolve_vision_ocr(session)
+                processor = DocumentProcessor(**ocr_cfg)
                 text = processor.load(io.BytesIO(file_bytes), filename)
 
                 # ── 分段（新版多策略切片系統）──────────────────────

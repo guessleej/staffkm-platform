@@ -38,6 +38,23 @@ class DocumentProcessor:
     # PDF 純文字層抽出少於此字數 → 視為掃描件，觸發 OCR fallback
     OCR_PDF_TEXT_THRESHOLD = 20
 
+    def __init__(
+        self,
+        *,
+        ocr_engine: str | None = None,
+        vision_model: str | None = None,
+        vision_base_url: str | None = None,
+        vision_api_key: str | None = None,
+    ):
+        """v5.11.x: OCR / vision 設定可由呼叫端覆寫（接 system_settings.default.vision）。
+
+        全部為 None 時 fallback 用 app.config.settings 的環境變數值，維持向後相容。
+        """
+        self._ocr_engine_override = ocr_engine
+        self._vision_model_override = vision_model
+        self._vision_base_url_override = vision_base_url
+        self._vision_api_key_override = vision_api_key
+
     @staticmethod
     def _decode_bytes(data: bytes) -> str:
         """文字位元組 → str：先試 UTF-8，失敗再偵測編碼。
@@ -192,7 +209,7 @@ class DocumentProcessor:
     def _ocr_image_bytes(self, img_bytes: bytes) -> str:
         """依 settings.OCR_ENGINE 選引擎；vision 失敗可 fallback tesseract。"""
         from app.config import settings
-        engine = (settings.OCR_ENGINE or "tesseract").lower()
+        engine = (self._ocr_engine_override or settings.OCR_ENGINE or "tesseract").lower()
         if engine == "vision":
             try:
                 txt = self._ocr_vision(img_bytes)
@@ -228,13 +245,17 @@ class DocumentProcessor:
         from app.config import settings
 
         b64 = base64.b64encode(img_bytes).decode("ascii")
-        base = (settings.VISION_OCR_BASE_URL or "").rstrip("/")
+        # 覆寫優先（system_settings.default.vision）→ 否則 env settings
+        vision_model = self._vision_model_override or settings.VISION_OCR_MODEL
+        vision_base = self._vision_base_url_override or settings.VISION_OCR_BASE_URL or ""
+        vision_key = self._vision_api_key_override or settings.VISION_OCR_API_KEY
+        base = vision_base.rstrip("/")
         url = f"{base}/chat/completions"
         headers = {"Content-Type": "application/json"}
-        if settings.VISION_OCR_API_KEY:
-            headers["Authorization"] = f"Bearer {settings.VISION_OCR_API_KEY}"
+        if vision_key:
+            headers["Authorization"] = f"Bearer {vision_key}"
         payload = {
-            "model": settings.VISION_OCR_MODEL,
+            "model": vision_model,
             "messages": [{
                 "role": "user",
                 "content": [
