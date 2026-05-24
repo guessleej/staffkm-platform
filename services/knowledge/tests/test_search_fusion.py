@@ -16,7 +16,7 @@ _SVC = Path(__file__).resolve().parent.parent  # services/knowledge
 if str(_SVC) not in sys.path:
     sys.path.insert(0, str(_SVC))
 
-from app.api.search import _GRAPH_RRF_WEIGHT, _fuse_graph_results  # noqa: E402
+from app.core.fusion import _GRAPH_RRF_WEIGHT, _fuse_graph_results  # noqa: E402
 
 RRF_K = 60
 FLOOR = 0.5
