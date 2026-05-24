@@ -18,7 +18,7 @@ from staffkm_core.utils.database import init_db
 init_db(settings.DB_URL)
 from sqlalchemy import text  # noqa: E402
 
-from app.api.search import _fuse_graph_results  # 真實融合邏輯  # noqa: E402
+from app.core.fusion import _fuse_graph_results  # 真實融合邏輯  # noqa: E402
 from app.core.embedder import get_embedder  # noqa: E402
 from app.core.graph import graph_anchored_paragraph_ids  # noqa: E402
 from app.api.search import _score_paragraphs_by_ids  # noqa: E402
