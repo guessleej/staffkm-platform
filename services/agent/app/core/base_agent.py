@@ -12,6 +12,19 @@ from app.config import settings
 log = structlog.get_logger()
 
 
+def split_trailing_newlines(s: str) -> tuple[str, str]:
+    """切出 (可送出前段, 結尾連續換行)。
+
+    SSE 規範會吃掉 data 值的「結尾 \\n」，且地端模型（gemma4 等）常把換行單獨
+    當一個 token 串出（純 "\\n" / "\\n\\n"）→ 經 SSE 中繼會遺失，答案擠成一坨。
+    解法：把結尾換行留到下一個有內容的 token 前面 → 換行變「內部換行」，SSE 不會吃。
+    """
+    i = len(s)
+    while i > 0 and s[i - 1] == "\n":
+        i -= 1
+    return s[:i], s[i:]
+
+
 def _normalize_openai_base(base: str | None, provider_type: str) -> str | None:
     """OpenAI 相容聊天端點需要 /v1；ollama 原生 base_url（給 verify 用）沒帶 → 補上。"""
     if not base:
@@ -239,10 +252,14 @@ class BaseAdminAgent(ABC):
                 temperature=temp,
                 max_tokens=settings.LLM_MAX_TOKENS or 2048,
             )
+            pending = ""  # 暫存結尾換行，避免 SSE 吃掉純換行 token（見 split_trailing_newlines）
             async for chunk in stream:
                 delta = chunk.choices[0].delta.content
-                if delta:
-                    yield delta
+                if not delta:
+                    continue
+                head, pending = split_trailing_newlines(pending + delta)
+                if head:
+                    yield head
         except Exception as e:
             msg = str(e)
             log.error("llm_call_failed", model=model_name, error=msg[:300])

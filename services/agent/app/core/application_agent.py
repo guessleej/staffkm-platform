@@ -20,7 +20,7 @@ import structlog
 from openai import AsyncOpenAI
 
 from app.config import settings
-from app.core.base_agent import AgentContext
+from app.core.base_agent import AgentContext, split_trailing_newlines
 from app.core.providers import BaseProvider, ChatRequest, get_adapter
 from app.core.secrets import decrypt_secret
 
@@ -724,10 +724,14 @@ class ApplicationAgent:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
+            pending = ""  # 暫存結尾換行，避免 SSE 吃掉純換行 token
             async for chunk in stream:
                 delta = chunk.choices[0].delta.content
-                if delta:
-                    yield {"type": "token", "data": delta}
+                if not delta:
+                    continue
+                head, pending = split_trailing_newlines(pending + delta)
+                if head:
+                    yield {"type": "token", "data": head}
         except Exception as e:
             # 鐵則 5：LLM 錯誤 catch + 友善訊息，不可把原始 exception 當 token 串流
             log.warning("application_agent_llm_stream_failed", app_id=self.app_id, error=str(e))
@@ -1010,10 +1014,14 @@ class ApplicationAgent:
                 max_tokens=max_tokens,
                 stream=True,
             )
+            pending = ""  # 暫存結尾換行，避免 SSE 吃掉純換行 token
             async for chunk in stream:
                 delta = chunk.choices[0].delta.content
-                if delta:
-                    yield {"type": "token", "data": delta}
+                if not delta:
+                    continue
+                head, pending = split_trailing_newlines(pending + delta)
+                if head:
+                    yield {"type": "token", "data": head}
         except Exception as e:
             log.warning("application_agent_final_stream_failed", app_id=self.app_id, error=str(e))
             yield {"type": "token", "data": "（很抱歉，回應時發生錯誤，請稍後再試。）"}
