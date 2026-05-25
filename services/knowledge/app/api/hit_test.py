@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.runtime_models import get_active_embedder
 from app.config import settings
-from app.core.embedder import get_embedder
 from app.core.vectorstore import hybrid_search
 from app.models.knowledge_base import KnowledgeBase
 from staffkm_core.schemas.response import ApiResponse
@@ -46,11 +46,7 @@ async def hit_test(
 
     query_embedding: list[float] = []
     if body.search_mode != "fts":
-        embedder = get_embedder(
-            settings.EMBEDDING_MODEL,
-            settings.OPENAI_API_KEY,
-            settings.EMBEDDING_BASE_URL or None,
-        )
+        embedder = await get_active_embedder(session)
         query_embedding = await embedder.embed_text(body.query)
 
     hits = await hybrid_search(

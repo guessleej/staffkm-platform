@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
-from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync
+from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync, embedding_admin
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
@@ -132,6 +132,7 @@ app.include_router(documents.router,       prefix=f"{_PREFIX}/documents",  tags=
 app.include_router(paragraphs.router,      prefix=f"{_PREFIX}/paragraphs", tags=["段落管理"])
 app.include_router(search.router,          prefix=f"{_PREFIX}/search",     tags=["語意檢索"])
 app.include_router(hit_test.router,        prefix=f"{_PREFIX}/hit-test",   tags=["命中測試"])
+app.include_router(embedding_admin.router, prefix=f"{_PREFIX}/embedding",   tags=["Embedding 熱換"])
 app.include_router(tasks.router,           prefix=f"{_PREFIX}/tasks",      tags=["任務管理"])
 app.include_router(kb_grants.router,       prefix=f"{_PREFIX}/bases",      tags=["KB 資源授權（Round 10-4）"])
 app.include_router(inline_write.router,    prefix=f"{_PREFIX}/documents",  tags=["Workflow KB inline-write（RFC-013）"])

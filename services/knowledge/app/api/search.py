@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.runtime_models import get_active_embedder
 from app.config import settings
-from app.core.embedder import get_embedder
 from app.core.reranker import rerank
 from app.core.vectorstore import hybrid_search
 from app.models.knowledge_base import KnowledgeBase
@@ -186,11 +186,7 @@ async def search(
     # 純 FTS 模式不需要向量化
     query_embedding: list[float] = []
     if body.search_mode != "fts":
-        embedder = get_embedder(
-            settings.EMBEDDING_MODEL,
-            settings.OPENAI_API_KEY,
-            settings.EMBEDDING_BASE_URL or None,
-        )
+        embedder = await get_active_embedder(session)
         query_embedding = await embedder.embed_text(body.query)
 
     fetch_k = body.retrieval_top_k if body.reranker else body.top_k

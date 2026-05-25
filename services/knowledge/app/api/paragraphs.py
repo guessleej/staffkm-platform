@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.runtime_models import get_active_embedder
 from app.models.knowledge_base import Document, Paragraph
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
@@ -28,15 +29,10 @@ async def _embed_and_index(
 ) -> bool:
     """為單一段落算 embedding + tsvector；失敗回 False（不 raise）。"""
     from app.config import settings
-    from app.core.embedder import get_embedder
     from app.core.vectorstore import upsert_embedding, update_search_vector
     try:
         await update_search_vector(session, paragraph_id, content)
-        embedder = get_embedder(
-            settings.EMBEDDING_MODEL,
-            settings.OPENAI_API_KEY,
-            settings.EMBEDDING_BASE_URL or None,
-        )
+        embedder = await get_active_embedder(session)
         vec = (await embedder.embed_batch([content]))[0]
         await upsert_embedding(session, paragraph_id, kb_id, vec)
         return True
@@ -580,18 +576,13 @@ async def hit_test_paragraph(
 ):
     """單段命中測試 — 算 query 與此段 embedding 的 cosine similarity。"""
     from app.config import settings
-    from app.core.embedder import get_embedder
 
     q = WorkspaceScopedQuery(Paragraph).select().where(Paragraph.id == paragraph_id)
     p = (await session.execute(q)).scalar_one_or_none()
     if not p:
         raise HTTPException(status_code=404, detail="段落不存在或不屬於此工作區")
 
-    embedder = get_embedder(
-        settings.EMBEDDING_MODEL,
-        settings.OPENAI_API_KEY,
-        settings.EMBEDDING_BASE_URL or None,
-    )
+    embedder = await get_active_embedder(session)
     qvec = await embedder.embed_query(body.query)
 
     row = await session.execute(

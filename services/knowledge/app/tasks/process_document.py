@@ -6,10 +6,10 @@ import structlog
 from sqlalchemy import delete, select, text as text_sql
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
+from app.core.runtime_models import get_active_embedder
 from app.config import settings
 from app.core.document_processor import DocumentProcessor
 from app.core.chunking import get_chunker
-from app.core.embedder import get_embedder
 from app.core.storage import download_document
 from app.core.vectorstore import upsert_embedding, update_search_vector
 from app.models.knowledge_base import Document, Paragraph, DocStatus
@@ -69,11 +69,7 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                         doc.status = DocStatus.READY
                         await set_progress(100, "inline：無段落可處理")
                         return {"status": "success", "paragraphs": 0, "mode": "inline"}
-                    embedder = get_embedder(
-                        settings.EMBEDDING_MODEL,
-                        settings.OPENAI_API_KEY,
-                        settings.EMBEDDING_BASE_URL or None,
-                    )
+                    embedder = await get_active_embedder(session)
                     contents = [p.content for p in paras]
                     embeddings = await embedder.embed_batch(contents)
                     for p, emb in zip(paras, embeddings):
@@ -134,11 +130,7 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 await set_progress(30, f"分段完成（策略 {strategy}），共 {len(chunks)} 段，正在向量化…")
 
                 # 向量化
-                embedder = get_embedder(
-                    settings.EMBEDDING_MODEL,
-                    settings.OPENAI_API_KEY,
-                    settings.EMBEDDING_BASE_URL or None,
-                )
+                embedder = await get_active_embedder(session)
                 embeddings = await embedder.embed_batch(chunks)
                 await set_progress(70, "正在寫入段落與向量…")
 
@@ -236,11 +228,7 @@ async def _async_regen(paragraph_ids: list[str]) -> dict:
                 log.warning("regen_embeddings_no_rows", requested=len(paragraph_ids))
                 return {"status": "success", "regenerated": 0}
 
-            embedder = get_embedder(
-                settings.EMBEDDING_MODEL,
-                settings.OPENAI_API_KEY,
-                settings.EMBEDDING_BASE_URL or None,
-            )
+            embedder = await get_active_embedder(session)
             embeddings = await embedder.embed_batch([p.content for p in paras])
             done = 0
             for p, emb in zip(paras, embeddings):

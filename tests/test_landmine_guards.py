@@ -195,6 +195,28 @@ def test_no_async_with_get_session():
                       + "\n".join(hits))
 
 
+# ── Celery 任務 queue 路由守衛（v5.11.x 雷）──────────────────────────────
+def test_celery_tasks_have_queue_route():
+    """新 Celery task 沒在 task_routes 加 queue 路由 → 進 default queue，worker（-Q knowledge）
+    收不到、任務永遠不跑（embedding reindex 曾中此雷）。每個 @celery_app.task(name=...) 的
+    模組前綴都必須有對應 task_routes 規則。"""
+    import re as _re
+    tasks_dir = SERVICES / "knowledge/app/tasks"
+    celery_app = tasks_dir / "celery_app.py"
+    if not celery_app.exists():
+        return
+    routes_src = celery_app.read_text(encoding="utf-8", errors="ignore")
+    # task_routes 的 key（如 "app.tasks.build_graph.*"）→ 取模組前綴
+    routed = {m.rstrip(".*") for m in _re.findall(r'"(app\.tasks\.[a-z_]+)\.\*"', routes_src)}
+    missing = []
+    for p in tasks_dir.glob("*.py"):
+        src = p.read_text(encoding="utf-8", errors="ignore")
+        for name in _re.findall(r'name\s*=\s*"(app\.tasks\.[a-z_]+)\.[a-z_]+"', src):
+            if name not in routed:
+                missing.append(f"{p.name}: {name} 無 task_routes 路由")
+    assert not missing, ("Celery task 缺 queue 路由（worker -Q 收不到）:\n  - " + "\n  - ".join(missing))
+
+
 # ── placeholder view 守衛 ────────────────────────────────────────────
 def test_no_placeholder_views():
     """UnderConstructionView placeholder 不該殘留 (CLAUDE.md release checklist)。"""

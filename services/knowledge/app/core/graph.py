@@ -16,8 +16,8 @@ from openai import AsyncOpenAI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.runtime_models import get_active_embedder
 from app.config import settings
-from app.core.embedder import get_embedder
 
 log = structlog.get_logger()
 
@@ -163,9 +163,7 @@ async def build_graph_for_document(
     if not ents:
         return {"entities": 0, "mentions": 0}
 
-    embedder = get_embedder(
-        settings.EMBEDDING_MODEL, settings.OPENAI_API_KEY, settings.EMBEDDING_BASE_URL or None
-    )
+    embedder = await get_active_embedder(session)
 
     n_ent = 0
     n_mention = 0

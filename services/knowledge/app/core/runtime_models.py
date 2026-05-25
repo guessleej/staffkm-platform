@@ -1,7 +1,12 @@
 """執行期模型解析 — 把 admin/models 頁設定的 system_settings.default.* 接到 runtime。
 
-目前提供 vision OCR 模型解析（default.vision）。LLM（default.llm）由 agent 服務的
-base_agent.resolve_system_llm 處理；embedding 刻意不在此動態切換（換了要全庫重嵌、維度需相容）。
+- vision OCR：resolve_vision_ocr（default.vision）
+- reranker：resolve_reranker（default.rerank）
+- LLM（default.llm）：agent 服務的 base_agent.resolve_system_llm
+- embedding：resolve_embedding —— **讀 embedding.active（重嵌 job 套用、與既有向量一致的模型），
+  非 default.embedding**。query 模型必須與索引模型一致，否則向量空間不符、檢索全錯。
+  切換流程：UI 存 default.embedding（desired）→ admin 觸發 reindex job → 全庫重嵌 +（維度不符時）
+  遷移共用 vector 欄 → 成功後寫 embedding.active → runtime 起用新模型。
 """
 from __future__ import annotations
 
@@ -11,7 +16,40 @@ import json
 import structlog
 from sqlalchemy import text
 
+from app.config import settings
+from app.core.embedder import get_embedder
+
 log = structlog.get_logger()
+
+
+async def resolve_embedding(session) -> tuple[str, str, str | None]:
+    """回 (model, api_key, base_url)。優先 embedding.active（與既有向量一致），否則 env 後備。"""
+    env = (settings.EMBEDDING_MODEL, settings.OPENAI_API_KEY, settings.EMBEDDING_BASE_URL or None)
+    try:
+        row = (await session.execute(
+            text("SELECT value FROM system_settings WHERE key = 'embedding.active'")
+        )).fetchone()
+        if not row or row.value in (None, "", '""'):
+            return env
+        raw = row.value
+        if isinstance(raw, str):
+            raw = json.loads(raw)
+        if not isinstance(raw, dict) or not raw.get("model"):
+            return env
+        return (
+            raw["model"],
+            raw.get("api_key") or settings.OPENAI_API_KEY,
+            raw.get("base_url") or settings.EMBEDDING_BASE_URL or None,
+        )
+    except Exception as e:  # noqa: BLE001 — 解析失敗一律 fallback env（不可讓檢索整個壞掉）
+        log.warning("resolve_embedding_failed", error=str(e))
+        return env
+
+
+async def get_active_embedder(session):
+    """取得「目前語料實際使用的」embedding service（與索引一致）。所有 ingest/query 用這個。"""
+    model, api_key, base_url = await resolve_embedding(session)
+    return get_embedder(model, api_key, base_url)
 
 
 def _normalize_openai_base(base: str | None) -> str | None:
