@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     GRAPH_EXTRACT_API_KEY:  str = "dummy"          # 地端 Ollama 不檢查
     # query→實體 比對：取相似度前 N 個實體，再 JOIN mentions 取候選段落
     GRAPH_QUERY_TOP_ENTITIES: int = 5
+    # Phase 2 多跳召回：錨定實體後沿 kb_relations 擴幾跳（0=關閉、1=一跳鄰居）。
+    # 擴出的段落仍受融合端 graph-only cosine 門檻過濾 → 不引入噪音（A/B 實測 harm-free）。
+    # 預設 0（關閉）：小型語料 A/B 實測多跳增益=+0.000 —— top-5 向量錨定已涵蓋相關實體，
+    #   且關係多為「文件內共現」（鄰居與錨點共用段落）→ 多跳補不出新段落、徒增一次查詢。
+    #   價值在「跨文件關係 + 較大語料（相關實體圖上連通但向量不相近）」浮現；屆時設 1 並用
+    #   tools/eval/graphrag_ab.py 的 hop0-vs-hop1 驗證有增益再開。
+    GRAPH_QUERY_HOPS: int = 0
 
 
 settings = Settings()

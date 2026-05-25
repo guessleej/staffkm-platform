@@ -278,11 +278,19 @@ async def build_graph_for_document(
 
 
 async def graph_anchored_paragraph_ids(
-    session: AsyncSession, kb_ids: list, query_embedding: list[float], top_entities: int, limit_paras: int = 30
+    session: AsyncSession, kb_ids: list, query_embedding: list[float], top_entities: int,
+    limit_paras: int = 30, hops: int | None = None,
 ) -> list[str]:
-    """query-時：向量比對 kb_entities（不呼叫 LLM）→ JOIN mentions 取候選 paragraph_id。"""
+    """query-時：向量比對 kb_entities（不呼叫 LLM）→ JOIN mentions 取候選 paragraph_id。
+
+    Phase 2 多跳：hops>=1 時，錨定實體再沿 kb_relations 擴 1 跳（依關係 weight 取最強鄰居），
+    把連結實體的 mention 段落一併納入候選 → 提升跨實體/跨文件召回。擴出的段落仍會在
+    融合端被 graph-only cosine 門檻過濾，不相關者不會擠進結果（提 recall、不引入噪音）。
+    """
     if not query_embedding or not kb_ids:
         return []
+    if hops is None:
+        hops = getattr(settings, "GRAPH_QUERY_HOPS", 1)
     # kb_entities 也走 ivfflat（ix_kb_entities_vec）→ 拉高 probes 避免 probes=1 漏實體
     from app.core.vectorstore import set_ivfflat_probes
     await set_ivfflat_probes(session)
@@ -298,11 +306,41 @@ async def graph_anchored_paragraph_ids(
     ent_ids = [r[0] for r in ent_rows.fetchall()]
     if not ent_ids:
         return []
+
+    all_ids = list(ent_ids)
+    eff_limit = limit_paras
+    if hops >= 1:
+        # 沿 kb_relations 擴 1 跳：依 weight 取最強鄰居（控量降噪），上限 = 2×top_entities
+        nbr_cap = max(top_entities * 2, 10)
+        nbr_rows = await session.execute(
+            text("""
+                SELECT nbr FROM (
+                    SELECT CASE WHEN src_entity_id = ANY(:ids) THEN dst_entity_id
+                                ELSE src_entity_id END AS nbr,
+                           weight
+                    FROM kb_relations
+                    WHERE knowledge_base_id = ANY(:kbs)
+                      AND (src_entity_id = ANY(:ids) OR dst_entity_id = ANY(:ids))
+                ) t
+                GROUP BY nbr
+                ORDER BY max(weight) DESC
+                LIMIT :cap
+            """),
+            {"ids": ent_ids, "kbs": [str(k) for k in kb_ids], "cap": nbr_cap},
+        )
+        seen = {str(x) for x in ent_ids}
+        for r in nbr_rows.fetchall():
+            if str(r[0]) not in seen:
+                all_ids.append(r[0])
+                seen.add(str(r[0]))
+        # 實體集擴大 → 放寬段落上限，避免鄰居 mention 被錨定 mention 擠掉
+        eff_limit = max(limit_paras, 50)
+
     para_rows = await session.execute(
         text("""
             SELECT DISTINCT paragraph_id FROM kb_entity_mentions
             WHERE entity_id = ANY(:ids) LIMIT :lim
         """),
-        {"ids": ent_ids, "lim": limit_paras},
+        {"ids": all_ids, "lim": eff_limit},
     )
     return [str(r[0]) for r in para_rows.fetchall()]

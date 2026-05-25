@@ -110,47 +110,57 @@ async def main() -> int:
         if not await _has_graph_data(s):
             print(f"SKIP：KB {KB} 無 graph 資料（0 entities）→ 此回歸需先 seed+建圖。exit 0。")
             return 0
-        print(f"probes={settings.IVFFLAT_PROBES}  graph-only cosine 門檻={SIM_THRESHOLD}  KB={KB}")
-        print(f"{'查詢':<22} | GT | hyb@5命中 | base@5 | graph@5 |")
-        print("-" * 70)
+        print(f"probes={settings.IVFFLAT_PROBES}  cosine 門檻={SIM_THRESHOLD}  hops={settings.GRAPH_QUERY_HOPS}  KB={KB}")
+        print(f"{'查詢':<22} | GT | base@5 | graph0@5 | graph1@5(多跳) |")
+        print("-" * 76)
         cases = await build_cases(s)
-        base_sum = graph_sum = n = 0
-        regressions = []
+        base_sum = g0_sum = g1_sum = n = 0
+        regressions = []      # graph(hop1) < hybrid
+        hop_regress = []      # graph(hop1) < graph(hop0) — 多跳引入噪音
         for q, names in cases:
             qe = await emb.embed_text(q)
             gt = await gt_paras(s, names)
             if not gt:
                 continue  # 此 KB 沒有該實體 → 跳過該題（換 KB 時不誤判）
             hyb5 = await hybrid_search(session=s, kb_id=KB, query_embedding=qe, query_text=q, top_k=5)
-            g_pids = await graph_anchored_paragraph_ids(s, [KB], qe, settings.GRAPH_QUERY_TOP_ENTITIES)
-            g_rows = await _score_paragraphs_by_ids(s, g_pids, qe)
             base5 = [str(h["id"]) for h in hyb5]
-            graph5 = merged_top(hyb5, g_rows, 5)
-            rb, rg = recall(base5, gt), recall(graph5, gt)
-            base_sum += rb
-            graph_sum += rg
-            n += 1
-            if rg < rb - REGRESSION_EPS:
-                regressions.append((q[:18], round(rb, 2), round(rg, 2)))
-            flag = "  ⬇退步" if rg < rb - REGRESSION_EPS else ("  ⬆" if rg > rb + 1e-9 else "")
-            print(f"{q[:20]:<20} | {len(gt):>2} | {len(set(base5) & gt):>7} | {rb:.2f}   | {rg:.2f}   |{flag}")
-        print("-" * 70)
+            rb = recall(base5, gt)
+            # graph hop0 vs hop1（隔離多跳效果）
+            r0 = await _score_paragraphs_by_ids(
+                s, await graph_anchored_paragraph_ids(s, [KB], qe, settings.GRAPH_QUERY_TOP_ENTITIES, hops=0), qe)
+            r1 = await _score_paragraphs_by_ids(
+                s, await graph_anchored_paragraph_ids(s, [KB], qe, settings.GRAPH_QUERY_TOP_ENTITIES, hops=1), qe)
+            rg0 = recall(merged_top(hyb5, r0, 5), gt)
+            rg1 = recall(merged_top(hyb5, r1, 5), gt)
+            base_sum += rb; g0_sum += rg0; g1_sum += rg1; n += 1
+            if rg1 < rb - REGRESSION_EPS:
+                regressions.append((q[:18], round(rb, 2), round(rg1, 2)))
+            if rg1 < rg0 - REGRESSION_EPS:
+                hop_regress.append((q[:18], round(rg0, 2), round(rg1, 2)))
+            flag = "  ⬆多跳賺" if rg1 > rg0 + 1e-9 else ("  ⬇多跳退" if rg1 < rg0 - 1e-9 else "")
+            print(f"{q[:20]:<20} | {len(gt):>2} | {rb:.2f}   | {rg0:.2f}     | {rg1:.2f}        |{flag}")
+        print("-" * 76)
         if n == 0:
             print("SKIP：此 KB 對不到任何 ground-truth 實體 → exit 0。")
             return 0
-        avg_base, avg_graph = base_sum / n, graph_sum / n
-        print(f"平均 base@5={avg_base:.3f}  graph@5={avg_graph:.3f}  退步題={len(regressions)} {regressions}")
+        avg_base, avg_g0, avg_g1 = base_sum / n, g0_sum / n, g1_sum / n
+        print(f"平均 base@5={avg_base:.3f}  graph0@5={avg_g0:.3f}  graph1@5={avg_g1:.3f}"
+              f"  (多跳增益={avg_g1 - avg_g0:+.3f})  hybrid退步題={len(regressions)} 多跳退步題={len(hop_regress)}")
 
         # ── 回歸 GATE ──────────────────────────────────────────────
         failures = []
-        if avg_graph < avg_base - REGRESSION_EPS:
-            failures.append(f"整體 recall 退步：graph {avg_graph:.3f} < hybrid {avg_base:.3f}")
+        if avg_g1 < avg_base - REGRESSION_EPS:
+            failures.append(f"整體 recall 退步：graph {avg_g1:.3f} < hybrid {avg_base:.3f}")
         if regressions:
-            failures.append(f"單題退步 {len(regressions)} 題：{regressions}（守 v5.11.4 cosine 門檻/probes）")
+            failures.append(f"單題低於 hybrid {len(regressions)} 題：{regressions}（守 cosine 門檻/probes）")
+        if hop_regress:
+            failures.append(f"多跳引入噪音、單題退步 {len(hop_regress)} 題：{hop_regress}（守門檻過濾多跳）")
+        if avg_g1 < avg_g0 - REGRESSION_EPS:
+            failures.append(f"多跳整體比 hop0 差：{avg_g1:.3f} < {avg_g0:.3f}")
         if failures:
             print("❌ GraphRAG retrieval 回歸：\n  - " + "\n  - ".join(failures))
             return 1
-        print("✅ GraphRAG retrieval 回歸通過：graph 不低於 hybrid、且無單題退步。")
+        print("✅ 通過：graph≥hybrid、多跳≥hop0、無單題退步（多跳提 recall、不引入噪音）。")
         return 0
 
 
