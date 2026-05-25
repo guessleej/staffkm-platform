@@ -12,10 +12,15 @@ name: Playwright E2E (manual)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 20 * * *'   # 每日 04:00 台灣；僅 ENABLE_NIGHTLY=true 才實跑（錯開其他 nightly）
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    # 排程時只在 opt-in（repo variable ENABLE_NIGHTLY=true）才跑 → 沒設就 skip，
+    # GH-hosted 不會 OOM 失敗寄信（v5.9.26 拿掉 cron 的原因）。nightly 建議搭 self-hosted。
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_NIGHTLY == 'true'
+    runs-on: ${{ vars.NIGHTLY_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
