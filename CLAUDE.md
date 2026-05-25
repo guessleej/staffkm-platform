@@ -75,7 +75,15 @@ Monorepo（apps/* + services/* + packages/*），Vue 3 + FastAPI + PostgreSQL + 
 - **default.llm** → `services/agent/app/core/base_agent.resolve_system_llm()`（base_agent + application_agent 都用）
 - **default.vision** → `services/knowledge/app/core/runtime_models.resolve_vision_ocr()`（process_document ingest 時）
 - **default.rerank** → `services/knowledge/app/core/runtime_models.resolve_reranker()`（search 未帶 reranker 時 fallback）
-- **default.embedding / default.stt** — **刻意不接**：embedding 換了要全庫重嵌且維度需相容；stt 無對應 pipeline。UI 要標清楚哪些是 advisory。
+- **default.embedding** → `runtime_models.resolve_embedding()`（**讀 `embedding.active` 非 `default.embedding`**）。
+  embedding 是**雙設定**：`default.embedding`=desired（UI 存）、`embedding.active`=已套用（重嵌 job 成功才寫）。
+  **query 模型必須與索引模型一致** → runtime 一律讀 active；換模型走「全庫重嵌」流程，不是改設定即生效：
+  UI 選 → `POST /knowledge/embedding/reindex {model_name}` → `core/reindex.py` 全庫重嵌（維度不符會 DROP index
+  → ALTER 兩個共用 vector 欄 `paragraph_embeddings`+`kb_entities` TYPE vector(N) USING NULL → 重嵌 → 重建
+  ivfflat；期間搜尋退化）→ 成功寫 `embedding.active` → runtime 起用。8 個 get_embedder 呼叫點全走
+  `get_active_embedder(session)`。`GRAPH_EXTRACT`/embedder 容器各自獨立。
+- **default.stt / default.tts** — 系統無對應 runtime pipeline；UI 標 `planned`（存了不生效）。
+  （UI `/admin/models` 每個預設模型標 status badge：live / reindex / planned，避免「選了沒反應」誤會。）
 
 Resolver 共同套路（新增 default.X 一律照做）：讀 `system_settings.default.X`（jsonb 字串或 `{model_name}`）→ JOIN `ai_models`(model_type=X)+`model_providers` 取 base_url/api_key → **env 後備**、查無設定回 None/env、DB 不可達不致命。每次請求重解 → 改設定按儲存即時生效、不需重啟。
 
@@ -205,6 +213,8 @@ docs/
 | 前端 raw `fetch()` 繞過 axios interceptor → 漏 `X-Workspace-ID` header → gateway 退回 legacy → 後端 404 → 對話 stream 空回應 | 任何前端 raw fetch 都要手動注入 ws header。`apps/web/src/api/chat.ts` 用 `dynamic import('../stores/workspace')` 拿 `currentId`；v5.9.14 從「對話無法回應」修出 |
 | Chat service 沒有 GatewayHeadersMiddleware → 所有 conversation 的 `user_id` 都 fallback `"anonymous"` → 跨 user 不隔離 + ownership check 失敗 | 任何 backend service 接 user-scoped resource 都要 GatewayHeadersMiddleware（從 X-User-ID header 寫 request.state.user_id）；v5.9.13 從「刪掉的對話又出現」修出 |
 | LLM 端 vendor 自動掃描公開通訊中的 sk-XXX 格式 key 並 auto-revoke | API key **永遠**只能進系統 settings 畫面，不能貼到任何對話 / Slack / GitHub / Notion；debug 時只貼前後 6 字元 |
+| 新 Celery task 沒在 `celery_app.task_routes` 加 queue 路由 → 進 default queue、worker（`-Q knowledge`）收不到、任務**永遠不跑**（embedding reindex 中過；`tests/test_landmine_guards.test_celery_tasks_have_queue_route` 固化）| 每個 `@celery_app.task(name="app.tasks.X.Y")` 都要有對應 `"app.tasks.X.*": {"queue": "knowledge"}` 路由 |
+| embedding 換不同維度模型 → 兩個共用 vector 欄（`paragraph_embeddings`+`kb_entities`）都要遷移、否則圖錨定壞 | 走 `core/reindex`：DROP index → ALTER 兩欄 TYPE vector(N) USING NULL → 全庫重嵌（含 kb_entities）→ 重建 ivfflat。先用 ROLLBACK 交易 dry-check ALTER 語法 |
 | admin/models 選了預設模型「按了沒反應」— runtime 只讀 env，settings 是 advisory | 新增 default.X UI 選擇器**同 PR** 要接 runtime resolver（見原則 §11），否則別讓 UI 看起來會生效 |
 | 非 endpoint 程式 `async with get_session()` 炸 `'async_generator' object does not support ...` | `get_session` 是 FastAPI 依賴；resolver/Celery/base_agent 改用 `_db._session_factory()`（見 §11）|
 | ollama provider verify 紅燈 `Name or service not known` / `HTTP 404` | base_url 要 `http://host.docker.internal:11434`（**不帶 /v1**，verify 走 `/api/tags`）；registry 預設別寫成 `http://ollama:11434/v1`（無此 host + /v1 多餘）|
@@ -308,6 +318,13 @@ grep -rnE "json\.dumps\([^)]+\) if [^)]+ else None" services/ --include="*.py" 2
 | v5.11.2 | — | vision OCR 接 runtime（default.vision）+ Big5 CI 守衛 |
 | v5.11.3 | — | reranker 接 runtime（default.rerank） |
 | v5.11.4 | — | GraphRAG 召回調校：修 `ivfflat.probes`（根因）+ graph-only cosine 門檻 + 融合重構（可測） |
+| v5.11.5-15 | — | 測試/CI 硬化：E2E（ingest→檢索）、SSE 換行根因修+多層守衛、RAG retrieval 回歸 gate、Decimal/advisory/asyncpg/ollama-/v1/get_session/celery-route landmine 守衛、Playwright 對話渲染、nightly cron（self-hosted gated）|
+| v5.11.16 | — | **GraphRAG 進階 Phase 1**：持久化實體關係（kb_relations + relation_mentions co-occurrence grounded）|
+| v5.11.17 | — | **Phase 2**：多跳召回（沿 kb_relations 擴 1 跳）+ hop0/hop1 A/B。**預設 `GRAPH_QUERY_HOPS=0`**（小語料增益=0、文件內共現鄰居共用段落；evidence-gated，語料變大再開）|
+| v5.11.18 | — | **Phase 3**：community detection（連通分量分群 + 每社群 gemma4 摘要 → kb_communities）+ `GET /graph/communities` |
+| v5.11.19 | — | **embedding 熱換**：runtime 解析（active/desired 雙設定）+ 全庫重嵌 pipeline + 維度遷移 + 進度 + celery-route 守衛 |
+| v5.11.20-21 | — | 引用 hover 暗框移除（改原生 title tooltip、不蓋主區）|
+| v5.11.x UI | — | A：HitTest 加「GraphRAG 為加法層」說明；B：admin/models 嵌入模型「套用（全庫重新索引）」按鈕 + 進度 |
 
 **GraphRAG A/B 實測（台灣公文「完整語料」KB f3281a2b，5 query，gemma4 抽的實體）**：
 - 召回門檻 `tools/eval/graphrag_ab.py`（忠實版，直接 import 真實 `_fuse_graph_results`）。
