@@ -85,6 +85,23 @@ jobs:
             --modes vector hybrid fts \
             --output /tmp/bench-result.md
 
+      - name: GraphRAG retrieval 回歸 gate
+        # 對 seeded KB 建圖後跑 graph on/off recall A/B（賺的維持、退的不退；守 v5.11.4 門檻/probes）。
+        # 圖譜抽取需 LLM（gemma4）；無 LLM / 無 graph 資料時 harness 自動 SKIP(exit 0)，不誤殺。
+        run: |
+          KB_ID=$(jq -r .kb_id /tmp/seeded.json)
+          curl -s -X POST "http://localhost/api/v1/knowledge/bases/$KB_ID/graph/rebuild" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+            -H "X-Workspace-ID: ${{ steps.token.outputs.workspace }}" > /dev/null || true
+          # 等背景建圖（best-effort，最多 ~2 分鐘）
+          for i in $(seq 1 12); do
+            N=$(docker exec staffkm-postgres psql -U staffkm -d staffkm -tAc \
+              "SELECT count(*) FROM kb_entities WHERE knowledge_base_id='$KB_ID'" 2>/dev/null || echo 0)
+            [ "${N:-0}" -gt 0 ] && { echo "graph entities=$N"; break; } || sleep 10
+          done
+          docker cp tools/eval/graphrag_ab.py staffkm-knowledge:/app/graphrag_ab.py
+          docker exec -e GRAPH_EVAL_KB="$KB_ID" staffkm-knowledge python /app/graphrag_ab.py
+
       - name: Append to history doc
         run: |
           DATE=$(date -u +%Y-%m-%d)
