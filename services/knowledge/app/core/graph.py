@@ -383,7 +383,7 @@ async def build_communities(session: AsyncSession, kb_id: str, workspace_id: str
 
 async def graph_anchored_paragraph_ids(
     session: AsyncSession, kb_ids: list, query_embedding: list[float], top_entities: int,
-    limit_paras: int = 30, hops: int | None = None,
+    limit_paras: int = 30, hops: int | None = None, use_community: bool | None = None,
 ) -> list[str]:
     """query-時：向量比對 kb_entities（不呼叫 LLM）→ JOIN mentions 取候選 paragraph_id。
 
@@ -395,6 +395,8 @@ async def graph_anchored_paragraph_ids(
         return []
     if hops is None:
         hops = getattr(settings, "GRAPH_QUERY_HOPS", 1)
+    if use_community is None:
+        use_community = getattr(settings, "GRAPH_QUERY_COMMUNITY", False)
     # kb_entities 也走 ivfflat（ix_kb_entities_vec）→ 拉高 probes 避免 probes=1 漏實體
     from app.core.vectorstore import set_ivfflat_probes
     await set_ivfflat_probes(session)
@@ -439,6 +441,25 @@ async def graph_anchored_paragraph_ids(
                 seen.add(str(r[0]))
         # 實體集擴大 → 放寬段落上限，避免鄰居 mention 被錨定 mention 擠掉
         eff_limit = max(limit_paras, 50)
+
+    if use_community:
+        # D 社群入查詢：錨定實體所屬社群 → 展開整個社群成員（global-ish 召回）
+        seen = {str(x) for x in all_ids}
+        comm_rows = await session.execute(
+            text("""
+                SELECT entity_ids FROM kb_communities
+                WHERE knowledge_base_id = ANY(:kbs)
+                  AND jsonb_exists_any(entity_ids, :anchors)
+            """),
+            {"kbs": [str(k) for k in kb_ids], "anchors": [str(e) for e in ent_ids]},
+        )
+        for (eids,) in comm_rows.fetchall():
+            members = eids if isinstance(eids, list) else (json.loads(eids) if eids else [])
+            for m in members:
+                if str(m) not in seen:
+                    all_ids.append(m)
+                    seen.add(str(m))
+        eff_limit = max(eff_limit, 60)
 
     para_rows = await session.execute(
         text("""

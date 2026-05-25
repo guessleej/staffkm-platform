@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     #   價值在「跨文件關係 + 較大語料（相關實體圖上連通但向量不相近）」浮現；屆時設 1 並用
     #   tools/eval/graphrag_ab.py 的 hop0-vs-hop1 驗證有增益再開。
     GRAPH_QUERY_HOPS: int = 0
+    # D 社群入查詢：錨定實體 → 找其所屬 kb_communities → 展開整個社群成員的 mention 段落
+    # （global-ish 召回訊號）。擴出段落仍受融合端 cosine 門檻過濾。**預設 False（關閉）**：
+    #   小語料社群多為「文件內共現」→ 與多跳同理、無實測增益。價值在大語料 + 多跨文件叢集；
+    #   屆時設 True 並用 graph_ab.py 的 community on/off 驗證有增益再開。
+    GRAPH_QUERY_COMMUNITY: bool = False
 
 
 settings = Settings()
