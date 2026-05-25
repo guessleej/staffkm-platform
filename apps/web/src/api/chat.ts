@@ -100,8 +100,11 @@ export async function streamChat(
       return
     }
     const trimmed = data.trim()
-    if (!trimmed || trimmed === '[DONE]' || ev === 'done') { onDone(); return }
+    // 只在明確的 done 訊號結束串流。v5.11.6 根因：之前用 `!trimmed` 當 done →
+    // 純換行 token（data="\n\n"）的 trimmed 為空 → 被當結束 + 換行被丟 → 答案擠成一坨。
+    if (ev === 'done' || trimmed === '[DONE]') { onDone(); return }
     if (ev === 'error') { onError(data); return }
+    if (data === '') return  // 真正空事件（keep-alive/邊界）跳過；純換行 token（data 非空）保留
     // token（或無 event: 標記）：內容是 list → citations（相容 agents 端）
     try {
       const parsed = JSON.parse(trimmed)
@@ -171,7 +174,8 @@ export async function streamPreviewChat(
     const data = dataLines.join('\n')
     dataLines = []
     const trimmed = data.trim()
-    if (!trimmed || trimmed === '[DONE]') { onDone(); return }
+    if (trimmed === '[DONE]') { onDone(); return }   // 只認明確 done；純換行 token 不可當結束
+    if (data === '') return                          // 真正空事件跳過；純換行（data 非空）保留
     try {
       const parsed = JSON.parse(trimmed)
       if (Array.isArray(parsed)) return  // citations — preview 不顯示
