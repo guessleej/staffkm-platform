@@ -148,21 +148,21 @@
                   <span class="text-fg-tertiary flex-shrink-0">{{ (c.score * 100).toFixed(0) }}%</span>
                 </button>
 
-                <!-- Hover preview popover -->
+                <!-- Hover preview popover：精簡一瞥（不蓋住主要閱讀區），完整內容點 chip 開 ArtifactPane -->
                 <div
                   v-if="c.content"
-                  class="pointer-events-none absolute bottom-full left-0 mb-2 w-96 max-w-[90vw]
-                         opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto
+                  class="pointer-events-none absolute bottom-full left-0 mb-2 w-72 max-w-[80vw]
+                         opacity-0 group-hover:opacity-100
                          transition-opacity duration-150 z-30"
                 >
-                  <div class="bg-neutral-900 text-neutral-100 rounded-lg shadow-2xl p-3 text-xs leading-relaxed border border-neutral-700">
-                    <div class="text-[10px] uppercase tracking-widest text-neutral-400 mb-1.5 flex items-center gap-2">
-                      <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand-500 text-white text-[8px] font-bold">{{ i + 1 }}</span>
-                      <span>{{ c.doc_name }}</span>
-                      <span class="ml-auto">相符 {{ (c.score * 100).toFixed(0) }}%</span>
+                  <div class="bg-neutral-900 text-neutral-100 rounded-lg shadow-2xl p-2.5 text-xs leading-relaxed border border-neutral-700">
+                    <div class="text-[10px] uppercase tracking-widest text-neutral-400 mb-1 flex items-center gap-2">
+                      <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-brand-500 text-white text-[8px] font-bold flex-shrink-0">{{ i + 1 }}</span>
+                      <span class="truncate">{{ c.doc_name }}</span>
+                      <span class="ml-auto flex-shrink-0">相符 {{ (c.score * 100).toFixed(0) }}%</span>
                     </div>
-                    <p class="whitespace-pre-wrap line-clamp-6 text-neutral-200">{{ c.content }}</p>
-                    <p class="mt-2 text-[10px] text-neutral-400">點擊看完整內容 →</p>
+                    <p class="whitespace-pre-wrap line-clamp-3 text-neutral-200">{{ c.content }}</p>
+                    <p class="mt-1.5 text-[10px] text-neutral-400">點擊看完整內容 →</p>
                   </div>
                   <!-- 小三角 -->
                   <div class="absolute top-full left-3 w-2 h-2 bg-neutral-900 transform rotate-45 -translate-y-1 border-r border-b border-neutral-700"></div>
