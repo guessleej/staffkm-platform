@@ -878,33 +878,9 @@ class WorkflowExecutor:
                 return resp.text
 
     def _eval_condition(self, config: dict, context: dict) -> bool:
-        variable = config.get("variable", "")
-        operator = config.get("operator", "contains")
-        value = config.get("value", "")
-        actual = str(context.get(variable, ""))
-        if operator == "contains":
-            return value in actual
-        elif operator == "equals":
-            return actual == value
-        elif operator == "not_equal":
-            # MaxKB v2：!= 反向
-            return actual != value
-        elif operator == "not_empty":
-            return bool(actual.strip())
-        elif operator == "is_empty":
-            return not bool(actual.strip())
-        elif operator == "regex_match":
-            # MaxKB v2：re.search 半匹配；pattern invalid 視為不匹配
-            try:
-                return bool(re.search(str(value), actual))
-            except re.error as e:
-                log.warning("condition_regex_invalid", pattern=str(value), error=str(e))
-                return False
-        elif operator == "wildcard_match":
-            # MaxKB v2：fnmatch（* / ? / [seq]）— lazy import 避免污染 module level
-            import fnmatch
-            return fnmatch.fnmatch(actual, str(value))
-        return False
+        # 純邏輯抽到 app.core.workflow.conditions（可輕量 CI 單測）
+        from app.core.workflow.conditions import eval_condition
+        return eval_condition(config, context)
 
     async def _exec_document_extract(self, config: dict, context: dict) -> None:
         """從 URL 或 Base64 下載文件並提取純文字，存入 output_variable。"""

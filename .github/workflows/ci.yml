@@ -58,7 +58,10 @@ jobs:
       - name: Lint (ruff 高訊號子集)
         run: ruff check .
       - name: Tests (雷區守衛 + 純邏輯單元)
-        run: pytest tests/ services/knowledge/tests/test_document_processor.py services/knowledge/tests/test_search_fusion.py -q
+        # knowledge 與 agent 各有 app/ package → 分開兩次 pytest 跑，避免 sys.modules 的 app 衝突
+        run: |
+          pytest tests/ services/knowledge/tests/test_document_processor.py services/knowledge/tests/test_search_fusion.py -q
+          pytest services/agent/tests/test_workflow_conditions.py services/agent/tests/test_secrets.py -q
 
   # ─────────────────────────────────────────────────────────────
   # 前端：placeholder lint + install + build（apps/web 真實 vite build）
