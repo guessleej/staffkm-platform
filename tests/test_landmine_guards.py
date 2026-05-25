@@ -154,6 +154,47 @@ def test_default_settings_wired_to_runtime():
     assert not fail, "default.* 設定未接通 runtime（會變『選了沒反應』）:\n  - " + "\n  - ".join(fail)
 
 
+# ── ollama base_url /v1 契約（v5.11.x 雷）──────────────────────────────
+def test_ollama_registry_default_base_url_no_v1():
+    """ollama verify 走原生 /api/tags → registry 預設 base_url 不可帶 /v1
+    （帶了會變 /v1/api/tags → 404；曾把『測試』按鈕弄紅）。"""
+    reg = SERVICES / "agent/app/core/providers/registry.py"
+    if not reg.exists():
+        return
+    m = re.search(r'ProviderMeta\(\s*"ollama".*?default_base_url\s*=\s*"([^"]*)"',
+                  reg.read_text(encoding="utf-8", errors="ignore"), re.DOTALL)
+    assert m, "registry 找不到 ollama ProviderMeta default_base_url"
+    assert not m.group(1).rstrip("/").endswith("/v1"), \
+        f"ollama 預設 base_url 不該帶 /v1（verify 走 /api/tags）：{m.group(1)}"
+
+
+# ── ollama 模型清單不寫死（v5.11.x 幽靈模型雷）──────────────────────────
+def test_no_hardcoded_ollama_model_seed():
+    """ollama 模型靠 /api/tags 動態同步，不可在 seed dict 寫死 → 否則出現 host 上
+    沒有的『幽靈模型』，且 agent 重啟一直種回來。"""
+    hits = []
+    for rel in ["services/agent/app/data/model_pricing.py", "services/auth/app/api/models.py"]:
+        p = ROOT / rel
+        if p.exists() and '"ollama": [' in p.read_text(encoding="utf-8", errors="ignore"):
+            hits.append(rel)
+    assert not hits, ("發現寫死的 ollama 模型 seed（改靠 /api/tags 動態同步）:\n" + "\n".join(hits))
+
+
+# ── get_session 不可當 async context manager（v5.11.x 雷）────────────────
+def test_no_async_with_get_session():
+    """get_session 是 FastAPI 依賴用的 async generator；非 endpoint 直接 `async with
+    get_session()` 會炸 'async_generator does not support ... context manager'。
+    應改用底層 _db._session_factory()。"""
+    pat = re.compile(r"async\s+with\s+get_session\s*\(")
+    hits = []
+    for p in _py_files(SERVICES, PKGS):
+        for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            if pat.search(line):
+                hits.append(f"{p.relative_to(ROOT)}:{i}")
+    assert not hits, ("發現 `async with get_session()`（改用 _db._session_factory()）:\n"
+                      + "\n".join(hits))
+
+
 # ── placeholder view 守衛 ────────────────────────────────────────────
 def test_no_placeholder_views():
     """UnderConstructionView placeholder 不該殘留 (CLAUDE.md release checklist)。"""
