@@ -166,6 +166,8 @@ async def build_graph_for_document(
 
     n_ent = 0
     n_mention = 0
+    name2id: dict[str, str] = {}      # _norm(name/alias) → entity_id（給關係端點解析）
+    ent_pids: dict[str, set] = {}     # entity_id → 提到它的段落集（給關係證據 co-occurrence）
     for e in ents:
         name = str(e.get("name", "")).strip()
         if not name:
@@ -215,6 +217,12 @@ async def build_graph_for_document(
         )
         entity_id = str(ent_row.scalar_one())
         n_ent += 1
+        name2id[norm] = entity_id
+        for a in aliases:
+            an = _norm(a)
+            if an:
+                name2id.setdefault(an, entity_id)
+        ent_pids[entity_id] = set(matched_pids)
 
         # 寫 mention（grounded）
         for pid in matched_pids:
@@ -227,9 +235,46 @@ async def build_graph_for_document(
             )
             n_mention += 1
 
+    # ── 關係持久化（GraphRAG 進階 Phase 1）──────────────────────────────
+    # 只收「兩端都是已落地實體」的關係（grounded）；證據段落 = 同時提到 src+dst 的段落。
+    n_rel = 0
+    for rel in extracted.get("relations", []):
+        if not isinstance(rel, dict):
+            continue
+        s = name2id.get(_norm(str(rel.get("src", ""))))
+        d = name2id.get(_norm(str(rel.get("dst", ""))))
+        if not s or not d or s == d:
+            continue  # 端點未落地 / 自環 → 跳過（避免幻覺邊）
+        rtype = (str(rel.get("type", "related")).strip().lower() or "related")[:64]
+        rdesc = (str(rel.get("desc", "")).strip() or None)
+        rel_row = await session.execute(
+            text("""
+                INSERT INTO kb_relations
+                    (workspace_id, knowledge_base_id, src_entity_id, dst_entity_id, relation_type, description)
+                VALUES (:ws, :kb, :s, :d, :t, :desc)
+                ON CONFLICT (knowledge_base_id, src_entity_id, dst_entity_id, relation_type) DO UPDATE SET
+                    description = COALESCE(EXCLUDED.description, kb_relations.description),
+                    weight      = kb_relations.weight + 1.0,
+                    confidence  = GREATEST(kb_relations.confidence, EXCLUDED.confidence)
+                RETURNING id
+            """),
+            {"ws": str(workspace_id), "kb": str(kb_id), "s": s, "d": d, "t": rtype, "desc": rdesc},
+        )
+        rid = str(rel_row.scalar_one())
+        n_rel += 1
+        # 證據：同時提到 src 與 dst 的段落（co-occurrence）→ kb_relation_mentions
+        for pid in (ent_pids.get(s, set()) & ent_pids.get(d, set())):
+            await session.execute(
+                text("""
+                    INSERT INTO kb_relation_mentions (relation_id, paragraph_id, workspace_id)
+                    VALUES (:rid, :pid, :ws) ON CONFLICT DO NOTHING
+                """),
+                {"rid": rid, "pid": pid, "ws": str(workspace_id)},
+            )
+
     await session.commit()
-    log.info("graph_built_for_doc", doc_id=str(doc_id), entities=n_ent, mentions=n_mention)
-    return {"entities": n_ent, "mentions": n_mention}
+    log.info("graph_built_for_doc", doc_id=str(doc_id), entities=n_ent, mentions=n_mention, relations=n_rel)
+    return {"entities": n_ent, "mentions": n_mention, "relations": n_rel}
 
 
 async def graph_anchored_paragraph_ids(
