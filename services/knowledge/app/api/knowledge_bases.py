@@ -59,6 +59,7 @@ class KBOut(BaseModel):
     chunk_strategy: str = "auto"
     chunk_size:     int = 512
     chunk_overlap:  int = 64
+    graph_enabled:  bool = False   # v5.11.x GraphRAG：卡片顯示是否啟用知識圖譜
     # Sprint 18-C：來源資訊（給卡片 badge 用）
     source_type: str = "manual"
     source_url:  str | None = None
@@ -559,4 +560,20 @@ async def list_kb_communities(
         }
         for r in rows.mappings().all()
     ]
-    return ApiResponse(data={"kb_id": str(kb_id), "communities": communities, "total": len(communities)})
+    # graph 總覽計數（給可視化卡片）
+    counts = (await session.execute(
+        text("""
+            SELECT
+              (SELECT count(*) FROM kb_entities  WHERE knowledge_base_id = CAST(:kb AS uuid)) AS entities,
+              (SELECT count(*) FROM kb_relations WHERE knowledge_base_id = CAST(:kb AS uuid)) AS relations
+        """),
+        {"kb": str(kb_id)},
+    )).mappings().first()
+    return ApiResponse(data={
+        "kb_id": str(kb_id),
+        "graph_enabled": bool(kb.graph_enabled),
+        "entities": int(counts["entities"]) if counts else 0,
+        "relations": int(counts["relations"]) if counts else 0,
+        "communities": communities,
+        "total": len(communities),
+    })

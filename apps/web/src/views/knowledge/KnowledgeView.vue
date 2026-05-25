@@ -186,6 +186,15 @@
                 :to="`/knowledge/${kb.id}/hit-test`"
                 class="flex-1 text-center text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 py-1.5 rounded-md transition-colors"
               >檢索測試</router-link>
+              <!-- v5.11.x：GraphRAG 知識圖譜 -->
+              <button
+                @click.stop="openGraph(kb)"
+                class="px-2 rounded-md transition-colors"
+                :class="kb.graph_enabled ? 'text-brand-600 bg-brand-50 hover:bg-brand-100' : 'text-neutral-400 hover:text-brand-600 hover:bg-brand-50'"
+                :title="kb.graph_enabled ? '知識圖譜（已啟用）' : '知識圖譜（未啟用）'"
+              >
+                <SIcon name="share-2" :size="14" />
+              </button>
               <!-- Sprint 19-A：加入 Project -->
               <AttachToProjectButton kind="kb" :resource-id="kb.id" />
               <button
@@ -505,6 +514,71 @@
       </aside>
     </div>
   </Teleport>
+
+  <!-- v5.11.x：GraphRAG 知識圖譜 總覽 modal -->
+  <Teleport to="body">
+    <div v-if="graph.kb" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="graph.kb = null">
+      <div class="absolute inset-0 bg-black/30" @click="graph.kb = null"></div>
+      <div class="relative w-full max-w-2xl max-h-[85vh] bg-surface-raised rounded-2xl shadow-xl flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-neutral-200">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-neutral-900 flex items-center gap-2">
+              <SIcon name="share-2" :size="16" /> 知識圖譜
+            </h3>
+            <p class="text-[11px] text-neutral-500 truncate">{{ graph.kb.name }}</p>
+          </div>
+          <button @click="graph.kb = null" class="p-1 rounded-md text-neutral-400 hover:bg-neutral-100"><SIcon name="x" :size="16" /></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-4">
+          <div v-if="graph.loading" class="text-center py-8 text-fg-tertiary text-sm">載入中…</div>
+          <template v-else-if="graph.overview">
+            <!-- 計數 + 動作 -->
+            <div class="flex items-center gap-4 flex-wrap">
+              <div class="text-xs text-fg-secondary">狀態：
+                <span :class="graph.overview.graph_enabled ? 'text-success-600' : 'text-fg-tertiary'">
+                  {{ graph.overview.graph_enabled ? '已啟用' : '未啟用' }}
+                </span>
+              </div>
+              <div class="flex gap-3 text-xs text-fg-secondary">
+                <span>實體 <b>{{ graph.overview.entities }}</b></span>
+                <span>關係 <b>{{ graph.overview.relations }}</b></span>
+                <span>社群 <b>{{ graph.overview.total }}</b></span>
+              </div>
+              <div class="ml-auto flex gap-2">
+                <button @click="graphRebuild" :disabled="graph.busy"
+                        class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
+                  {{ graph.busy ? '排程中…' : (graph.overview.graph_enabled ? '重建圖譜' : '建立知識圖譜') }}
+                </button>
+                <button v-if="graph.overview.graph_enabled" @click="graphDisable" :disabled="graph.busy"
+                        class="px-3 py-1.5 text-xs rounded-md border border-bd text-fg-secondary hover:bg-neutral-100 disabled:opacity-50">停用</button>
+              </div>
+            </div>
+            <p v-if="graph.note" class="text-[11px] text-warning-700">{{ graph.note }}</p>
+
+            <!-- 社群 -->
+            <div v-if="graph.overview.communities.length" class="space-y-2">
+              <div class="text-xs font-semibold text-fg-secondary">實體社群（連通分量 + 摘要）</div>
+              <div v-for="c in graph.overview.communities" :key="c.id" class="border border-bd rounded-lg p-3">
+                <div class="flex items-center gap-2 text-sm font-medium text-fg">
+                  {{ c.title || '社群' }}
+                  <span class="text-[11px] text-fg-tertiary">{{ c.size }} 實體 · 密度 {{ c.cohesion_score?.toFixed?.(2) ?? '—' }}</span>
+                </div>
+                <p v-if="c.summary" class="text-xs text-fg-secondary mt-1 leading-relaxed">{{ c.summary }}</p>
+                <p class="text-[11px] text-fg-tertiary mt-1.5 truncate">{{ (c.entities || []).slice(0, 8).join('、') }}</p>
+              </div>
+            </div>
+            <p v-else-if="graph.overview.graph_enabled" class="text-xs text-fg-tertiary">
+              尚無社群（需有實體關係；點「重建圖譜」後背景處理，完成再開啟查看）。
+            </p>
+            <p v-else class="text-xs text-fg-tertiary">
+              啟用後系統會用地端 LLM 對此 KB 的散文文件抽取實體/關係並分群（加法層，不影響既有檢索）。
+            </p>
+          </template>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -526,6 +600,38 @@ import { applicationApi } from '../../api/application'
 const router = useRouter()
 
 // v5.9.21: 一鍵把單一 KB 變成 RAG 對話助理
+// ── GraphRAG 知識圖譜 modal（v5.11.x 可視化）──────────────────────
+const graph = reactive<{ kb: any; loading: boolean; busy: boolean; note: string; overview: any }>({
+  kb: null, loading: false, busy: false, note: '', overview: null,
+})
+async function loadGraphOverview() {
+  if (!graph.kb) return
+  graph.loading = true
+  try { graph.overview = await knowledgeApi.getGraphOverview(graph.kb.id) }
+  catch { graph.overview = { graph_enabled: false, entities: 0, relations: 0, total: 0, communities: [] } }
+  finally { graph.loading = false }
+}
+async function openGraph(kb: any) {
+  graph.kb = kb; graph.note = ''; graph.overview = null
+  await loadGraphOverview()
+}
+async function graphRebuild() {
+  if (!graph.kb || graph.busy) return
+  graph.busy = true
+  try {
+    await knowledgeApi.rebuildGraph(graph.kb.id)
+    graph.note = '已排程背景建圖（地端 LLM 抽取，需數分鐘）；完成後重開此視窗查看社群。'
+    if (graph.overview) graph.overview.graph_enabled = true
+  } catch (e: any) { graph.note = '建圖排程失敗：' + (e?.message || '') }
+  finally { graph.busy = false }
+}
+async function graphDisable() {
+  if (!graph.kb || graph.busy) return
+  graph.busy = true
+  try { await knowledgeApi.disableGraph(graph.kb.id); await loadGraphOverview() }
+  finally { graph.busy = false }
+}
+
 const ragBusyKbId = ref<string | null>(null)
 async function onCreateRagApp(kb: any) {
   if (ragBusyKbId.value) return

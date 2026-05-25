@@ -292,6 +292,23 @@ export const knowledgeApi = {
     return data.data
   },
 
+  // — GraphRAG 知識圖譜（v5.11.x）：啟用/重建、停用、總覽（實體/關係/社群）
+  async rebuildGraph(kbId: string) {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/graph/rebuild`)
+    return data.data
+  },
+  async disableGraph(kbId: string) {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/graph/disable`)
+    return data.data
+  },
+  async getGraphOverview(kbId: string): Promise<{
+    graph_enabled: boolean; entities: number; relations: number; total: number
+    communities: { id: string; title: string; summary: string; size: number; cohesion_score: number; entities: string[] }[]
+  }> {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/graph/communities`)
+    return data.data
+  },
+
   // — Embedding 熱換（v5.11.x）：觸發全庫重嵌 + 查進度（系統級）
   async reindexEmbedding(modelName: string) {
     const { data } = await http.post(`/knowledge/embedding/reindex`, { model_name: modelName })
