@@ -52,6 +52,9 @@
                 : 'bg-surface-raised text-fg-secondary hover:bg-neutral-100'"
             >{{ m.label }}</button>
           </div>
+          <span class="text-[11px] text-fg-tertiary" title="GraphRAG 為加法層：KB 啟用知識圖譜後，實體錨定召回會自動融入上述模式（RRF 第三路），不是第四種模式。">
+            ⓘ GraphRAG 為加法層（KB 啟用後自動融入，非獨立模式）
+          </span>
 
           <span class="ml-3 text-fg-secondary">Top K：</span>
           <input

@@ -44,6 +44,26 @@
               <p v-if="kind.status !== 'live'" class="text-[11px] text-fg-tertiary mt-1">
                 {{ KIND_STATUS_META[kind.status].hint }}
               </p>
+
+              <!-- embedding：套用 = 全庫重新索引（熱換）+ 進度 -->
+              <div v-if="kind.status === 'reindex'" class="mt-2">
+                <div class="flex items-center gap-2">
+                  <button
+                    @click="applyEmbedding"
+                    :disabled="!defaults[kind.key] || reindex.running"
+                    class="px-3 py-1.5 text-xs rounded-md bg-warning-600 text-white hover:bg-warning-700 disabled:opacity-50"
+                  >{{ reindex.running ? '重新索引中…' : '套用此嵌入模型（全庫重新索引）' }}</button>
+                  <span v-if="reindex.active" class="text-[11px] text-fg-tertiary">
+                    目前生效：{{ reindex.active.model }}（{{ reindex.active.dim }} 維）
+                  </span>
+                </div>
+                <p v-if="reindex.running" class="text-[11px] text-warning-700 mt-1">
+                  重嵌中 {{ reindex.done }}/{{ reindex.total }}
+                  <span v-if="reindex.migrated">（含維度遷移，搜尋暫時退化）</span>
+                  · 維度變更會重建全庫向量、期間請勿上傳文件
+                </p>
+                <p v-else-if="reindex.lastError" class="text-[11px] text-danger-600 mt-1">重嵌失敗：{{ reindex.lastError }}</p>
+              </div>
             </div>
           </div>
 
@@ -309,6 +329,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { modelProviderApi, providerRegistryApi, type ModelProvider, type AiModel, type ProviderRegistryEntry } from '../../api/modelProvider'
 import { systemSettingsApi } from '../../api/systemSettings'
+import { knowledgeApi } from '../../api/knowledge'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 
 // ── 預設模型欄位定義 ──────────────────────────────────────────────
@@ -535,6 +556,51 @@ async function saveAllDefaults() {
   }
 }
 
+// ── embedding 熱換：套用 = 全庫重新索引 + 進度輪詢 ──────────────────
+const reindex = reactive({
+  running: false, done: 0, total: 0, migrated: false,
+  active: null as { model: string; dim: number } | null, lastError: '',
+})
+
+async function refreshReindexStatus() {
+  try {
+    const s = await knowledgeApi.getReindexStatus()
+    reindex.active = s.active
+    const p = s.progress || { status: 'idle' }
+    reindex.running = p.status === 'running'
+    reindex.done = p.done ?? 0
+    reindex.total = p.total ?? 0
+    reindex.migrated = !!p.migrated
+    if (p.status === 'error') reindex.lastError = p.error || '未知錯誤'
+    return p.status
+  } catch { return 'idle' }
+}
+
+let _pollTimer: number | undefined
+function pollReindex() {
+  window.clearInterval(_pollTimer)
+  _pollTimer = window.setInterval(async () => {
+    const st = await refreshReindexStatus()
+    if (st !== 'running') window.clearInterval(_pollTimer)
+  }, 3000) as unknown as number
+}
+
+async function applyEmbedding() {
+  const model = defaults.value['default.embedding']
+  if (!model) return
+  if (!confirm(`確定套用嵌入模型「${model}」？\n\n這會對全庫所有段落重新嵌入；若維度與目前不同，` +
+              `會重建共用向量欄（期間搜尋退化）。重嵌期間請勿上傳新文件。`)) return
+  try {
+    await systemSettingsApi.update('default.embedding', model)  // 記錄 desired
+    await knowledgeApi.reindexEmbedding(model)
+    reindex.running = true
+    reindex.lastError = ''
+    pollReindex()
+  } catch (e: any) {
+    reindex.lastError = e?.message || '觸發失敗'
+  }
+}
+
 // ── Provider CRUD ───────────────────────────────────────────────
 function onProviderTypeChange() {
   const meta = selectedRegistry.value
@@ -634,5 +700,7 @@ async function deleteModel(modelId: string, providerId: string) {
 
 onMounted(async () => {
   await Promise.all([loadRegistry(), loadProviders(), loadDefaults()])
+  const st = await refreshReindexStatus()   // 顯示目前生效模型 + 若有重嵌進行中接續輪詢
+  if (st === 'running') pollReindex()
 })
 </script>

@@ -291,4 +291,17 @@ export const knowledgeApi = {
     const { data } = await http.post(`/knowledge/documents/${kbId}/inline-write`, body)
     return data.data
   },
+
+  // — Embedding 熱換（v5.11.x）：觸發全庫重嵌 + 查進度（系統級）
+  async reindexEmbedding(modelName: string) {
+    const { data } = await http.post(`/knowledge/embedding/reindex`, { model_name: modelName })
+    return data.data
+  },
+  async getReindexStatus(): Promise<{
+    progress: { status: string; done?: number; total?: number; model?: string; target_dim?: number; migrated?: boolean; error?: string }
+    active: { model: string; dim: number } | null
+  }> {
+    const { data } = await http.get(`/knowledge/embedding/reindex`)
+    return data.data
+  },
 }
