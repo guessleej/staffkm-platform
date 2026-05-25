@@ -16,6 +16,8 @@ _SVC = Path(__file__).resolve().parent.parent  # services/knowledge
 if str(_SVC) not in sys.path:
     sys.path.insert(0, str(_SVC))
 
+from decimal import Decimal  # noqa: E402
+
 from app.core.fusion import _GRAPH_RRF_WEIGHT, _fuse_graph_results  # noqa: E402
 
 RRF_K = 60
@@ -64,6 +66,17 @@ def test_empty_graph_rows_noop():
     all_results = [{"id": "A", "score": 0.012}]
     _fuse_graph_results(all_results, [], RRF_K, FLOOR)
     assert all_results == [{"id": "A", "score": 0.012}]
+
+
+def test_decimal_hybrid_score_no_typeerror():
+    """回歸守衛：hybrid_search 的 score 是 PG numeric → Decimal；融合加 float contrib
+    時若沒先轉 float 會 `TypeError: unsupported operand Decimal + float`（曾在 search graph
+    開啟時 500、被 starlette 吞沒 log）。確認 _fuse_graph_results 有 float() 防護。"""
+    all_results = [{"id": "A", "score": Decimal("0.012")}]   # 模擬 PG numeric
+    g_rows = [{"id": "A", "score": 0.7, "vector_score": 0.7}]
+    _fuse_graph_results(all_results, g_rows, RRF_K, FLOOR)    # 不可炸 TypeError
+    assert isinstance(all_results[0]["score"], float)
+    assert all_results[0]["score"] == pytest.approx(0.012 + _GRAPH_RRF_WEIGHT / RRF_K)
 
 
 # ════════════════════════════════════════════════════════════════════════════

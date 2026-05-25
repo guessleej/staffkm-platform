@@ -117,6 +117,43 @@ def test_workspace_scoped_fetch_has_header():
     assert not hits, "raw fetch 打 workspace 端點但無 X-Workspace-ID 注入:\n" + "\n".join(hits)
 
 
+# ── admin/models 預設模型「真生效」守衛（CLAUDE.md §11）─────────────────
+# 雷：system_settings.default.* 一度只是 advisory（runtime 讀 env、選了不生效）。
+# 已接通的 default.{llm,vision,rerank} 必須在 runtime 端有 resolver 且被呼叫，
+# 否則 UI 看起來會生效、實際沒接 → 使用者「選了沒反應」。
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
+
+
+def test_default_settings_wired_to_runtime():
+    base_agent = _read(SERVICES / "agent/app/core/base_agent.py")
+    app_agent = _read(SERVICES / "agent/app/core/application_agent.py")
+    runtime_models = _read(SERVICES / "knowledge/app/core/runtime_models.py")
+    process_doc = _read(SERVICES / "knowledge/app/tasks/process_document.py")
+    search_py = _read(SERVICES / "knowledge/app/api/search.py")
+    if not base_agent:  # repo 結構不符就跳過（不誤殺外部 checkout）
+        return
+
+    fail = []
+    # default.llm → base_agent.resolve_system_llm 定義 + 被呼叫（def + call ≥ 2）
+    if base_agent.count("resolve_system_llm") < 2 or "default.llm" not in base_agent:
+        fail.append("base_agent 未把 default.llm 接到 runtime（resolve_system_llm 未定義/未呼叫）")
+    # application 對話也要 fallback 系統預設
+    if app_agent and app_agent.count("_resolve_default_llm_model_id") < 2:
+        fail.append("application_agent 未 fallback 系統預設 LLM（_resolve_default_llm_model_id）")
+    # default.vision → runtime_models.resolve_vision_ocr 定義 + process_document 呼叫
+    if "def resolve_vision_ocr" not in runtime_models or "default.vision" not in runtime_models:
+        fail.append("runtime_models 缺 resolve_vision_ocr / default.vision")
+    if "resolve_vision_ocr" not in process_doc:
+        fail.append("process_document 未呼叫 resolve_vision_ocr（vision OCR 退回 advisory）")
+    # default.rerank → runtime_models.resolve_reranker 定義 + search 呼叫
+    if "def resolve_reranker" not in runtime_models or "default.rerank" not in runtime_models:
+        fail.append("runtime_models 缺 resolve_reranker / default.rerank")
+    if "resolve_reranker" not in search_py:
+        fail.append("search 未呼叫 resolve_reranker（reranker 退回 advisory）")
+    assert not fail, "default.* 設定未接通 runtime（會變『選了沒反應』）:\n  - " + "\n  - ".join(fail)
+
+
 # ── placeholder view 守衛 ────────────────────────────────────────────
 def test_no_placeholder_views():
     """UnderConstructionView placeholder 不該殘留 (CLAUDE.md release checklist)。"""
