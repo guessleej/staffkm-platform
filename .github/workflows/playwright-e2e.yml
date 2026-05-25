@@ -1,0 +1,72 @@
+name: Playwright E2E (manual)
+
+# apps/e2e 的 6 個 P0 前端 critical-path spec：
+#   login / captcha / app-crud / knowledge / widget / chat-render(SSE 換行→marked→DOM 分明)
+#
+# 需起整套 docker stack（embedder 首次拉 bge-m3 ~1.2GB；本套 spec 不需 gemma4 —
+# chat-render 攔截串流餵罐裝 SSE，不打 LLM）。GitHub-hosted runner 可能慢/OOM →
+# 只能手動觸發（workflow_dispatch），建議 >=8GB self-hosted runner。
+# 本機跑：cd apps/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test
+#
+# SECRET_KEY / POSTGRES_PASSWORD / REDIS_PASSWORD 走 CI-only 預設值，僅供 ephemeral 測試。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bring up stack
+        working-directory: infra
+        env:
+          POSTGRES_PASSWORD: ci_pass
+          SECRET_KEY: ci_secret_key_for_testing_only_32chars
+          REDIS_PASSWORD: ci_redis
+        run: docker compose up -d --wait
+
+      - name: Wait for gateway health
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost/api/v1/health > /dev/null && break || sleep 5
+          done
+          curl -sf http://localhost/api/v1/health || (echo "gateway not healthy"; exit 1)
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # apps/* 在 pnpm workspace → 於 repo root 安裝（同 ci.yml frontend job）
+      - name: Install deps (workspace root)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Install Playwright chromium
+        working-directory: apps/e2e
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright E2E
+        working-directory: apps/e2e
+        env:
+          STAFFKM_BASE_URL: http://localhost
+          STAFFKM_ADMIN_USERNAME: admin
+          STAFFKM_ADMIN_PASSWORD: Admin@2026
+        run: pnpm test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/e2e/playwright-report/
+          retention-days: 7
+
+      - name: Tear down
+        if: always()
+        working-directory: infra
+        run: docker compose down -v
