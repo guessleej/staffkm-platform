@@ -1,6 +1,6 @@
 # staffKM E2E Tests
 
-> v3.0 — Playwright-based 5 P0 critical-path test suite。
+> v3.0 — Playwright-based P0 critical-path test suite（6 specs）。
 
 ## 安裝
 
@@ -27,7 +27,7 @@ pnpm report
 - `STAFFKM_ADMIN_USERNAME` (預設 `admin`)
 - `STAFFKM_ADMIN_PASSWORD` (預設 `Admin@2026`)
 
-## 5 個 spec
+## 6 個 spec
 
 | # | 檔 | 內容 |
 |---|---|---|
@@ -36,6 +36,7 @@ pnpm report
 | 03 | app-crud.spec.ts | /applications render + ?tour=templates 自動開模板畫廊 |
 | 04 | knowledge.spec.ts | /knowledge render + 透過 API 建 KB → 列表看到 |
 | 05 | widget.spec.ts | /widget.js + /widget-demo.html 載入無 JS 錯誤 |
+| 06 | chat-render.spec.ts | 對話渲染 last-mile：攔截串流餵 gemma4 風格純換行 token → 斷言 marked→DOM 分明（<ol>/<li>/<br>），不擠成一坨（守 SSE 換行回歸史 v5.9.32~v5.11.8）|
 
 ## CI 整合
 
