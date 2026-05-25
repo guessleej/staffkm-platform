@@ -80,6 +80,12 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
         migrated = True
         log.info("reindex_migrated_columns", target_dim=target_dim)
 
+    # 重嵌前先把 active 切到目標模型 → runtime query/ingest 與「已遷移的欄位維度」一致，
+    # 重嵌期間頂多回空結果（向量尚未填），不會 1024-query vs 768-column 的硬維度錯誤。
+    await _set_setting(session, ACTIVE_KEY, {
+        "model": model, "base_url": base_url, "api_key": api_key, "dim": target_dim,
+    })
+
     embedder = get_embedder(model, api_key, base_url)
 
     # 1) 重嵌所有 paragraphs（keyset 分批，避免大 offset）
@@ -134,10 +140,7 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
             await session.execute(text(stmt))
         await session.commit()
 
-    # 4) 套用：runtime 起用新模型（query 與索引一致）
-    await _set_setting(session, ACTIVE_KEY, {
-        "model": model, "base_url": base_url, "api_key": api_key, "dim": target_dim,
-    })
+    # 4) 完成（active 已於重嵌前切換 → 此處只更新進度狀態）
     await _set_setting(session, PROGRESS_KEY, {
         "status": "done", "model": model, "target_dim": target_dim, "total": total,
         "done": done, "migrated": migrated, "entities": len(ent_rows),
