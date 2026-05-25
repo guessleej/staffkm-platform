@@ -90,6 +90,11 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - name: Build web
         run: cd apps/web && pnpm build
+      # 對話渲染 last-mile 守衛（輕量 node，每 PR 跑）：SSE 換行→app 同款 marked
+      # （breaks:true,gfm:true）→ 斷言結構化 DOM（<ol><li>），對照組（換行被吃）判為擠成一坨。
+      # 真實瀏覽器 Playwright（apps/e2e/06-chat-render）仍在 playwright-e2e.yml（需 served app）。
+      - name: Chat render guard (SSE 換行→marked→結構化 DOM)
+        run: cd apps/web && node test/render-guard.mjs
 
   # ─────────────────────────────────────────────────────────────
   # 安全掃描 — 只跑 secret scanning（非阻斷，PR only）
