@@ -98,6 +98,32 @@ Resolver 共同套路（新增 default.X 一律照做）：讀 `system_settings.
 - Docker Desktop（Mac/Win）連 host ollama 用 `host.docker.internal:11434`（compose 內沒有叫 `ollama` 的服務；地端 embedding 容器叫 `embedder`）。
 - ⚠️ Kimi（Moonshot）內容過濾會擋台灣/兩岸/政府公文（400 high risk）→ 台灣公文場景的系統 LLM / GraphRAG 抽取都改本機 ollama（gemma4:e4b / TAIDE 12B）。
 
+### 13. 測試分層：輕量（每 PR）vs 整合（真 DB）+ 誠實 coverage gate（v5.12.x）
+CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢）：
+
+- **輕量層（`backend` job，每 PR 一定跑）**：最小依賴 `pytest/ruff/structlog/charset-normalizer`，**不裝** fastapi/sqlalchemy/asyncpg。
+  跑：雷區守衛（`tests/test_landmine_guards.py` 純檔案掃描）+ 純邏輯單元（`test_workflow_conditions` / `test_secrets` / `test_search_fusion` / `test_document_processor`）。
+  ⇒ 新單元測試要嘛**零重依賴**、要嘛 import 的模組依賴極輕（抽純函式出來測，如 `workflow/conditions.py`）。
+- **整合層（`integration` job，backend 改才跑）**：`pgvector/pgvector:pg16` service container + 裝 sqlalchemy/asyncpg/pytest-asyncio/pytest-cov。
+  跑 `tests/integration/`：用 repo 真正的 `init_db()` + `_session_factory()` 對**真 PG** 做 SQL round-trip（連 asyncpg dialect 一起測）。
+  目前守 quota/計帳治理路徑（`app.core.usage`：record_usage/check_quota 雙層/calc_cost/calc_media_cost），coverage 100%。
+
+整合測試 conftest 規約（`tests/integration/conftest.py`）：
+- **沒設 `STAFFKM_TEST_DB_URL` 或沒裝重依賴 → 整個目錄 collection 階段自動 skip**（`collect_ignore_glob`），且**不在 top-level import 任何重依賴** → 輕量 job 跑 `pytest tests/` 不會炸。新整合測試的重 import 一律放 conftest 的 guard 區塊內或 fixture 內。
+- schema 用「忠實於 production 的最小 DDL」現建（對齊 `\d` dump），**不跑整條 alembic**（跨服務、22+ migration、慢且脆）。漂移由整合測試本身的真 SQL round-trip 擋（被測模組 SQL 一改、欄位不符就紅）。
+- 每 test 一個 fixture（engine 在該 test 自己的 event loop 內 `init_db` → 避免 pytest-asyncio 跨 loop 共用 asyncpg 連線的 `InterfaceError`）；測前 TRUNCATE 清殘留。
+- async 測試靠 `pytestmark = pytest.mark.asyncio`（strict 模式，不需 `-o asyncio_mode=auto`）。
+
+**Coverage gate 哲學：誠實、不灌水**。`--cov` 範圍 = 目前真有整合測試覆蓋的模組（如 `--cov=app.core.usage`），**不報全 repo 數字**（會是假象）。門檻 90%。新增整合測試 → 把對應模組加進 `--cov` → 覆蓋面自然擴大。
+
+本機重跑整合測試（CI 之外）：
+```bash
+docker run -d --name pg-itest -e POSTGRES_USER=staffkm -e POSTGRES_PASSWORD=staffkm_secret \
+  -e POSTGRES_DB=staffkm_test -p 55432:5432 pgvector/pgvector:pg16
+STAFFKM_TEST_DB_URL=postgresql+asyncpg://staffkm:staffkm_secret@localhost:55432/staffkm_test \
+  pytest tests/integration --cov=app.core.usage --cov-fail-under=90 -q
+```
+
 ## 常用指令
 
 ```bash

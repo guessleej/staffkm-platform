@@ -97,6 +97,43 @@ jobs:
         run: cd apps/web && node test/render-guard.mjs
 
   # ─────────────────────────────────────────────────────────────
+  # 整合測試：service 層真 DB 測試（pgvector service container）+ coverage gate
+  # 與輕量 backend job 分離（這層裝重依賴 sqlalchemy/asyncpg）。只在 backend 改時跑。
+  # 目前守 quota/計帳治理路徑（app.core.usage）；新模組整合測試陸續加進 tests/integration/。
+  # ─────────────────────────────────────────────────────────────
+  integration:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: staffkm
+          POSTGRES_PASSWORD: staffkm_secret
+          POSTGRES_DB: staffkm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U staffkm -d staffkm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install integration deps
+        run: pip install --quiet "sqlalchemy[asyncio]==2.0.36" asyncpg==0.30.0 structlog==24.4.0 pytest==8.3.* pytest-asyncio==0.24.* pytest-cov==6.0.*
+      - name: Service-layer integration tests (真 PG round-trip + coverage gate)
+        # --cov 範圍 = 目前有整合測試覆蓋的模組（誠實 gate：不灌全 repo 數字）；
+        # 新增整合測試時把對應模組加進 --cov、覆蓋率自然上升。門檻 90%。
+        env:
+          STAFFKM_TEST_DB_URL: postgresql+asyncpg://staffkm:staffkm_secret@localhost:5432/staffkm_test
+        run: pytest tests/integration --cov=app.core.usage --cov-report=term-missing --cov-fail-under=90 -q
+
+  # ─────────────────────────────────────────────────────────────
   # 安全掃描 — 只跑 secret scanning（非阻斷，PR only）
   # ─────────────────────────────────────────────────────────────
   security:
@@ -113,17 +150,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────────────────────
-  # 必要 gate：只看 backend + frontend（security 非阻斷）
+  # 必要 gate：backend + frontend + integration（security 非阻斷）
   # ─────────────────────────────────────────────────────────────
   ci-pass:
     if: always()
-    needs: [backend, frontend]
+    needs: [backend, frontend, integration]
     runs-on: ubuntu-latest
     steps:
       - run: |
           # skipped (path 沒改) 視為通過；只有 failure 才擋
           if [ "${{ needs.backend.result }}" == "failure" ] || \
-             [ "${{ needs.frontend.result }}" == "failure" ]; then
+             [ "${{ needs.frontend.result }}" == "failure" ] || \
+             [ "${{ needs.integration.result }}" == "failure" ]; then
             echo "❌ CI failed"; exit 1
           fi
           echo "✅ CI passed"
