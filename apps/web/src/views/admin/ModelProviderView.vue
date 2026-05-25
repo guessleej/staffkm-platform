@@ -18,14 +18,19 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div v-for="kind in MODEL_KINDS" :key="kind.key">
-              <label class="block text-sm text-fg-secondary mb-1.5">
+              <label class="flex items-center flex-wrap gap-1.5 text-sm text-fg-secondary mb-1.5">
                 <span :class="kind.required ? 'text-danger-600 mr-0.5' : ''">{{ kind.required ? '*' : '' }}</span>
                 {{ kind.label }}
-                <span class="text-xs text-fg-tertiary ml-1">({{ kind.modelType }})</span>
+                <span class="text-xs text-fg-tertiary">({{ kind.modelType }})</span>
+                <span
+                  class="text-[11px] px-1.5 py-0.5 rounded-full font-medium"
+                  :class="KIND_STATUS_META[kind.status].tone"
+                  :title="KIND_STATUS_META[kind.status].hint"
+                >{{ KIND_STATUS_META[kind.status].badge }}</span>
               </label>
               <select
                 v-model="defaults[kind.key]"
-                @change="saveDefault(kind.key)"
+                @change="onDefaultChange(kind)"
                 class="form-input text-fg
                        focus:outline-none focus:ring-1 focus:ring-brand-400"
               >
@@ -36,6 +41,9 @@
                   :value="m.model_name"
                 >{{ m.display_name || m.model_name }} ({{ providerName(m.provider_id) }})</option>
               </select>
+              <p v-if="kind.status !== 'live'" class="text-[11px] text-fg-tertiary mt-1">
+                {{ KIND_STATUS_META[kind.status].hint }}
+              </p>
             </div>
           </div>
 
@@ -304,14 +312,27 @@ import { systemSettingsApi } from '../../api/systemSettings'
 import { SIcon, SSpinner } from '@staffkm/ui-kit'
 
 // ── 預設模型欄位定義 ──────────────────────────────────────────────
+// status：標清楚每個預設「選了會不會即時生效」，避免「選了沒反應」的誤會（CLAUDE.md §11）。
+//   live    = 接到 runtime，儲存後即時生效（下一則對話/檢索起）
+//   reindex = 變更需「全庫重新嵌入」且維度需相容 → 不自動套用（避免打爆既有向量）
+//   planned = 系統尚無對應 runtime pipeline（先存著，未生效）
 const MODEL_KINDS = [
-  { key: 'default.llm',       label: '聊天模型',     modelType: 'llm',       required: true  },
-  { key: 'default.embedding', label: '嵌入模型',     modelType: 'embedding', required: false },
-  { key: 'default.vision',    label: 'img2Txt 模型', modelType: 'vision',    required: false },
-  { key: 'default.stt',       label: 'speech2Txt 模型', modelType: 'stt',    required: false },
-  { key: 'default.rerank',    label: 'rerank 模型',  modelType: 'reranker',  required: false },
-  { key: 'default.tts',       label: '語音合成模型', modelType: 'tts',       required: false },
+  { key: 'default.llm',       label: '聊天模型',     modelType: 'llm',       required: true,  status: 'live'    },
+  { key: 'default.vision',    label: 'img2Txt 模型', modelType: 'vision',    required: false, status: 'live'    },
+  { key: 'default.rerank',    label: 'rerank 模型',  modelType: 'reranker',  required: false, status: 'live'    },
+  { key: 'default.embedding', label: '嵌入模型',     modelType: 'embedding', required: false, status: 'reindex' },
+  { key: 'default.stt',       label: 'speech2Txt 模型', modelType: 'stt',    required: false, status: 'planned' },
+  { key: 'default.tts',       label: '語音合成模型', modelType: 'tts',       required: false, status: 'planned' },
 ] as const
+
+const KIND_STATUS_META: Record<string, { badge: string; tone: string; hint: string }> = {
+  live:    { badge: '即時生效', tone: 'bg-success-50 text-success-700',
+             hint: '儲存後下一則對話／檢索起套用，不需重啟。' },
+  reindex: { badge: '變更需重新索引', tone: 'bg-warning-50 text-warning-700',
+             hint: '更換嵌入模型需「全庫重新嵌入」且維度須相容，儲存不會自動套用既有資料。' },
+  planned: { badge: '尚未啟用', tone: 'bg-neutral-200 text-neutral-700',
+             hint: '系統尚無對應 runtime pipeline，選擇先保存、暫不生效。' },
+}
 
 const CATALOG_TABS = ['All', '地端', 'LLM', 'Embedding', 'Reranker', 'TTS', 'STT', 'Vision', 'Image'] as const
 
@@ -480,6 +501,17 @@ async function saveDefault(key: string) {
   } catch (e) {
     console.error('save default failed', e)
     alert('儲存失敗，請重試')
+  }
+}
+
+// 變更預設模型：先存；非 live 的種類額外提示「不會即時生效」，避免誤會。
+async function onDefaultChange(kind: { key: string; status: string; label: string }) {
+  await saveDefault(kind.key)
+  if (kind.status === 'reindex' && defaults.value[kind.key]) {
+    alert(`已儲存「${kind.label}」偏好，但更換嵌入模型需「全庫重新嵌入」且維度須相容，` +
+          `不會自動套用既有資料。請於各知識庫執行重新索引後才生效。`)
+  } else if (kind.status === 'planned' && defaults.value[kind.key]) {
+    alert(`已儲存「${kind.label}」偏好，但系統尚無對應 runtime pipeline，目前不會生效。`)
   }
 }
 
