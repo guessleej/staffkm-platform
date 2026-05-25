@@ -525,3 +525,38 @@ async def disable_kb_graph(
     kb.graph_enabled = False
     await session.commit()
     return ApiResponse(message="已關閉 GraphRAG", data={"kb_id": str(kb_id), "graph_enabled": False})
+
+
+@router.get("/{kb_id}/graph/communities", response_model=ApiResponse)
+async def list_kb_communities(
+    kb_id: uuid.UUID,
+    ctx: TenantContext = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+):
+    """Phase 3：列出此 KB 的實體社群（連通分量 + LLM 摘要），含成員實體名。"""
+    kb = (await session.execute(
+        WorkspaceScopedQuery(KnowledgeBase).select().where(KnowledgeBase.id == kb_id)
+    )).scalar_one_or_none()
+    if not kb:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+    from sqlalchemy import text
+    rows = await session.execute(
+        text("""
+            SELECT c.id, c.title, c.summary, c.entity_ids, c.cohesion_score,
+                   (SELECT json_agg(e.name) FROM kb_entities e
+                    WHERE e.id IN (SELECT jsonb_array_elements_text(c.entity_ids)::uuid)) AS entity_names
+            FROM kb_communities c
+            WHERE c.knowledge_base_id = CAST(:kb AS uuid)
+            ORDER BY c.cohesion_score DESC NULLS LAST, jsonb_array_length(c.entity_ids) DESC
+        """),
+        {"kb": str(kb_id)},
+    )
+    communities = [
+        {
+            "id": str(r["id"]), "title": r["title"], "summary": r["summary"],
+            "size": len(r["entity_ids"] or []), "cohesion_score": r["cohesion_score"],
+            "entities": r["entity_names"] or [],
+        }
+        for r in rows.mappings().all()
+    ]
+    return ApiResponse(data={"kb_id": str(kb_id), "communities": communities, "total": len(communities)})

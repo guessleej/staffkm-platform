@@ -77,19 +77,22 @@ def looks_like_form(doc_name: str, paragraphs: list[str]) -> bool:
     return bool(name_hit or dense_fields)
 
 
-def _parse_json(raw: str) -> dict:
-    """容錯解析（地端小模型未必嚴格 JSON）：抓第一個 { 到最後一個 }。"""
+def _parse_json_obj(raw: str) -> dict:
+    """容錯解析任意 JSON 物件（地端小模型常包 ```json 圍欄）：抓第一個 { 到最後一個 }。"""
     m = re.search(r"\{.*\}", raw or "", re.DOTALL)
     if not m:
-        return {"entities": [], "relations": []}
+        return {}
     try:
         d = json.loads(m.group(0))
-        return {
-            "entities": d.get("entities") or [],
-            "relations": d.get("relations") or [],
-        }
+        return d if isinstance(d, dict) else {}
     except Exception:
-        return {"entities": [], "relations": []}
+        return {}
+
+
+def _parse_json(raw: str) -> dict:
+    """實體抽取專用：容錯解析後只取 entities/relations。"""
+    d = _parse_json_obj(raw)
+    return {"entities": d.get("entities") or [], "relations": d.get("relations") or []}
 
 
 async def _llm_extract(texts: list[str]) -> dict:
@@ -275,6 +278,109 @@ async def build_graph_for_document(
     await session.commit()
     log.info("graph_built_for_doc", doc_id=str(doc_id), entities=n_ent, mentions=n_mention, relations=n_rel)
     return {"entities": n_ent, "mentions": n_mention, "relations": n_rel}
+
+
+def _connected_components(edges: list[tuple[str, str]], nodes: set[str]) -> list[list[str]]:
+    """純 Python union-find 連通分量（無新依賴）。社群偵測 v1 用連通分量。"""
+    parent = {n: n for n in nodes}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    comps: dict[str, list[str]] = {}
+    for n in nodes:
+        comps.setdefault(find(n), []).append(n)
+    return list(comps.values())
+
+
+async def _summarize_community(entity_names: list[str], triples: list[tuple[str, str, str]]) -> tuple[str, str]:
+    """用地端 LLM 對社群（實體+關係）產生 {title, summary}；只根據輸入、不杜撰；失敗回空摘要。"""
+    client = AsyncOpenAI(api_key=settings.GRAPH_EXTRACT_API_KEY or "dummy", base_url=settings.GRAPH_EXTRACT_BASE_URL)
+    rel_lines = "\n".join(f"- {s} --{t}--> {d}" for s, t, d in triples[:40])
+    user = (
+        "以下是一個知識社群的實體與關係：\n"
+        "實體：" + "、".join(entity_names[:30]) + "\n"
+        "關係：\n" + (rel_lines or "（無）") + "\n\n"
+        '用繁體中文輸出 JSON：{"title":"<8字內主題>","summary":"<2-3句，只根據上述實體/關係，不杜撰>"}'
+    )
+    _ml = (settings.GRAPH_EXTRACT_MODEL or "").lower()
+    temperature = 1 if ("kimi-k2" in _ml or _ml.startswith(("o1", "o3"))) else 0.2
+    fallback_title = (entity_names[0] if entity_names else "社群")[:60]
+    try:
+        resp = await client.chat.completions.create(
+            model=settings.GRAPH_EXTRACT_MODEL,
+            messages=[
+                {"role": "system", "content": "你是知識圖譜社群摘要器，只根據提供的實體/關係摘要，不杜撰。"},
+                {"role": "user", "content": user},
+            ],
+            temperature=temperature, max_tokens=2000, stream=False,
+        )
+        msg = resp.choices[0].message
+        d = _parse_json_obj(msg.content or getattr(msg, "reasoning_content", "") or "{}")
+        title = (str(d.get("title", "")).strip() or fallback_title)[:60]
+        return title, str(d.get("summary", "")).strip()
+    except Exception as e:  # noqa: BLE001
+        log.warning("community_summarize_failed", error=str(e)[:200])
+        return fallback_title, ""
+
+
+async def build_communities(session: AsyncSession, kb_id: str, workspace_id: str) -> dict:
+    """GraphRAG 進階 Phase 3：用 kb_relations 連通分量分群（≥2 實體）+ 每社群 LLM 摘要 → kb_communities。
+
+    KB 全域操作（需全部關係）→ 由 full rebuild（doc_id=None）收尾呼叫。重建語意：先清舊社群。
+    """
+    rel_rows = await session.execute(
+        text("SELECT src_entity_id, dst_entity_id, relation_type, weight FROM kb_relations "
+             "WHERE knowledge_base_id = CAST(:kb AS uuid)"),
+        {"kb": str(kb_id)},
+    )
+    rels = rel_rows.fetchall()
+    # 先清舊（rebuild 語意）
+    await session.execute(
+        text("DELETE FROM kb_communities WHERE knowledge_base_id = CAST(:kb AS uuid)"), {"kb": str(kb_id)},
+    )
+    if not rels:
+        await session.commit()
+        return {"communities": 0}
+
+    ent_rows = await session.execute(
+        text("SELECT id, name FROM kb_entities WHERE knowledge_base_id = CAST(:kb AS uuid)"), {"kb": str(kb_id)},
+    )
+    name_by_id = {str(r[0]): r[1] for r in ent_rows.fetchall()}
+    edges = [(str(r[0]), str(r[1])) for r in rels]
+    nodes = {x for e in edges for x in e}
+    comps = [c for c in _connected_components(edges, nodes) if len(c) >= 2]
+
+    n_comm = 0
+    for comp in comps:
+        comp_set = set(comp)
+        triples = [
+            (name_by_id.get(str(r[0]), "?"), r[2], name_by_id.get(str(r[1]), "?"))
+            for r in rels if str(r[0]) in comp_set and str(r[1]) in comp_set
+        ]
+        ent_names = [name_by_id.get(e, "?") for e in comp]
+        title, summary = await _summarize_community(ent_names, triples)
+        cohesion = round(len(triples) / len(comp), 3) if comp else 0.0  # 邊/節點 密度 proxy
+        await session.execute(
+            text("""
+                INSERT INTO kb_communities
+                    (workspace_id, knowledge_base_id, level, title, summary, entity_ids, cohesion_score)
+                VALUES (:ws, :kb, 0, :title, :summary, CAST(:eids AS jsonb), :coh)
+            """),
+            {"ws": str(workspace_id), "kb": str(kb_id), "title": title, "summary": summary,
+             "eids": json.dumps(comp), "coh": cohesion},
+        )
+        n_comm += 1
+    await session.commit()
+    log.info("communities_built", kb_id=str(kb_id), communities=n_comm)
+    return {"communities": n_comm}
 
 
 async def graph_anchored_paragraph_ids(

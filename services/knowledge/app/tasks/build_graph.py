@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.core.graph import build_graph_for_document
+from app.core.graph import build_communities, build_graph_for_document
 from app.tasks.celery_app import celery_app
 
 log = structlog.get_logger()
@@ -45,13 +45,19 @@ async def _run(kb_id: str, workspace_id: str, doc_id: str | None) -> dict:
                     {"kb": kb_id},
                 )
                 doc_ids = [str(r[0]) for r in rows.fetchall()]
-            total_e = total_m = 0
+            total_e = total_m = total_r = 0
             for d in doc_ids:
                 r = await build_graph_for_document(session, d, kb_id, workspace_id)
                 total_e += r["entities"]
                 total_m += r["mentions"]
+                total_r += r.get("relations", 0)
+            # Phase 3：full rebuild（doc_id=None）收尾建社群（需全 KB 關係）
+            communities = 0
+            if doc_id is None:
+                communities = (await build_communities(session, kb_id, workspace_id)).get("communities", 0)
             log.info("build_graph_done", kb_id=kb_id, docs=len(doc_ids),
-                     entities=total_e, mentions=total_m)
-            return {"docs": len(doc_ids), "entities": total_e, "mentions": total_m}
+                     entities=total_e, mentions=total_m, relations=total_r, communities=communities)
+            return {"docs": len(doc_ids), "entities": total_e, "mentions": total_m,
+                    "relations": total_r, "communities": communities}
     finally:
         await engine.dispose()
