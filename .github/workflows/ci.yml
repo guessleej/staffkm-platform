@@ -145,6 +145,11 @@ jobs:
       # idempotency 中介層去重（minimal Starlette app + 真 DB）；degrade/error 分支未測 → 76%、gate 70。
       - name: agent — idempotency 去重中介層 (app.middleware.idempotency)
         run: pytest tests/integration/agent/test_idempotency_integration.py --cov=app.middleware.idempotency --cov-report=term-missing --cov-fail-under=70 -q
+      # quota 並發扣減競態：meter_llm_call check→record 的 soft-cap TOCTOU 特性刻畫（真並發）。
+      # meter_media_call（對稱另一支）此檔不測；並發 async 行覆蓋有浮動 → gate 50 ratchet
+      # （重點是 3 個 behavioral 斷言：不丟寫 / 循序擋 / TOCTOU 超發）。
+      - name: agent — quota 並發競態 (app.core.metering)
+        run: pytest tests/integration/agent/test_quota_concurrency_integration.py --cov=app.core.metering --cov-report=term-missing --cov-fail-under=50 -q
       - name: auth — 登入/JWT (app.core.auth_service)
         run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
       - name: knowledge — hybrid 檢索 (app.core.vectorstore)

@@ -115,6 +115,7 @@ CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢
   - `tests/integration/knowledge/` → hybrid 檢索（`app.core.vectorstore`：真 pgvector cosine 排序 / FTS CJK 分字 / RRF merge / 相似度閾值 / KB 隔離 / `SET LOCAL ivfflat.probes`），**100%**。維度用 vector(4) 手刻（SQL 與維度無關）。
   - `tests/integration/agent/` → webhook outbox 投遞狀態機（`app.core.webhook_outbox`：enqueue / claim(FOR UPDATE SKIP LOCKED) / delivered / 指數退避重排 / DLQ / due-gating），51%（`_deliver`/loop 走 httpx 需 live endpoint，gate 50 ratchet）。**實戰挖出 timezone bug**（見踩雷集）。
   - `tests/integration/agent/` → idempotency 去重中介層（`app.middleware.idempotency`：同 key 第二次回放不重跑 handler / 無 key 不攔 / GET 不攔 / streaming·SSE 不快取），76%（degrade/error 分支需特殊環境，gate 70）。minimal Starlette app + httpx ASGITransport + 真 DB。
+  - `tests/integration/agent/` → quota 並發競態（`app.core.metering` meter_llm_call）：刻畫 check→record 的 **soft-cap TOCTOU**（並發 record 不丟寫 / 循序超額確實擋 / 未滿時並發 check 都過 → 可超發、之後新 check 即擋），gate 50 ratchet（meter_media_call 對稱另一支此檔不測）。**已知特性非 bug**：要 hard cap 需 atomic reserve（見下）。
   - 純邏輯單元（輕量 CI、無 DB）：`test_crdt`（active-active LWW/G-Counter 衝突解決語意）、`test_workflow_conditions`、`test_secrets`、`test_search_fusion`。
 
 整合測試規約（`tests/integration/{service}/conftest.py` + 共用 `_harness.py`）：
@@ -265,6 +266,7 @@ docs/
 | GraphRAG「graph-only 段落擠掉正確 hybrid 命中」看似權重問題 → 真因是 `ivfflat.probes=1`（pgvector 預設）讓 hybrid 召回崩壞、graph 在替它擦屁股；且外部 A/B harness 的 copy bug 偽造了退步 | 向量查詢一律 `SET LOCAL ivfflat.probes`（settings 可調，≈sqrt(lists)）；融合的 `by_id` 必須持 all_results 同一 ref；graph 權重別調低（會砍增益）。v5.11.4 修，`tools/eval/graphrag_ab.py` + `test_search_fusion.py` 守 |
 | `IVFFLAT_PROBES=10` 小語料無痛、10 萬量級是 ~6× 延遲（p50 4.5ms→35ms）；ivfflat 建索引 100k×1024 需 ~86MB > 預設 `maintenance_work_mem` 64MB → `ProgramLimitExceeded` | 大庫（含 embedding 熱換 reindex）建索引前拉高 `maintenance_work_mem`；語料上百萬時 `IVFFLAT_PROBES` 要納入召回 vs 延遲預算調、非定值。v5.12 規模驗證 `docs/perf/v5.12-scale-validation.md` 實測 |
 | Python naive `datetime.utcnow()` 寫進 `timestamptz` 欄 → 被 session TimeZone 重新解讀；非 UTC session（如 Asia/Taipei +8）會把 `next_retry_at` 排到**過去** → webhook outbox 立刻 re-claim 狂發（或排太遠不重試）| 時間戳一律 **server-side 算**：`now() + make_interval(secs => :n)`，別用 Python naive datetime 塞 timestamptz。v5.12 webhook_outbox 整合測試挖出並修；`tests/integration/agent/test_webhook_outbox_integration` 守 |
+| quota 是 **soft cap**：`meter_llm_call` check→record 之間無原子保留（TOCTOU）→ in-flight 並發可超發（未滿時並發 check 都過 → 都 record → 總和超 cap）| token 軟上限可接受（事後對帳 + 擋下一筆）；**若要 hard 限額（付費 credits）必須 atomic reserve**：`UPDATE workspace_quotas SET used=used+:d WHERE used+:d<=cap RETURNING` 或 `SELECT ... FOR UPDATE`。v5.12 `test_quota_concurrency_integration` 刻畫現況 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
