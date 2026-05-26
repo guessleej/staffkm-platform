@@ -94,10 +94,15 @@ async def list_conversations(
 
 
 @router.get("/{conv_id}/messages", response_model=ApiResponse, summary="取得對話訊息記錄")
-async def get_messages(conv_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+async def get_messages(conv_id: uuid.UUID, request: Request, session: AsyncSession = Depends(get_session)):
     conv = await session.get(Conversation, conv_id)
-    if not conv:
+    if not conv or not conv.is_active:
         raise HTTPException(status_code=404, detail="對話不存在")
+    # v5.12：補 ownership check — 之前任何人知道 conv_id 就能讀別人對話內容（IDOR）。
+    # 對齊 delete_conversation 的判法（"anonymous" 對話視為公開）。公開分享走 /public 端點。
+    user_id = getattr(request.state, "user_id", None)
+    if user_id and conv.user_id not in (user_id, "anonymous"):
+        raise HTTPException(status_code=403, detail="無權存取此對話")
     await session.refresh(conv, ["messages"])
     return ApiResponse(data=[
         {

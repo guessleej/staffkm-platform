@@ -155,6 +155,10 @@ jobs:
       - name: knowledge — hybrid 檢索 (app.core.vectorstore)
         # 真 pgvector：cosine 排序 / FTS CJK / RRF merge / 閾值 / KB 隔離 / SET LOCAL ivfflat.probes。100%→gate 90。
         run: pytest tests/integration/knowledge --cov=app.core.vectorstore --cov-report=term-missing --cov-fail-under=90 -q
+      # chat 對話 ownership 跨 user 隔離（真 conversations router + ASGITransport）：list/delete/
+      # get_messages/share 的 IDOR 守衛。安全 behavioral 測試，5 個斷言即契約（不設 coverage gate）。
+      - name: chat — 對話 ownership 隔離 (跨 user IDOR 守衛)
+        run: pytest tests/integration/chat -q
 
   # ─────────────────────────────────────────────────────────────
   # 安全掃描 — 只跑 secret scanning（非阻斷，PR only）

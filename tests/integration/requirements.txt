@@ -23,3 +23,6 @@ anthropic==0.40.0
 httpx==0.28.1
 # idempotency 中介層整合測試（minimal Starlette app + ASGITransport）
 starlette==0.41.3
+# chat 對話 ownership 整合測試（掛真 conversations router 進 FastAPI app）
+fastapi==0.115.5
+sse-starlette==2.1.3
