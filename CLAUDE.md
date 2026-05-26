@@ -118,6 +118,7 @@ CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢
   - `tests/integration/agent/` → human_approval/resume 狀態機（executor `_exec_human_approval` + `app.core.resume_worker`：pause 寫 pending approval + WorkflowPaused + paused step / `_find_resumable` 只挑 paused+approved-or-rejected+未 resume / reject 路徑落地 status+收尾時間），26%（approved 重跑 executor 需載 application，gate 20 ratchet）。
   - `tests/integration/agent/` → quota 並發競態（`app.core.metering` meter_llm_call）：刻畫 check→record 的 **soft-cap TOCTOU**（並發 record 不丟寫 / 循序超額確實擋 / 未滿時並發 check 都過 → 可超發、之後新 check 即擋），gate 50 ratchet（meter_media_call 對稱另一支此檔不測）。**已知特性非 bug**：要 hard cap 需 atomic reserve（見下）。
   - `tests/integration/chat/` → 對話 ownership 跨 user 隔離（真 conversations router + ASGITransport + X-User-ID）：list 只見自己 / delete·share 別人的 403 / get_messages 跨 user 拒絕。安全 behavioral（5 斷言即契約，無 coverage gate）。**實戰挖出 get_messages IDOR**（見踩雷集）。
+  - `tests/integration/agent/` → trigger dispatcher at-least-once + 去重（`app.core.trigger_dispatcher._claim_one`：`FOR UPDATE SKIP LOCKED` claim queued→running / FIFO / 只 claim queued / **並發兩副本搶同筆只一個拿到**），27%（`_run_workflow`/loop 需重跑 executor，gate 20）。與 webhook_outbox 同類但在「觸發進來」端。
   - 純邏輯單元（輕量 CI、無 DB）：`test_crdt`（active-active LWW/G-Counter 衝突解決語意）、`test_workflow_conditions`、`test_secrets`、`test_search_fusion`。
 
 整合測試規約（`tests/integration/{service}/conftest.py` + 共用 `_harness.py`）：

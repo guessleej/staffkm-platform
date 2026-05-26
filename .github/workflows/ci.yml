@@ -154,6 +154,10 @@ jobs:
       # approved 路徑會重跑 executor（需載 application workflow）→ 本檔不測 → 26%、gate 20 ratchet。
       - name: agent — human_approval/resume 狀態機 (app.core.resume_worker)
         run: pytest tests/integration/agent/test_human_approval_resume_integration.py --cov=app.core.resume_worker --cov-report=term-missing --cov-fail-under=20 -q
+      # trigger dispatcher at-least-once + 去重：FOR UPDATE SKIP LOCKED claim（queued→running、
+      # FIFO、並發只一個拿到）。_run_workflow/loop 需重跑 executor → 本檔不測 → 27%、gate 20。
+      - name: agent — trigger dispatch 去重 (app.core.trigger_dispatcher)
+        run: pytest tests/integration/agent/test_trigger_dispatch_integration.py --cov=app.core.trigger_dispatcher --cov-report=term-missing --cov-fail-under=20 -q
       - name: auth — 登入/JWT (app.core.auth_service)
         run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
       - name: knowledge — hybrid 檢索 (app.core.vectorstore)
