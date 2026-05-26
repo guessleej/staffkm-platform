@@ -60,6 +60,28 @@ async def _is_active(session, cid) -> bool:
         "SELECT is_active FROM conversations WHERE id = CAST(:id AS uuid)"), {"id": cid})).scalar()
 
 
+async def _message_count(session, cid) -> int:
+    return (await session.execute(text(
+        "SELECT count(*) FROM messages WHERE conversation_id = CAST(:id AS uuid)"), {"id": cid})).scalar()
+
+
+class _FakeUpstream:
+    """模擬 agent service 的 SSE 回應，避免測試真連 AGENT_SERVICE_URL。"""
+
+    def __init__(self, lines):
+        self._lines = lines
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def aiter_lines(self):
+        for ln in self._lines:
+            yield ln
+
+
 # ── 列表：只看得到自己的 ─────────────────────────────────────────────────
 async def test_list_shows_only_own(db_session):
     a = await _seed_conv(db_session, "user-a", title="A's")
@@ -107,3 +129,32 @@ async def test_share_others_forbidden(db_session):
     async with _client(app, "user-a") as c:
         r = await c.post(f"{_PREFIX}/{b}/share")
     assert r.status_code == 403
+
+
+# ── 串流發訊息：塞不進別人的對話（防 write-side IDOR）────────────────────────
+async def test_stream_others_forbidden(db_session):
+    b = await _seed_conv(db_session, "user-b")
+    app = _make_app()
+    async with _client(app, "user-a") as c:
+        r = await c.post(f"{_PREFIX}/{b}/messages/stream", json={"content": "inject into B"})
+    assert r.status_code == 403
+    # 關鍵：被擋下時不該把 user-a 的訊息寫進 B 的對話（ownership check 在寫入之前）
+    assert await _message_count(db_session, b) == 0
+
+
+# ── 串流發訊息：擁有者自己發照常（200 + SSE token）──────────────────────────
+async def test_stream_own_ok(db_session, monkeypatch):
+    a = await _seed_conv(db_session, "user-a")
+
+    def _fake_stream(self, *args, **kwargs):  # 取代真連 agent service
+        return _FakeUpstream(["event: token", "data: 你好", "", "event: done", "data: [DONE]", ""])
+
+    monkeypatch.setattr(AsyncClient, "stream", _fake_stream)
+
+    app = _make_app()
+    async with _client(app, "user-a") as c:
+        r = await c.post(f"{_PREFIX}/{a}/messages/stream", json={"content": "hi"})
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers.get("content-type", "")
+    assert "你好" in r.text                       # 擁有者拿得到 AI 回應 token
+    assert await _message_count(db_session, a) == 2   # user + assistant 都落地

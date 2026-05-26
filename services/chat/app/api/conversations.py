@@ -123,6 +123,12 @@ async def stream_message(
     conv = await session.get(Conversation, conv_id)
     if not conv:
         raise HTTPException(status_code=404, detail="對話不存在")
+    # v5.12：補 ownership check — 之前任何人知道/猜到 conv_id 就能往別人對話塞訊息、
+    # 借別人對話脈絡拿 AI 回應（write-side IDOR）。對齊 get_messages / delete 的判法
+    # （"anonymous" 對話視為公開）。檢查放在寫入使用者訊息之前。
+    user_id = getattr(request.state, "user_id", None)
+    if user_id and conv.user_id not in (user_id, "anonymous"):
+        raise HTTPException(status_code=403, detail="無權存取此對話")
 
     # 儲存使用者訊息
     user_msg = Message(conversation_id=conv.id, role="user", content=body.content)
