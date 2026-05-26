@@ -118,6 +118,17 @@ else:
         source_type      varchar(32),
         source_id        uuid
     );
+
+    CREATE TABLE IF NOT EXISTS idempotency_keys (
+        key           varchar(128) NOT NULL,
+        endpoint      varchar(128) NOT NULL,
+        workspace_id  uuid,
+        response_json jsonb,
+        status_code   integer,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        expires_at    timestamptz NOT NULL DEFAULT now() + interval '24 hours',
+        PRIMARY KEY (key, endpoint)
+    );
     """
 
     async def _schema(engine):
@@ -127,6 +138,6 @@ else:
         _schema,
         truncate_tables=(
             "model_usage_logs", "workspace_quotas", "user_quotas", "ai_models",
-            "workflow_run_steps", "webhook_outbox",
+            "workflow_run_steps", "webhook_outbox", "idempotency_keys",
         ),
     )

@@ -114,6 +114,7 @@ CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢
   - `tests/integration/auth/` → 登入大門（`app.core.auth_service`：本地密碼驗證 + 帳號狀態 + JWT access/refresh claims），**89%**（LDAP/AD 需 live AD、標 `# pragma: no cover`）。
   - `tests/integration/knowledge/` → hybrid 檢索（`app.core.vectorstore`：真 pgvector cosine 排序 / FTS CJK 分字 / RRF merge / 相似度閾值 / KB 隔離 / `SET LOCAL ivfflat.probes`），**100%**。維度用 vector(4) 手刻（SQL 與維度無關）。
   - `tests/integration/agent/` → webhook outbox 投遞狀態機（`app.core.webhook_outbox`：enqueue / claim(FOR UPDATE SKIP LOCKED) / delivered / 指數退避重排 / DLQ / due-gating），51%（`_deliver`/loop 走 httpx 需 live endpoint，gate 50 ratchet）。**實戰挖出 timezone bug**（見踩雷集）。
+  - `tests/integration/agent/` → idempotency 去重中介層（`app.middleware.idempotency`：同 key 第二次回放不重跑 handler / 無 key 不攔 / GET 不攔 / streaming·SSE 不快取），76%（degrade/error 分支需特殊環境，gate 70）。minimal Starlette app + httpx ASGITransport + 真 DB。
   - 純邏輯單元（輕量 CI、無 DB）：`test_crdt`（active-active LWW/G-Counter 衝突解決語意）、`test_workflow_conditions`、`test_secrets`、`test_search_fusion`。
 
 整合測試規約（`tests/integration/{service}/conftest.py` + 共用 `_harness.py`）：

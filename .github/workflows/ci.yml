@@ -142,6 +142,9 @@ jobs:
       # endpoint、本檔不測 → 51%、gate 50 當 ratchet（狀態機 enqueue/claim/retry/DLQ 全測）。
       - name: agent — webhook outbox 投遞狀態機 (app.core.webhook_outbox)
         run: pytest tests/integration/agent/test_webhook_outbox_integration.py --cov=app.core.webhook_outbox --cov-report=term-missing --cov-fail-under=50 -q
+      # idempotency 中介層去重（minimal Starlette app + 真 DB）；degrade/error 分支未測 → 76%、gate 70。
+      - name: agent — idempotency 去重中介層 (app.middleware.idempotency)
+        run: pytest tests/integration/agent/test_idempotency_integration.py --cov=app.middleware.idempotency --cov-report=term-missing --cov-fail-under=70 -q
       - name: auth — 登入/JWT (app.core.auth_service)
         run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
       - name: knowledge — hybrid 檢索 (app.core.vectorstore)

@@ -242,6 +242,21 @@ def test_no_raw_base64_on_api_key():
                       + "\n  - ".join(hits))
 
 
+# ── 跨 user 隔離守衛（v5.9.13 chat fallback 'anonymous' 雷）────────────────
+def test_user_scoped_services_register_gateway_headers_mw():
+    """user-scoped service 必須註冊 GatewayHeadersMiddleware（從 X-User-ID 寫
+    request.state.user_id），否則 user_id fallback 'anonymous' → 所有人共用同一身分、
+    跨 user 不隔離（v5.9.13 chat service 漏了中過：刪掉的對話又出現）。"""
+    fail = []
+    for svc in ("chat", "agent", "knowledge"):
+        main = _read(SERVICES / f"{svc}/app/main.py")
+        if not main:  # 結構不符就跳過（不誤殺外部 checkout）
+            continue
+        if "add_middleware(GatewayHeadersMiddleware)" not in main:
+            fail.append(f"{svc}/app/main.py 未註冊 GatewayHeadersMiddleware（跨 user 隔離破口）")
+    assert not fail, "user-scoped service 缺 GatewayHeadersMiddleware:\n  - " + "\n  - ".join(fail)
+
+
 # ── placeholder view 守衛 ────────────────────────────────────────────
 def test_no_placeholder_views():
     """UnderConstructionView placeholder 不該殘留 (CLAUDE.md release checklist)。"""

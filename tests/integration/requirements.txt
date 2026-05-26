@@ -21,3 +21,5 @@ pydantic-settings==2.7.0
 openai==1.57.0
 anthropic==0.40.0
 httpx==0.28.1
+# idempotency 中介層整合測試（minimal Starlette app + ASGITransport）
+starlette==0.41.3
