@@ -109,6 +109,7 @@ CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢
   - `tests/integration/agent/` → quota/計帳（`app.core.usage`：record_usage / check_quota 雙層 / calc_cost / calc_media_cost），**100%**。
   - `tests/integration/agent/` → workflow executor 編排核心（`app.core.workflow.executor`：走訪/condition 路由/`workflow_run_steps` 持久化/input_snapshot jsonb round-trip），**behavioral 測試**，coverage 12%、gate 10 當回歸 ratchet（executor 1562 stmts、40+ node 多需外部 LLM/服務，不假裝全測）。
   - `tests/integration/auth/` → 登入大門（`app.core.auth_service`：本地密碼驗證 + 帳號狀態 + JWT access/refresh claims），**89%**（LDAP/AD 需 live AD、標 `# pragma: no cover`）。
+  - `tests/integration/knowledge/` → hybrid 檢索（`app.core.vectorstore`：真 pgvector cosine 排序 / FTS CJK 分字 / RRF merge / 相似度閾值 / KB 隔離 / `SET LOCAL ivfflat.probes`），**100%**。維度用 vector(4) 手刻（SQL 與維度無關）。
 
 整合測試規約（`tests/integration/{service}/conftest.py` + 共用 `_harness.py`）：
 - **一個 service 一個 subdir、CI 各自一次 pytest invocation**：agent/auth/knowledge 都有 `app/` package，同 process 把多個 service 放上 sys.path 會 `import app.core.X` 撞名（同 backend job 拆 knowledge/agent 跑兩次的理由）。
@@ -227,7 +228,7 @@ docs/
 | Multi-region | PG read replica + active-active scaffolding | v4.0 / v5.0 |
 | Ecosystem | Plugin SDK / TF provider / Python+TS+Go SDK | v4.3 / v4.4 / v4.5 |
 | AI features | LLM-as-judge eval / AI workflow gen / Workflow marketplace | v3.7-P3 / v4.9 / v4.10 |
-| Test depth | 整合測試層（真 PG）+ 誠實 coverage gate：quota / auth / workflow executor | v5.12.6 / v5.12.7 / v5.12.8 |
+| Test depth | 整合測試層（真 PG/pgvector）+ 誠實 coverage gate：quota / auth / workflow executor / hybrid 檢索 | v5.12.6 ~ v5.12.9 |
 
 ## 跑過的踩雷集（不要再踩）
 

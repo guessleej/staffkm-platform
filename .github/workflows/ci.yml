@@ -140,6 +140,9 @@ jobs:
         run: pytest tests/integration/agent/test_workflow_executor_integration.py --cov=app.core.workflow.executor --cov-report=term-missing --cov-fail-under=10 -q
       - name: auth — 登入/JWT (app.core.auth_service)
         run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
+      - name: knowledge — hybrid 檢索 (app.core.vectorstore)
+        # 真 pgvector：cosine 排序 / FTS CJK / RRF merge / 閾值 / KB 隔離 / SET LOCAL ivfflat.probes。100%→gate 90。
+        run: pytest tests/integration/knowledge --cov=app.core.vectorstore --cov-report=term-missing --cov-fail-under=90 -q
 
   # ─────────────────────────────────────────────────────────────
   # 安全掃描 — 只跑 secret scanning（非阻斷，PR only）
