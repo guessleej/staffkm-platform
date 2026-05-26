@@ -100,6 +100,24 @@ else:
         started_at      timestamptz NOT NULL DEFAULT now(),
         finished_at     timestamptz
     );
+
+    CREATE TABLE IF NOT EXISTS webhook_outbox (
+        id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id     uuid,
+        url              text NOT NULL,
+        method           varchar(8) NOT NULL DEFAULT 'POST',
+        headers          jsonb,
+        body             jsonb,
+        status           varchar(16) NOT NULL DEFAULT 'pending',
+        attempts         integer NOT NULL DEFAULT 0,
+        next_retry_at    timestamptz NOT NULL DEFAULT now(),
+        last_error       text,
+        last_status_code integer,
+        created_at       timestamptz NOT NULL DEFAULT now(),
+        delivered_at     timestamptz,
+        source_type      varchar(32),
+        source_id        uuid
+    );
     """
 
     async def _schema(engine):
@@ -109,6 +127,6 @@ else:
         _schema,
         truncate_tables=(
             "model_usage_logs", "workspace_quotas", "user_quotas", "ai_models",
-            "workflow_run_steps",
+            "workflow_run_steps", "webhook_outbox",
         ),
     )

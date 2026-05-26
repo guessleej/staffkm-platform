@@ -61,7 +61,7 @@ jobs:
         # knowledge 與 agent 各有 app/ package → 分開兩次 pytest 跑，避免 sys.modules 的 app 衝突
         run: |
           pytest tests/ services/knowledge/tests/test_document_processor.py services/knowledge/tests/test_search_fusion.py -q
-          pytest services/agent/tests/test_workflow_conditions.py services/agent/tests/test_secrets.py -q
+          pytest services/agent/tests/test_workflow_conditions.py services/agent/tests/test_secrets.py services/agent/tests/test_crdt.py -q
 
   # ─────────────────────────────────────────────────────────────
   # 前端：placeholder lint + install + build（apps/web 真實 vite build）
@@ -138,6 +138,10 @@ jobs:
         run: pytest tests/integration/agent/test_quota_integration.py --cov=app.core.usage --cov-report=term-missing --cov-fail-under=90 -q
       - name: agent — workflow executor 編排核心 (app.core.workflow.executor)
         run: pytest tests/integration/agent/test_workflow_executor_integration.py --cov=app.core.workflow.executor --cov-report=term-missing --cov-fail-under=10 -q
+      # webhook outbox 投遞狀態機（at-least-once resilience）；_deliver/loop 走 httpx 需 live
+      # endpoint、本檔不測 → 51%、gate 50 當 ratchet（狀態機 enqueue/claim/retry/DLQ 全測）。
+      - name: agent — webhook outbox 投遞狀態機 (app.core.webhook_outbox)
+        run: pytest tests/integration/agent/test_webhook_outbox_integration.py --cov=app.core.webhook_outbox --cov-report=term-missing --cov-fail-under=50 -q
       - name: auth — 登入/JWT (app.core.auth_service)
         run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
       - name: knowledge — hybrid 檢索 (app.core.vectorstore)

@@ -8,7 +8,6 @@ Backoff schedule (秒): 60, 300, 1800, 7200, 43200  (1m, 5m, 30m, 2h, 12h)
 """
 from __future__ import annotations
 import asyncio
-import datetime as dt
 import json as _json
 import uuid
 from typing import Any
@@ -102,17 +101,19 @@ async def _mark_retry_or_fail(
         log.warning("webhook_outbox_dlq", id=oid, attempts=next_attempt)
     else:
         backoff = BACKOFF_SECONDS[next_attempt - 1]  # 0-indexed
-        next_retry = dt.datetime.utcnow() + dt.timedelta(seconds=backoff)
+        # next_retry_at 用 server-side now()+interval 算（timestamptz）：
+        # ❌ 別用 Python naive datetime.utcnow()——存進 timestamptz 會被 session TimeZone
+        #    重新解讀（非 UTC session 時排到過去 → 立刻被 re-claim 狂發 / 或排到太遠不重試）。
         await session.execute(text("""
             UPDATE webhook_outbox
             SET status='pending', attempts=:att,
                 last_error=:err, last_status_code=:sc,
-                next_retry_at=:nra
+                next_retry_at = now() + make_interval(secs => :backoff)
             WHERE id=:id
         """), {
             "id": oid, "att": next_attempt,
             "err": error[:1000], "sc": sc,
-            "nra": next_retry,
+            "backoff": backoff,
         })
         log.info("webhook_outbox_scheduled", id=oid, attempt=next_attempt, backoff_sec=backoff)
     await session.commit()

@@ -113,6 +113,8 @@ CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢
   - `tests/integration/agent/` → workflow executor 編排核心（`app.core.workflow.executor`：走訪/condition 路由/`workflow_run_steps` 持久化/input_snapshot jsonb round-trip），**behavioral 測試**，coverage 12%、gate 10 當回歸 ratchet（executor 1562 stmts、40+ node 多需外部 LLM/服務，不假裝全測）。
   - `tests/integration/auth/` → 登入大門（`app.core.auth_service`：本地密碼驗證 + 帳號狀態 + JWT access/refresh claims），**89%**（LDAP/AD 需 live AD、標 `# pragma: no cover`）。
   - `tests/integration/knowledge/` → hybrid 檢索（`app.core.vectorstore`：真 pgvector cosine 排序 / FTS CJK 分字 / RRF merge / 相似度閾值 / KB 隔離 / `SET LOCAL ivfflat.probes`），**100%**。維度用 vector(4) 手刻（SQL 與維度無關）。
+  - `tests/integration/agent/` → webhook outbox 投遞狀態機（`app.core.webhook_outbox`：enqueue / claim(FOR UPDATE SKIP LOCKED) / delivered / 指數退避重排 / DLQ / due-gating），51%（`_deliver`/loop 走 httpx 需 live endpoint，gate 50 ratchet）。**實戰挖出 timezone bug**（見踩雷集）。
+  - 純邏輯單元（輕量 CI、無 DB）：`test_crdt`（active-active LWW/G-Counter 衝突解決語意）、`test_workflow_conditions`、`test_secrets`、`test_search_fusion`。
 
 整合測試規約（`tests/integration/{service}/conftest.py` + 共用 `_harness.py`）：
 - **一個 service 一個 subdir、CI 各自一次 pytest invocation**：agent/auth/knowledge 都有 `app/` package，同 process 把多個 service 放上 sys.path 會 `import app.core.X` 撞名（同 backend job 拆 knowledge/agent 跑兩次的理由）。
@@ -261,6 +263,7 @@ docs/
 | admin/models 一直冒出 host 上不存在的 ollama 模型（llama3.1/qwen2.5…）| 別在 seed/registry 寫死 ollama 模型；靠 `/api/tags` 動態同步（見 §12）。agent 重啟會把寫死的種子一直種回來 |
 | GraphRAG「graph-only 段落擠掉正確 hybrid 命中」看似權重問題 → 真因是 `ivfflat.probes=1`（pgvector 預設）讓 hybrid 召回崩壞、graph 在替它擦屁股；且外部 A/B harness 的 copy bug 偽造了退步 | 向量查詢一律 `SET LOCAL ivfflat.probes`（settings 可調，≈sqrt(lists)）；融合的 `by_id` 必須持 all_results 同一 ref；graph 權重別調低（會砍增益）。v5.11.4 修，`tools/eval/graphrag_ab.py` + `test_search_fusion.py` 守 |
 | `IVFFLAT_PROBES=10` 小語料無痛、10 萬量級是 ~6× 延遲（p50 4.5ms→35ms）；ivfflat 建索引 100k×1024 需 ~86MB > 預設 `maintenance_work_mem` 64MB → `ProgramLimitExceeded` | 大庫（含 embedding 熱換 reindex）建索引前拉高 `maintenance_work_mem`；語料上百萬時 `IVFFLAT_PROBES` 要納入召回 vs 延遲預算調、非定值。v5.12 規模驗證 `docs/perf/v5.12-scale-validation.md` 實測 |
+| Python naive `datetime.utcnow()` 寫進 `timestamptz` 欄 → 被 session TimeZone 重新解讀；非 UTC session（如 Asia/Taipei +8）會把 `next_retry_at` 排到**過去** → webhook outbox 立刻 re-claim 狂發（或排太遠不重試）| 時間戳一律 **server-side 算**：`now() + make_interval(secs => :n)`，別用 Python naive datetime 塞 timestamptz。v5.12 webhook_outbox 整合測試挖出並修；`tests/integration/agent/test_webhook_outbox_integration` 守 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
