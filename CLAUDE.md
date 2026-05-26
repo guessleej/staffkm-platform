@@ -90,7 +90,7 @@ Resolver 共同套路（新增 default.X 一律照做）：讀 `system_settings.
 雷點：
 - **base_url 的 /v1**：ollama provider base_url 存「不帶 /v1」（verify 走原生 `/api/tags`）。OpenAI 相容聊天/vision 要 `/v1` → resolver 補上；reranker 走 `/rerank`、`/api/rerank` → **不補 /v1**。
 - **`get_session()` 不能直接 `async with`**：它是 FastAPI 依賴用的 async generator。非 endpoint（resolver / Celery / base_agent）要用底層 `from staffkm_core.utils import database as _db; async with _db._session_factory() as s:`。
-- **api_key 解碼**：auth 的 `models.py` 用 base64 存（`_encode_api_key`）；resolver 解 `base64.b64decode`。注意 `application_agent` 走的是 `decrypt_secret`（fernet:/plain:/legacy）— 兩套不一致是既有債，地端 ollama 免 key 不受影響。
+- **api_key 加解密（v5.12 已統一單一來源）**：全 services 一律走 `from staffkm_core.secrets import encrypt_secret, decrypt_secret`（fernet:/plain:/legacy-base64）。auth 寫入用 `encrypt_secret`（`STAFFKM_SECRETS_KEY` 有設→`fernet:` 加密、無→`plain:`）；所有讀取點（base_agent / runtime_models / reindex / application_agent / auth verify·mask）用 `decrypt_secret`。**不可再 raw `base64.b64decode` 解 api_key**（`test_landmine_guards.test_no_raw_base64_on_api_key` 守）。舊 base64 key 不需遷移（legacy 路徑自動偵測）。地端 ollama 免 key 不受影響。
 
 ### 12. Ollama 模型清單：不寫死，動態同步 `/api/tags`（v5.11.x）
 - ❌ 不要在 `model_pricing.PROVIDER_DEFAULT_MODELS` / `auth models._DEFAULT_MODELS_ON_CREATE` / `registry.recommended_models` 寫死 ollama 模型名 — host 上沒有就變「抓不到的幽靈模型」，且 agent 啟動 seed 會一直種回來。

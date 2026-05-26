@@ -1,20 +1,21 @@
-"""API Key 加密層（Round 8-3 — fernet）。
+"""API Key 加密層 — **全 services 單一來源**（v5.12：原本 agent-only，其餘服務各自
+raw base64，兩套不一致是既有債 → 收斂到此）。
 
 設計：
 - 使用 Fernet 對稱加密（AES-128-CBC + HMAC-SHA256）
 - 主金鑰由環境變數 STAFFKM_SECRETS_KEY 提供（base64-urlsafe 32 bytes）
-- 未設定金鑰或 cryptography 未安裝 → fallback 到 base64 編碼（明確 log warning）
-- 自動偵測既有 base64 / 明文格式 → 解密 / 透傳，向後相容
+- 未設定金鑰或 cryptography 未安裝 → fallback 到 plain: 前綴（明確 log warning）
+- 自動偵測既有 base64 / 明文格式 → 解密 / 透傳，**向後相容**（舊 base64 key 不需遷移）
 
 DB 欄位（`model_providers.api_key_enc`）儲存格式：
 - 真正加密：`fernet:gAAAAA...`
 - 仍是明文（legacy）：`plain:sk-xxx`
-- base64 (legacy)：直接 base64 字串（無 prefix）
+- base64（legacy，無 prefix）：直接 base64 字串 → 自動偵測解碼
 
-caller：
-    from app.core.secrets import encrypt_secret, decrypt_secret
-    enc = encrypt_secret("sk-xxxx")           # 寫入 DB
-    plain = decrypt_secret(enc)               # 讀取使用
+caller（auth 寫入、agent/knowledge runtime 讀取一律走這支，不要再 raw base64）：
+    from staffkm_core.secrets import encrypt_secret, decrypt_secret
+    enc   = encrypt_secret("sk-xxxx")   # 寫入 DB（金鑰有設→fernet:、無→plain:）
+    plain = decrypt_secret(enc)         # 讀取使用（fernet:/plain:/legacy-base64 皆可）
 
 加密金鑰產生：
     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
@@ -31,7 +32,7 @@ log = structlog.get_logger()
 _FERNET = None
 _FERNET_INITED = False
 _PREFIX_FERNET = "fernet:"
-_PREFIX_PLAIN  = "plain:"
+_PREFIX_PLAIN = "plain:"
 
 
 def _get_fernet():
@@ -53,8 +54,7 @@ def _get_fernet():
         from cryptography.fernet import Fernet  # type: ignore
         _FERNET = Fernet(key.encode() if isinstance(key, str) else key)
     except ImportError:
-        log.warning("secrets_no_cryptography",
-                    note="cryptography 未安裝；fallback 到 plain:")
+        log.warning("secrets_no_cryptography", note="cryptography 未安裝；fallback 到 plain:")
         _FERNET = None
     except Exception as e:
         log.warning("secrets_key_invalid", error=str(e))

@@ -49,8 +49,8 @@ async def resolve_system_llm() -> tuple[str, str | None, str]:
     env_key = settings.LLM_API_KEY or settings.OPENAI_API_KEY or "dummy"
     try:
         import json
-        import base64
         from sqlalchemy import text
+        from staffkm_core.secrets import decrypt_secret
         from staffkm_core.utils import database as _db
 
         # get_session() 是 FastAPI 依賴用的 async generator，不能直接當 context
@@ -89,13 +89,11 @@ async def resolve_system_llm() -> tuple[str, str | None, str]:
                 return model_name, env_base, env_key
 
             base = _normalize_openai_base(prov.base_url or env_base, prov.provider_type)
-            # ollama / 地端通常不需 key；有 key（如 Moonshot）才解碼（auth 用 base64 存）
+            # ollama / 地端通常不需 key；有 key（如 Moonshot）才解（統一走 decrypt_secret：
+            # fernet:/plain:/legacy-base64 皆可，不再 raw base64）
             key = "dummy"
             if prov.api_key_enc:
-                try:
-                    key = base64.b64decode(prov.api_key_enc.encode()).decode()
-                except Exception:  # noqa: BLE001
-                    key = env_key
+                key = decrypt_secret(prov.api_key_enc) or env_key
             return model_name, base, key
     except Exception as e:  # noqa: BLE001 — DB 不可達不致命，fallback env
         log.warning("resolve_system_llm_failed", error=str(e))

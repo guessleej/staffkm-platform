@@ -4,7 +4,6 @@
 provider 的 base_url/api_key（ollama 補 /v1），再交給 core.reindex.reindex_embeddings。
 """
 import asyncio
-import base64
 import datetime
 import json
 
@@ -15,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.config import settings
 from app.core.reindex import PROGRESS_KEY, reindex_embeddings
 from app.tasks.celery_app import celery_app
+from staffkm_core.secrets import decrypt_secret
 
 log = structlog.get_logger()
 
@@ -37,10 +37,8 @@ async def _resolve_provider(session, model_name: str) -> tuple[str | None, str]:
         base = base.rstrip("/") + "/v1"
     key = settings.OPENAI_API_KEY
     if row.api_key_enc:
-        try:
-            key = base64.b64decode(row.api_key_enc.encode()).decode()
-        except Exception:  # noqa: BLE001
-            pass
+        # 統一走 decrypt_secret（fernet:/plain:/legacy-base64），不再 raw base64
+        key = decrypt_secret(row.api_key_enc) or settings.OPENAI_API_KEY
     return (base, key)
 
 

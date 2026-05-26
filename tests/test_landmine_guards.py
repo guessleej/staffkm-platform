@@ -217,6 +217,24 @@ def test_celery_tasks_have_queue_route():
     assert not missing, ("Celery task 缺 queue 路由（worker -Q 收不到）:\n  - " + "\n  - ".join(missing))
 
 
+# ── API key 加密單一來源守衛（v5.12 雙加密統一）──────────────────────────
+def test_no_raw_base64_on_api_key():
+    """API key 一律走 staffkm_core.secrets.encrypt_secret/decrypt_secret，不可再 raw
+    base64 編解（兩套不一致是既有債，v5.12 收斂）。掃同一行同時出現 base64.b64(de|en)code
+    與 api_key → 視為 raw 編解碼漏網。"""
+    pat = re.compile(r"base64\.b64(?:de|en)code")
+    hits = []
+    for p in _py_files(SERVICES, PKGS):
+        # secrets.py 本身是唯一允許 base64 的地方（legacy 偵測）
+        if p.name == "secrets.py":
+            continue
+        for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            if pat.search(line) and "api_key" in line:
+                hits.append(f"{p.relative_to(ROOT)}:{i}: {line.strip()[:80]}")
+    assert not hits, ("發現 API key 的 raw base64 編解碼（改走 staffkm_core.secrets）:\n  - "
+                      + "\n  - ".join(hits))
+
+
 # ── placeholder view 守衛 ────────────────────────────────────────────
 def test_no_placeholder_views():
     """UnderConstructionView placeholder 不該殘留 (CLAUDE.md release checklist)。"""

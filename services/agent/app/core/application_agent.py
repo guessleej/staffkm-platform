@@ -22,7 +22,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.core.base_agent import AgentContext, split_trailing_newlines
 from app.core.providers import BaseProvider, ChatRequest, get_adapter
-from app.core.secrets import decrypt_secret
+from staffkm_core.secrets import decrypt_secret
 
 log = structlog.get_logger()
 

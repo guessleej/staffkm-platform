@@ -13,8 +13,10 @@ from pathlib import Path
 import pytest
 
 _SVC = Path(__file__).resolve().parent.parent  # services/agent
-if str(_SVC) not in sys.path:
-    sys.path.insert(0, str(_SVC))
+_CORE = _SVC.parent.parent / "packages" / "python" / "staffkm-core"  # secrets 收斂到 staffkm_core（單一來源）
+for _p in (_SVC, _CORE):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 
 def _fresh_secrets(monkeypatch, key: str | None):
@@ -23,7 +25,7 @@ def _fresh_secrets(monkeypatch, key: str | None):
         monkeypatch.delenv("STAFFKM_SECRETS_KEY", raising=False)
     else:
         monkeypatch.setenv("STAFFKM_SECRETS_KEY", key)
-    import app.core.secrets as secrets  # noqa: E402
+    import staffkm_core.secrets as secrets  # noqa: E402  （v5.12 起單一來源）
     importlib.reload(secrets)
     return secrets
 

@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-import base64
 import json
 
 import structlog
@@ -18,6 +17,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.core.embedder import get_embedder
+from staffkm_core.secrets import decrypt_secret
 
 log = structlog.get_logger()
 
@@ -96,10 +96,8 @@ async def resolve_vision_ocr(session) -> dict:
         base_url = _normalize_openai_base(prov.base_url) if prov else None
         api_key = None
         if prov and prov.api_key_enc:
-            try:
-                api_key = base64.b64decode(prov.api_key_enc.encode()).decode()
-            except Exception:  # noqa: BLE001
-                api_key = None
+            # 統一走 decrypt_secret（fernet:/plain:/legacy-base64），不再 raw base64
+            api_key = decrypt_secret(prov.api_key_enc)
 
         # 使用者明確選了 img2Txt 模型 → 啟用 vision 引擎（覆寫預設 tesseract）
         return {
@@ -161,10 +159,8 @@ async def resolve_reranker(session) -> dict | None:
         base_url = (prov.base_url.rstrip("/") if prov and prov.base_url else None)
         api_key = None
         if prov and prov.api_key_enc:
-            try:
-                api_key = base64.b64decode(prov.api_key_enc.encode()).decode()
-            except Exception:  # noqa: BLE001
-                api_key = None
+            # 統一走 decrypt_secret（fernet:/plain:/legacy-base64），不再 raw base64
+            api_key = decrypt_secret(prov.api_key_enc)
 
         return {
             "type": _RERANK_TYPE_BY_PROVIDER.get(provider_type, "http"),

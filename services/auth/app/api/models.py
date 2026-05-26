@@ -1,6 +1,5 @@
 """模型供應商與 AI 模型管理 API（管理員用）"""
 import uuid
-import base64
 import httpx
 from datetime import datetime
 from typing import Any
@@ -12,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.secrets import decrypt_secret, encrypt_secret
 from staffkm_core.utils.database import get_session
 
 router = APIRouter()
@@ -95,13 +95,13 @@ async def _seed_default_models(session, provider_id: str, provider_type: str) ->
 # ---------------------------------------------------------------------------
 
 def _encode_api_key(plain: str) -> str:
-    """將明文 API Key 以 base64 編碼後儲存。"""
-    return base64.b64encode(plain.encode()).decode()
+    """加密 API Key（統一走 staffkm_core.secrets：金鑰有設→fernet:、無→plain:）。"""
+    return encrypt_secret(plain) or ""
 
 
 def _decode_api_key(encoded: str) -> str:
-    """將 base64 編碼的 API Key 還原為明文。"""
-    return base64.b64decode(encoded.encode()).decode()
+    """解密 API Key（fernet:/plain:/legacy-base64 皆可，向後相容舊 base64）。"""
+    return decrypt_secret(encoded) or ""
 
 
 def _mask_api_key(encoded: str) -> str:
