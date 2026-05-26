@@ -98,6 +98,34 @@ curl -sf http://staffkm.local/api/v1/health
 
 詳細設定看 `docs/deploy/multi-region.md`。production 仍建議走 patroni / managed PG（automated failover；v5.0+）。
 
+### 場景 2b — streaming replication + 提升 failover（v5.12 **真跑、可重複**）
+
+把場景 2 的「primary 掛 → 提升 replica」從 runbook 變成**機器跑過**（資料層 failover 的可重複演練）：
+
+```bash
+./tools/backup/replication-failover-drill.sh
+```
+
+兩個 pgvector 容器：primary 開 `wal_level=replica` → replica 以 `pg_basebackup` 接 standby →
+**驗證**：串流複製傳播 / 複製延遲 / standby 唯讀 / 殺 primary → `pg_promote` → 提升後**可寫 + 資料完整**。
+三者皆對才 PASS（退出碼 0）。
+
+**v5.12 實測**（本機 pgvector:pg16）：
+
+| 步驟 | 結果 |
+|---|---|
+| standby 接上（`pg_is_in_recovery`=t） | ✅ |
+| 串流傳播（primary INSERT → replica 看得到） | ✅ rows 2/2 |
+| 複製延遲 | ~2.2s |
+| standby 唯讀（INSERT 被拒） | ✅ `read-only transaction` |
+| 殺 primary → `pg_promote` → `pg_is_in_recovery`=f | ✅ |
+| 提升後可寫 + 資料完整 | ✅ 3 筆（含 failover 後寫入） |
+
+⇒ **資料層 failover 機制經實證可用**（複製→提升→續寫）。**範圍**：單寫入點 + 熱備 + 手動提升
+（active-passive 的核心）。真正多區 **active-active 雙寫 + 衝突解決**仍需雲端跨區 infra（見
+`docs/deploy/active-active.md`）；衝突解決語意由 `services/agent/tests/test_crdt.py` 守。
+automated failover（patroni / managed PG）也仍需該層 infra，本機只演練到「手動提升」這步。
+
 ---
 
 ## 場景 3：Redis 重啟
@@ -196,7 +224,7 @@ ROWS=20000 ./tools/backup/dr-drill.sh # 自訂筆數
 |---|---|---|
 | 自動 backup verify（restore to ephemeral PG）| 確認 backup 可用 | ✅ **v5.12 真跑**（`tools/backup/dr-drill.sh`，場景 4b）|
 | Active-active multi-region | < 5s RTO、0 RPO | ⏳ 需 ≥2 真實區域 DB 叢集（雲端 infra）；runbook 見 `docs/deploy/active-active.md`，**本機無法真跑 failover、不假裝** |
-| Hot standby PG（streaming replication）| RPO < 1s | ⏳ 需 managed PG / patroni；場景 2 v4.0-P5 有 manual promote runbook |
+| Hot standby PG（streaming replication）| RPO < 1s | ✅ **v5.12 真跑**（`tools/backup/replication-failover-drill.sh`，場景 2b：複製→提升→續寫實測）；automated failover（patroni）仍需 infra |
 | Chaos drill（隨機 kill pod）| 確認任何單一元件掛都不影響整體 | ⏳ 需 K8s 叢集 + chaos-mesh |
 
 > **誠實標註**：active-active 多區 failover 的「真跑」需要至少兩個跨區的真實 PG 叢集 +
