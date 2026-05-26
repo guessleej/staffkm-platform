@@ -162,11 +162,43 @@ admin 登入、看 audit-logs → 應顯示 restore 前的最新紀錄
 
 ---
 
+## 場景 4b：自動 backup-verify（v5.12 — **真跑、可重複**）
+
+把場景 4 的「backup 能不能還原」從「相信 runbook」變成「機器跑過、md5 對得上」。
+
+```bash
+./tools/backup/dr-drill.sh            # ephemeral 容器：seed → pg_dump → 全新 host pg_restore → 驗證
+ROWS=20000 ./tools/backup/dr-drill.sh # 自訂筆數
+```
+
+驗證 = **行數 + 內容 md5 + pgvector 向量** 三者一致才 PASS（退出碼 0）。用的是 `backup-postgres.sh`/
+`restore-postgres.sh` 背後同一套 `pg_dump -Fc` / `pg_restore` 機制。
+
+**v5.12 實測**（本機 pgvector:pg16，5000 筆含 vector(3)）：
+
+| 項 | 值 |
+|---|---|
+| dump 大小 | 44 KB |
+| pg_dump | < 1s |
+| pg_restore（全新 host） | 1s |
+| 行數一致 | 5000 = 5000 ✅ |
+| 內容 md5 一致 | `6493e33…` = `6493e33…` ✅ |
+| pgvector 還原 | `emb[id=42] = [42,42,42]` ✅ |
+| **結果** | **PASS** |
+
+⇒ backup→restore 機制**經實證可完整還原**（含向量），不是「設計上應該可以」。建議排進季度演練 + CI（self-hosted runner）。
+
+---
+
 ## 後續演練計畫（v3.7+）
 
-| 場景 | 目標 |
-|---|---|
-| Active-active multi-region | < 5s RTO、0 RPO |
-| Hot standby PG（streaming replication）| RPO < 1s |
-| 自動 backup verify（restore to ephemeral PG）| 確認 backup 可用 |
-| Chaos drill（隨機 kill pod）| 確認任何單一元件掛都不影響整體 |
+| 場景 | 目標 | 狀態 |
+|---|---|---|
+| 自動 backup verify（restore to ephemeral PG）| 確認 backup 可用 | ✅ **v5.12 真跑**（`tools/backup/dr-drill.sh`，場景 4b）|
+| Active-active multi-region | < 5s RTO、0 RPO | ⏳ 需 ≥2 真實區域 DB 叢集（雲端 infra）；runbook 見 `docs/deploy/active-active.md`，**本機無法真跑 failover、不假裝** |
+| Hot standby PG（streaming replication）| RPO < 1s | ⏳ 需 managed PG / patroni；場景 2 v4.0-P5 有 manual promote runbook |
+| Chaos drill（隨機 kill pod）| 確認任何單一元件掛都不影響整體 | ⏳ 需 K8s 叢集 + chaos-mesh |
+
+> **誠實標註**：active-active 多區 failover 的「真跑」需要至少兩個跨區的真實 PG 叢集 +
+> 流量導向層，單機環境**無法如實演練**——所以此處只把可在本機真跑的 backup-verify 做成
+> 實證（場景 4b），其餘維持「可執行 runbook + 明確前置條件」，不產生假的「跑過」記錄。
