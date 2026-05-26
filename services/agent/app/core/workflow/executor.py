@@ -1551,9 +1551,13 @@ class WorkflowExecutor:
             return
 
         provider = config.get("provider", "openai")
-        api_key = config.get("api_key", "") or (settings.OPENAI_API_KEY if provider == "openai" else "")
-        base_url = (config.get("base_url", "") or "https://api.openai.com/v1").rstrip("/")
-        model = config.get("model", "whisper-1")
+        # v5.12：node config 未指定時 → fallback 系統預設 default.stt（admin/models 選的）
+        from app.core.base_agent import resolve_media_default
+        _d_model, _d_base, _d_key = await resolve_media_default("stt")
+        api_key = (config.get("api_key") or _d_key
+                   or (settings.OPENAI_API_KEY if provider == "openai" else ""))
+        base_url = (config.get("base_url") or _d_base or "https://api.openai.com/v1").rstrip("/")
+        model = config.get("model") or _d_model or "whisper-1"
         language = config.get("language", "")
 
         async def _do_stt() -> float:
@@ -1634,9 +1638,13 @@ class WorkflowExecutor:
             return
 
         provider = config.get("provider", "openai")
-        api_key = config.get("api_key", "") or (settings.OPENAI_API_KEY if provider == "openai" else "")
-        base_url = (config.get("base_url", "") or "https://api.openai.com/v1").rstrip("/")
-        model = config.get("model", "tts-1")
+        # v5.12：node config 未指定時 → fallback 系統預設 default.tts（admin/models 選的）
+        from app.core.base_agent import resolve_media_default
+        _d_model, _d_base, _d_key = await resolve_media_default("tts")
+        api_key = (config.get("api_key") or _d_key
+                   or (settings.OPENAI_API_KEY if provider == "openai" else ""))
+        base_url = (config.get("base_url") or _d_base or "https://api.openai.com/v1").rstrip("/")
+        model = config.get("model") or _d_model or "tts-1"
         voice = config.get("voice", "alloy")
         speed = max(0.25, min(4.0, float(config.get("speed", 1.0))))
         output_format = config.get("output_format", "mp3")

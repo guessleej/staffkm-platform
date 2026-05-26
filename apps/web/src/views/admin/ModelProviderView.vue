@@ -342,8 +342,8 @@ const MODEL_KINDS = [
   { key: 'default.vision',    label: 'img2Txt 模型', modelType: 'vision',    required: false, status: 'live'    },
   { key: 'default.rerank',    label: 'rerank 模型',  modelType: 'reranker',  required: false, status: 'live'    },
   { key: 'default.embedding', label: '嵌入模型',     modelType: 'embedding', required: false, status: 'reindex' },
-  { key: 'default.stt',       label: 'speech2Txt 模型', modelType: 'stt',    required: false, status: 'planned' },
-  { key: 'default.tts',       label: '語音合成模型', modelType: 'tts',       required: false, status: 'planned' },
+  { key: 'default.stt',       label: 'speech2Txt 模型', modelType: 'stt',    required: false, status: 'live'    },
+  { key: 'default.tts',       label: '語音合成模型', modelType: 'tts',       required: false, status: 'live'    },
 ] as const
 
 const KIND_STATUS_META: Record<string, { badge: string; tone: string; hint: string }> = {

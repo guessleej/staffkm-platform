@@ -82,7 +82,10 @@ Monorepo（apps/* + services/* + packages/*），Vue 3 + FastAPI + PostgreSQL + 
   → ALTER 兩個共用 vector 欄 `paragraph_embeddings`+`kb_entities` TYPE vector(N) USING NULL → 重嵌 → 重建
   ivfflat；期間搜尋退化）→ 成功寫 `embedding.active` → runtime 起用。8 個 get_embedder 呼叫點全走
   `get_active_embedder(session)`。`GRAPH_EXTRACT`/embedder 容器各自獨立。
-- **default.stt / default.tts** — 系統無對應 runtime pipeline；UI 標 `planned`（存了不生效）。
+- **default.stt / default.tts** → `base_agent.resolve_media_default('stt'|'tts')`（v5.12 起 **live**）。
+  workflow 的 `speech_to_text` / `text_to_speech` 節點（`_exec_stt`/`_exec_tts`，Whisper / OpenAI-TTS 相容、已計費）
+  在 **node config 未指定 model/base_url/api_key 時 fallback 系統預設**。注意：STT/TTS 的「生效範圍」是
+  workflow 語音節點（非全系統像 llm），且實際語音 API 呼叫未在本機對 live endpoint 驗證。
   （UI `/admin/models` 每個預設模型標 status badge：live / reindex / planned，避免「選了沒反應」誤會。）
 
 Resolver 共同套路（新增 default.X 一律照做）：讀 `system_settings.default.X`（jsonb 字串或 `{model_name}`）→ JOIN `ai_models`(model_type=X)+`model_providers` 取 base_url/api_key → **env 後備**、查無設定回 None/env、DB 不可達不致命。每次請求重解 → 改設定按儲存即時生效、不需重啟。

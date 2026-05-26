@@ -131,6 +131,7 @@ def test_default_settings_wired_to_runtime():
     runtime_models = _read(SERVICES / "knowledge/app/core/runtime_models.py")
     process_doc = _read(SERVICES / "knowledge/app/tasks/process_document.py")
     search_py = _read(SERVICES / "knowledge/app/api/search.py")
+    executor = _read(SERVICES / "agent/app/core/workflow/executor.py")
     if not base_agent:  # repo 結構不符就跳過（不誤殺外部 checkout）
         return
 
@@ -151,6 +152,12 @@ def test_default_settings_wired_to_runtime():
         fail.append("runtime_models 缺 resolve_reranker / default.rerank")
     if "resolve_reranker" not in search_py:
         fail.append("search 未呼叫 resolve_reranker（reranker 退回 advisory）")
+    # default.stt / default.tts → base_agent.resolve_media_default 定義 + executor 兩個節點呼叫（v5.12）
+    if "def resolve_media_default" not in base_agent:
+        fail.append("base_agent 缺 resolve_media_default（default.stt/tts 退回 advisory）")
+    if executor and ('resolve_media_default("stt")' not in executor
+                     or 'resolve_media_default("tts")' not in executor):
+        fail.append("executor 的 stt/tts 節點未 fallback 系統預設（resolve_media_default stt/tts）")
     assert not fail, "default.* 設定未接通 runtime（會變『選了沒反應』）:\n  - " + "\n  - ".join(fail)
 
 

@@ -100,6 +100,56 @@ async def resolve_system_llm() -> tuple[str, str | None, str]:
         return env_model, env_base, env_key
 
 
+async def resolve_media_default(model_type: str) -> tuple[str | None, str | None, str | None]:
+    """解析系統預設的 stt / tts 模型（admin/models 的 `default.{stt,tts}`）— v5.12 起生效。
+
+    與 resolve_system_llm 同套路（system_settings.default.X → ai_models + model_providers，
+    api_key 走 decrypt_secret），但**無 env fallback**：查無設定 / 出錯一律回
+    (None, None, None)，讓 caller（workflow stt/tts 節點）保留自己的 per-node config
+    或內建預設（whisper-1 / tts-1）。回 (model_name, base_url, api_key)。
+    """
+    try:
+        import json
+        from sqlalchemy import text
+        from staffkm_core.secrets import decrypt_secret
+        from staffkm_core.utils import database as _db
+
+        sf = getattr(_db, "_read_session_factory", None) or getattr(_db, "_session_factory", None)
+        if sf is None:
+            return None, None, None
+        async with sf() as session:
+            row = (await session.execute(text(
+                "SELECT value FROM system_settings WHERE key = :k"
+            ), {"k": f"default.{model_type}"})).fetchone()
+            if not row or row.value in (None, "", '""'):
+                return None, None, None
+            raw = row.value
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except Exception:  # noqa: BLE001
+                    pass
+            model_name = raw if isinstance(raw, str) else (
+                raw.get("model_name") if isinstance(raw, dict) else None)
+            if not model_name:
+                return None, None, None
+            prov = (await session.execute(text("""
+                SELECT p.provider_type, p.base_url, p.api_key_enc
+                FROM ai_models m JOIN model_providers p ON p.id = m.provider_id
+                WHERE m.model_name = :mn AND m.model_type = :mt AND m.status = 'active'
+                ORDER BY m.is_default DESC
+                LIMIT 1
+            """), {"mn": model_name, "mt": model_type})).fetchone()
+            if not prov:
+                return model_name, None, None
+            base = _normalize_openai_base(prov.base_url, prov.provider_type)
+            key = decrypt_secret(prov.api_key_enc) if prov.api_key_enc else None
+            return model_name, base, key
+    except Exception as e:  # noqa: BLE001
+        log.warning("resolve_media_default_failed", model_type=model_type, error=str(e))
+        return None, None, None
+
+
 class AgentContext:
     """單次對話的執行上下文（RFC-001 Stage 2: workspace-scoped）。"""
 
