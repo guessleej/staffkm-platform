@@ -1,0 +1,18 @@
+# 整合測試（tests/integration）依賴 — 與輕量 backend job 分離。
+# 版本對齊各 service 的 requirements.txt（測試環境＝production 依賴，才測得準）。
+# 新增 service 的整合測試時，把該 service 的關鍵依賴加進來。
+
+# 共用：真 DB plumbing + pytest
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+structlog==24.4.0
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+
+# auth（services/auth/requirements.txt：bcrypt 必須 4.0.1，passlib 1.7.4 不相容 4.1+）
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+PyJWT==2.10.1
+pydantic==2.10.3
+pydantic-settings==2.7.0

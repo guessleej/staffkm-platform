@@ -98,8 +98,9 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────
   # 整合測試：service 層真 DB 測試（pgvector service container）+ coverage gate
-  # 與輕量 backend job 分離（這層裝重依賴 sqlalchemy/asyncpg）。只在 backend 改時跑。
-  # 目前守 quota/計帳治理路徑（app.core.usage）；新模組整合測試陸續加進 tests/integration/。
+  # 與輕量 backend job 分離（這層裝重依賴 sqlalchemy/asyncpg/passlib…）。只在 backend 改時跑。
+  # 每個 service 一個 subdir + 各自一次 pytest invocation（agent/auth/knowledge 都有 app/
+  # package，同 process 會撞名）。誠實 coverage gate：--cov 只算真有測的模組、不灌全 repo。
   # ─────────────────────────────────────────────────────────────
   integration:
     needs: changes
@@ -119,19 +120,22 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+    env:
+      STAFFKM_TEST_DB_URL: postgresql+asyncpg://staffkm:staffkm_secret@localhost:5432/staffkm_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install integration deps
-        run: pip install --quiet "sqlalchemy[asyncio]==2.0.36" asyncpg==0.30.0 structlog==24.4.0 pytest==8.3.* pytest-asyncio==0.24.* pytest-cov==6.0.*
-      - name: Service-layer integration tests (真 PG round-trip + coverage gate)
-        # --cov 範圍 = 目前有整合測試覆蓋的模組（誠實 gate：不灌全 repo 數字）；
-        # 新增整合測試時把對應模組加進 --cov、覆蓋率自然上升。門檻 90%。
-        env:
-          STAFFKM_TEST_DB_URL: postgresql+asyncpg://staffkm:staffkm_secret@localhost:5432/staffkm_test
-        run: pytest tests/integration --cov=app.core.usage --cov-report=term-missing --cov-fail-under=90 -q
+        run: pip install --quiet -r tests/integration/requirements.txt
+      # 每個 service 各自一次 invocation（sys.path 的 app/ 隔離）。任一失敗即整步失敗（bash -e）。
+      # 門檻按各模組「CI 可測天花板」誠實設定：quota 100%→gate 90；auth 本地登入+token 全測，
+      # LDAP/AD（需 live AD）已標 pragma no cover，89%→gate 85。
+      - name: agent — quota/計帳 (app.core.usage)
+        run: pytest tests/integration/agent --cov=app.core.usage --cov-report=term-missing --cov-fail-under=90 -q
+      - name: auth — 登入/JWT (app.core.auth_service)
+        run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
 
   # ─────────────────────────────────────────────────────────────
   # 安全掃描 — 只跑 secret scanning（非阻斷，PR only）

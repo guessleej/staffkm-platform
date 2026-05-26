@@ -30,11 +30,13 @@ class AuthService:
                 if not self._ldap_bind(user.ldap_dn, password):
                     return None
             else:
-                if not pwd_ctx.verify(password, user.password_hash or ""):
+                # password_hash 為 NULL（純 SSO/OIDC 帳號）→ 不可本地密碼登入。
+                # 直接 deny，不丟給 pwd_ctx.verify("")（會 raise UnknownHashError → 500）。
+                if not user.password_hash or not pwd_ctx.verify(password, user.password_hash):
                     return None
             return user
 
-        if settings.LDAP_ENABLED:
+        if settings.LDAP_ENABLED:  # pragma: no cover  （LDAP fallback：需 live AD）
             return await self._ldap_authenticate_and_sync(username, password)
 
         return None
@@ -57,7 +59,8 @@ class AuthService:
             log.warning("ldap_bind_failed", dn=dn, error=str(e))
             return False
 
-    async def _ldap_authenticate_and_sync(self, username: str, password: str) -> User | None:
+    async def _ldap_authenticate_and_sync(self, username: str, password: str) -> User | None:  # pragma: no cover
+        # LDAP/AD 同步：需真 AD server，CI 無法整合測試（見 tests/integration/auth）。
         try:
             from ldap3 import Server, Connection, ALL, SUBTREE
             server = Server(settings.LDAP_SERVER, get_info=ALL)

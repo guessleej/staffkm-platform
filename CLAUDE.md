@@ -104,24 +104,31 @@ CI 測試**刻意分兩層**，別把它們混在一個 job（依賴衝突 + 慢
 - **輕量層（`backend` job，每 PR 一定跑）**：最小依賴 `pytest/ruff/structlog/charset-normalizer`，**不裝** fastapi/sqlalchemy/asyncpg。
   跑：雷區守衛（`tests/test_landmine_guards.py` 純檔案掃描）+ 純邏輯單元（`test_workflow_conditions` / `test_secrets` / `test_search_fusion` / `test_document_processor`）。
   ⇒ 新單元測試要嘛**零重依賴**、要嘛 import 的模組依賴極輕（抽純函式出來測，如 `workflow/conditions.py`）。
-- **整合層（`integration` job，backend 改才跑）**：`pgvector/pgvector:pg16` service container + 裝 sqlalchemy/asyncpg/pytest-asyncio/pytest-cov。
-  跑 `tests/integration/`：用 repo 真正的 `init_db()` + `_session_factory()` 對**真 PG** 做 SQL round-trip（連 asyncpg dialect 一起測）。
-  目前守 quota/計帳治理路徑（`app.core.usage`：record_usage/check_quota 雙層/calc_cost/calc_media_cost），coverage 100%。
+- **整合層（`integration` job，backend 改才跑）**：`pgvector/pgvector:pg16` service container + 裝 `tests/integration/requirements.txt`（sqlalchemy/asyncpg/passlib/pyjwt/pydantic… 版本對齊各 service）。
+  用 repo 真正的 `init_db()` + `_session_factory()` 對**真 PG** 做 SQL round-trip（連 asyncpg dialect 一起測）。已覆蓋：
+  - `tests/integration/agent/` → quota/計帳（`app.core.usage`：record_usage / check_quota 雙層 / calc_cost / calc_media_cost），**100%**。
+  - `tests/integration/auth/` → 登入大門（`app.core.auth_service`：本地密碼驗證 + 帳號狀態 + JWT access/refresh claims），**89%**（LDAP/AD 需 live AD、標 `# pragma: no cover`）。
 
-整合測試 conftest 規約（`tests/integration/conftest.py`）：
-- **沒設 `STAFFKM_TEST_DB_URL` 或沒裝重依賴 → 整個目錄 collection 階段自動 skip**（`collect_ignore_glob`），且**不在 top-level import 任何重依賴** → 輕量 job 跑 `pytest tests/` 不會炸。新整合測試的重 import 一律放 conftest 的 guard 區塊內或 fixture 內。
-- schema 用「忠實於 production 的最小 DDL」現建（對齊 `\d` dump），**不跑整條 alembic**（跨服務、22+ migration、慢且脆）。漂移由整合測試本身的真 SQL round-trip 擋（被測模組 SQL 一改、欄位不符就紅）。
+整合測試規約（`tests/integration/{service}/conftest.py` + 共用 `_harness.py`）：
+- **一個 service 一個 subdir、CI 各自一次 pytest invocation**：agent/auth/knowledge 都有 `app/` package，同 process 把多個 service 放上 sys.path 會 `import app.core.X` 撞名（同 backend job 拆 knowledge/agent 跑兩次的理由）。
+- **沒設 `STAFFKM_TEST_DB_URL` 或沒裝重依賴 → 該 subdir collection 階段自動 skip**（`collect_ignore_glob`），且 conftest **不在 guard 外 import 任何重依賴**（含 `_harness`）→ 輕量 job 跑 `pytest tests/` 不會炸。
+- schema 兩種來源、**都忠實零漂移**：raw-SQL 模組用「對齊 `\d` dump 的最小 DDL」；ORM 模組（如 auth）直接 `User.__table__.create()` 從 metadata 現建。**都不跑整條 alembic**（跨服務、22+ migration、慢且脆）。
 - 每 test 一個 fixture（engine 在該 test 自己的 event loop 內 `init_db` → 避免 pytest-asyncio 跨 loop 共用 asyncpg 連線的 `InterfaceError`）；測前 TRUNCATE 清殘留。
 - async 測試靠 `pytestmark = pytest.mark.asyncio`（strict 模式，不需 `-o asyncio_mode=auto`）。
+- ⚠ **bcrypt 必須 4.0.1**：passlib 1.7.4 與 bcrypt 4.1+ 不相容（backend 偵測炸）；整合測試依賴版本要對齊 service requirements，否則測到的不是 production 行為。
 
-**Coverage gate 哲學：誠實、不灌水**。`--cov` 範圍 = 目前真有整合測試覆蓋的模組（如 `--cov=app.core.usage`），**不報全 repo 數字**（會是假象）。門檻 90%。新增整合測試 → 把對應模組加進 `--cov` → 覆蓋面自然擴大。
+**Coverage gate 哲學：誠實、不灌水**。`--cov` 範圍 = 該 subdir 真有測的模組（不報全 repo 假數字）。**門檻按各模組「CI 可測天花板」分別設**（quota 90 / auth 85）——不可測的外部整合（LDAP/AD…）標 `# pragma: no cover`，不用拉低門檻或假裝有測。新模組 → 加 subdir + 把模組加進 `--cov`。
 
-本機重跑整合測試（CI 之外）：
+整合測試實戰挖出的真 bug：**NULL `password_hash`（純 SSO/OIDC 帳號）走本地登入 → `pwd_ctx.verify(pw, "")` 丟 `UnknownHashError`（未捕捉 500）**。修為「`password_hash` 空 → 直接 deny」（fail-safe）。← 純邏輯單元測不出來、要真 round-trip 才現形。
+
+本機重跑（CI 之外，每 subdir 各跑一次）：
 ```bash
 docker run -d --name pg-itest -e POSTGRES_USER=staffkm -e POSTGRES_PASSWORD=staffkm_secret \
   -e POSTGRES_DB=staffkm_test -p 55432:5432 pgvector/pgvector:pg16
-STAFFKM_TEST_DB_URL=postgresql+asyncpg://staffkm:staffkm_secret@localhost:55432/staffkm_test \
-  pytest tests/integration --cov=app.core.usage --cov-fail-under=90 -q
+pip install -r tests/integration/requirements.txt
+export STAFFKM_TEST_DB_URL=postgresql+asyncpg://staffkm:staffkm_secret@localhost:55432/staffkm_test
+pytest tests/integration/agent --cov=app.core.usage        --cov-fail-under=90 -q
+pytest tests/integration/auth  --cov=app.core.auth_service --cov-fail-under=85 -q
 ```
 
 ## 常用指令
@@ -219,6 +226,7 @@ docs/
 | Multi-region | PG read replica + active-active scaffolding | v4.0 / v5.0 |
 | Ecosystem | Plugin SDK / TF provider / Python+TS+Go SDK | v4.3 / v4.4 / v4.5 |
 | AI features | LLM-as-judge eval / AI workflow gen / Workflow marketplace | v3.7-P3 / v4.9 / v4.10 |
+| Test depth | 整合測試層（真 PG）+ 誠實 coverage gate：quota / auth | v5.12.6 / v5.12.7 |
 
 ## 跑過的踩雷集（不要再踩）
 
