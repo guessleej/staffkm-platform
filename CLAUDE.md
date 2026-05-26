@@ -229,6 +229,7 @@ docs/
 | Ecosystem | Plugin SDK / TF provider / Python+TS+Go SDK | v4.3 / v4.4 / v4.5 |
 | AI features | LLM-as-judge eval / AI workflow gen / Workflow marketplace | v3.7-P3 / v4.9 / v4.10 |
 | Test depth | 整合測試層（真 PG/pgvector）+ 誠實 coverage gate：quota / auth / workflow executor / hybrid 檢索 | v5.12.6 ~ v5.12.9 |
+| Scale 驗證 | `tools/perf/scale_validation.py` — 100k 段落/10 KB/1024d 真測（load/index/p50-p99/並發/KB 隔離）；報告 `docs/perf/v5.12-scale-validation.md` | v5.12.10 |
 
 ## 跑過的踩雷集（不要再踩）
 
@@ -256,6 +257,7 @@ docs/
 | ollama provider verify 紅燈 `Name or service not known` / `HTTP 404` | base_url 要 `http://host.docker.internal:11434`（**不帶 /v1**，verify 走 `/api/tags`）；registry 預設別寫成 `http://ollama:11434/v1`（無此 host + /v1 多餘）|
 | admin/models 一直冒出 host 上不存在的 ollama 模型（llama3.1/qwen2.5…）| 別在 seed/registry 寫死 ollama 模型；靠 `/api/tags` 動態同步（見 §12）。agent 重啟會把寫死的種子一直種回來 |
 | GraphRAG「graph-only 段落擠掉正確 hybrid 命中」看似權重問題 → 真因是 `ivfflat.probes=1`（pgvector 預設）讓 hybrid 召回崩壞、graph 在替它擦屁股；且外部 A/B harness 的 copy bug 偽造了退步 | 向量查詢一律 `SET LOCAL ivfflat.probes`（settings 可調，≈sqrt(lists)）；融合的 `by_id` 必須持 all_results 同一 ref；graph 權重別調低（會砍增益）。v5.11.4 修，`tools/eval/graphrag_ab.py` + `test_search_fusion.py` 守 |
+| `IVFFLAT_PROBES=10` 小語料無痛、10 萬量級是 ~6× 延遲（p50 4.5ms→35ms）；ivfflat 建索引 100k×1024 需 ~86MB > 預設 `maintenance_work_mem` 64MB → `ProgramLimitExceeded` | 大庫（含 embedding 熱換 reindex）建索引前拉高 `maintenance_work_mem`；語料上百萬時 `IVFFLAT_PROBES` 要納入召回 vs 延遲預算調、非定值。v5.12 規模驗證 `docs/perf/v5.12-scale-validation.md` 實測 |
 
 ## Release checklist（每個 tag 前**必跑**）
 
