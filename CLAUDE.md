@@ -240,6 +240,8 @@ docs/
 | AI features | LLM-as-judge eval / AI workflow gen / Workflow marketplace | v3.7-P3 / v4.9 / v4.10 |
 | Test depth | 整合測試層（真 PG/pgvector）+ 誠實 coverage gate：quota / auth / workflow executor / hybrid 檢索 | v5.12.6 ~ v5.12.9 |
 | Scale 驗證 | `tools/perf/scale_validation.py` — 100k 段落/10 KB/1024d 真測（load/index/p50-p99/並發/KB 隔離）；報告 `docs/perf/v5.12-scale-validation.md` | v5.12.10 |
+| 全棧壓測 | `tools/perf/load_test.js`（k6）+ runbook `docs/perf/load-test.md` — **工具就緒、需 served stack 才真跑**（單機假跑會誤導，不混充）。DB 層真跑見上一列 | v5.12.23 |
+| DR failover | `tools/backup/dr-drill.sh`（backup→restore 真跑）+ `replication-failover-drill.sh`（串流複製→promote 真跑，資料層 active-passive）；active-active 雙寫仍需雲端 | v5.12.12 / v5.12.22 |
 
 ## 跑過的踩雷集（不要再踩）
 
