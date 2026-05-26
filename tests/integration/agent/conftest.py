@@ -84,6 +84,22 @@ else:
         price_per_1k_chars_usd  numeric(10,6),
         price_per_call_usd      numeric(10,6)
     );
+
+    CREATE TABLE IF NOT EXISTS workflow_run_steps (
+        id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        run_id          uuid NOT NULL,
+        step_index      integer NOT NULL,
+        node_key        varchar(64) NOT NULL,
+        node_type       varchar(32) NOT NULL,
+        status          varchar(16) NOT NULL DEFAULT 'ok',
+        input_snapshot  jsonb,
+        output_snapshot jsonb,
+        error           text,
+        attempts        integer NOT NULL DEFAULT 1,
+        latency_ms      integer,
+        started_at      timestamptz NOT NULL DEFAULT now(),
+        finished_at     timestamptz
+    );
     """
 
     async def _schema(engine):
@@ -91,5 +107,8 @@ else:
 
     db_session = make_db_session_fixture(
         _schema,
-        truncate_tables=("model_usage_logs", "workspace_quotas", "user_quotas", "ai_models"),
+        truncate_tables=(
+            "model_usage_logs", "workspace_quotas", "user_quotas", "ai_models",
+            "workflow_run_steps",
+        ),
     )

@@ -129,11 +129,15 @@ jobs:
           python-version: '3.12'
       - name: Install integration deps
         run: pip install --quiet -r tests/integration/requirements.txt
-      # 每個 service 各自一次 invocation（sys.path 的 app/ 隔離）。任一失敗即整步失敗（bash -e）。
-      # 門檻按各模組「CI 可測天花板」誠實設定：quota 100%→gate 90；auth 本地登入+token 全測，
-      # LDAP/AD（需 live AD）已標 pragma no cover，89%→gate 85。
+      # 每個模組各自一次 invocation（targeted --cov，誠實 per-module gate）。任一失敗即整步失敗。
+      # 門檻按各模組「CI 可測天花板」誠實設定：
+      #   quota 100%→90；auth 本地登入+token 全測、LDAP/AD 標 pragma→89%→85；
+      #   workflow executor 1562 stmts、40+ node 多需外部 LLM/服務 → 本檔測 LLM-free 編排核心
+      #   （走訪/路由/step 持久化/jsonb），coverage 僅 12%、gate 設 10 當「回歸 ratchet」非品質宣稱。
       - name: agent — quota/計帳 (app.core.usage)
-        run: pytest tests/integration/agent --cov=app.core.usage --cov-report=term-missing --cov-fail-under=90 -q
+        run: pytest tests/integration/agent/test_quota_integration.py --cov=app.core.usage --cov-report=term-missing --cov-fail-under=90 -q
+      - name: agent — workflow executor 編排核心 (app.core.workflow.executor)
+        run: pytest tests/integration/agent/test_workflow_executor_integration.py --cov=app.core.workflow.executor --cov-report=term-missing --cov-fail-under=10 -q
       - name: auth — 登入/JWT (app.core.auth_service)
         run: pytest tests/integration/auth --cov=app.core.auth_service --cov-report=term-missing --cov-fail-under=85 -q
 
