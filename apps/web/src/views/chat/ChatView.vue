@@ -286,11 +286,17 @@ async function loadAgents() {
 async function selectFromRoute() {
   const id = route.query.conv as string
   if (!id) { convStore.currentConversation = null; convStore.messages = []; return }
-  const conv = convStore.conversations.find((c) => c.id === id)
+  // v5.12：清單沒這筆（deep-link / reload / app 綁定的對話不在 scenario 清單）→ by-id 抓回，
+  // 不再靜默空白。抓不到（404/403）→ 顯示空狀態。
+  let conv = convStore.conversations.find((c) => c.id === id)
+  if (!conv) conv = (await convStore.fetchConversationById(id)) ?? undefined
   if (conv) {
     convStore.selectConversation(conv)
     await convStore.fetchMessages(id)
     nextTick(scrollToBottom)
+  } else {
+    convStore.currentConversation = null
+    convStore.messages = []
   }
 }
 

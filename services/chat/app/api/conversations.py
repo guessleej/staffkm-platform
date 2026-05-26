@@ -93,6 +93,31 @@ async def list_conversations(
     )
 
 
+@router.get("/{conv_id}", response_model=ApiResponse, summary="取得單一對話詳情（deep-link / reload 載入用）")
+async def get_conversation(conv_id: uuid.UUID, request: Request, session: AsyncSession = Depends(get_session)):
+    """回單一對話的 metadata（含 application_id / scenario_id / kb_ids）。
+
+    v5.12：前端深連結 /chat?conv=<id> 或重新整理時，記憶體清單沒這筆 → 用本端點 by-id
+    取回對話脈絡（之前沒有此端點 → 前端載不到 → 畫面空白）。ownership check 同 get_messages。
+    """
+    conv = await session.get(Conversation, conv_id)
+    if not conv or not conv.is_active:
+        raise HTTPException(status_code=404, detail="對話不存在")
+    user_id = getattr(request.state, "user_id", None)
+    if user_id and conv.user_id not in (user_id, "anonymous"):
+        raise HTTPException(status_code=403, detail="無權存取此對話")
+    return ApiResponse(data={
+        "id": str(conv.id),
+        "title": conv.title,
+        "scenario_id": conv.scenario_id,
+        "application_id": str(conv.application_id) if conv.application_id else None,
+        "kb_ids": conv.kb_ids,
+        "message_count": conv.message_count,
+        "is_active": conv.is_active,
+        "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
+    })
+
+
 @router.get("/{conv_id}/messages", response_model=ApiResponse, summary="取得對話訊息記錄")
 async def get_messages(conv_id: uuid.UUID, request: Request, session: AsyncSession = Depends(get_session)):
     conv = await session.get(Conversation, conv_id)

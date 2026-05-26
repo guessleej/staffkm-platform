@@ -57,6 +57,28 @@ export const useConversationStore = defineStore('conversation', () => {
     return conversations.value
   }
 
+  // v5.12：deep-link / reload 用 — 記憶體清單沒這筆時，by-id 從後端取回對話脈絡
+  // （含 application_id / scenario_id），否則 /chat?conv=<id> 直接開會空白。
+  async function fetchConversationById(id: string): Promise<Conversation | null> {
+    try {
+      const { data } = await http.get(`/chat/conversations/${id}`)
+      const raw = data.data || {}
+      if (!raw.id) return null
+      const conv: Conversation = {
+        id: raw.id,
+        title: raw.title || '對話',
+        scenario_id: raw.scenario_id ?? null,
+        application_id: raw.application_id ?? null,
+        message_count: raw.message_count ?? 0,
+        updated_at: raw.updated_at || new Date().toISOString(),
+      }
+      if (!conversations.value.some(c => c.id === conv.id)) conversations.value.unshift(conv)
+      return conv
+    } catch {
+      return null   // 404（不存在/已刪）或 403（非本人）→ caller 顯示空狀態
+    }
+  }
+
   async function fetchMessages(conversationId: string) {
     loading.value = true
     try {
@@ -180,6 +202,7 @@ export const useConversationStore = defineStore('conversation', () => {
     loading,
     streaming,
     fetchConversations,
+    fetchConversationById,
     fetchMessages,
     createConversation,
     createApplicationConversation,
