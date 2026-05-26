@@ -102,3 +102,7 @@ ollama_data/
 # ── 文件 build ────────────────────────────────────────────
 docs/_build/
 site/
+
+# dev 自簽 TLS 憑證（gen-dev-cert.sh 產，不進版控）
+infra/nginx/ssl/dev.crt
+infra/nginx/ssl/dev.key
