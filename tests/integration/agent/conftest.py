@@ -129,6 +129,50 @@ else:
         expires_at    timestamptz NOT NULL DEFAULT now() + interval '24 hours',
         PRIMARY KEY (key, endpoint)
     );
+
+    -- human_approval / resume 狀態機（pause→approve/reject→resume）
+    CREATE TABLE IF NOT EXISTS event_triggers (
+        id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id   uuid,
+        application_id uuid,
+        name           varchar(128),
+        kind           varchar(16),
+        input_template text,
+        enabled        boolean DEFAULT true,
+        last_status    varchar(16),
+        last_error     text,
+        created_by     uuid,
+        created_at     timestamptz DEFAULT now(),
+        updated_at     timestamptz DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS event_trigger_runs (
+        id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        trigger_id     uuid,
+        workspace_id   uuid,
+        status         varchar(16) DEFAULT 'running',
+        fired_at       timestamptz DEFAULT now(),
+        finished_at    timestamptz,
+        output_summary text,
+        error          text,
+        paused_at      timestamptz,
+        resumed_at     timestamptz,
+        resume_node    varchar(64)
+    );
+
+    CREATE TABLE IF NOT EXISTS workflow_approvals (
+        id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        run_id        uuid,
+        workspace_id  uuid,
+        node_key      varchar(64),
+        status        varchar(16) DEFAULT 'pending',
+        requester     varchar(128),
+        approver_id   uuid,
+        approver_note text,
+        payload       jsonb,
+        created_at    timestamptz DEFAULT now(),
+        resolved_at   timestamptz
+    );
     """
 
     async def _schema(engine):
@@ -139,5 +183,6 @@ else:
         truncate_tables=(
             "model_usage_logs", "workspace_quotas", "user_quotas", "ai_models",
             "workflow_run_steps", "webhook_outbox", "idempotency_keys",
+            "event_triggers", "event_trigger_runs", "workflow_approvals",
         ),
     )
