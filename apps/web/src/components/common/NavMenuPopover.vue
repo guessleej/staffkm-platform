@@ -1,7 +1,7 @@
 <template>
   <div ref="rootRef" class="relative inline-block">
     <button
-      @click.stop="open = !open"
+      @click="open = !open"
       :class="[
         'flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap',
         active
