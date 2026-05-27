@@ -286,6 +286,13 @@ async function loadAgents() {
 async function selectFromRoute() {
   const id = route.query.conv as string
   if (!id) { convStore.currentConversation = null; convStore.messages = []; return }
+  // v5.12.x：返回到「正在串流中的同一對話」（例：聊天中點去設定看模型再點回來）→ **不** wipe+refetch。
+  // 否則 selectConversation 清空 messages + fetchMessages 覆蓋會抹掉進行中的回答（背景 streamChat
+  // 仍在跑、持續 append 到 store 的 assistant 訊息）→ 看起來像「點回來就沒在跑了」。保留即可續顯示。
+  if (convStore.currentConversation?.id === id && convStore.messages.some((m) => m.streaming)) {
+    nextTick(scrollToBottom)
+    return
+  }
   // v5.12：清單沒這筆（deep-link / reload / app 綁定的對話不在 scenario 清單）→ by-id 抓回，
   // 不再靜默空白。抓不到（404/403）→ 顯示空狀態。
   let conv = convStore.conversations.find((c) => c.id === id)
