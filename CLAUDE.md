@@ -408,3 +408,9 @@ grep -rnE "json\.dumps\([^)]+\) if [^)]+ else None" services/ --include="*.py" 2
 - 不要在 PR body 寫「使用者點頭就 merge」之類粗暴
 - 不要 reformat 整檔（只改 relevant 段落）
 - 不要無預警跑 `pnpm install` 加新 dep（先問或寫進 PR）
+
+## 外部專案評估紀錄（不採用清單 — 避免重複評估）
+
+| 專案 | 評估 | 結論 |
+|---|---|---|
+| `Zie619/n8n-workflows`（54.8k⭐，4343 n8n 工作流 JSON + FastAPI/SQLite-FTS5 搜尋站，MIT）| 它**不是執行引擎**，是 n8n 工作流的**範本目錄+搜尋 UI**；n8n 才是引擎。技術棧與 staffKM 同源（FastAPI/JWT/Docker），但檢索 staffKM 用 pgvector 已更強；workflow 節點 schema 不相容（n8n 365 整合 vs staffKM ~30 種 node）→ 直接執行或寫轉換器 ROI 低。且 README 自承 JSON 內藏 hardcoded secrets/未認證 webhook（AI-BOM 掃出）→ 匯入有安全風險。**唯一合理路徑是當 RAG 知識源（B 案）或把 n8n 當外部引擎用 staffKM trigger 串（C 案）**，但 v5.12 評估**不採用**（價值 vs 維運成本不划算）。2026-05 評估。|
