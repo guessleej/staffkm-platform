@@ -147,8 +147,8 @@
         </section>
       </div>
 
-      <!-- 右側 catalog -->
-      <aside class="w-[340px] flex-shrink-0 border-l border-bd bg-surface-raised flex flex-col">
+      <!-- 右側 catalog（v5.12：寬螢幕加寬 + 卡片 2 欄，避免 31 個 provider 拖成一長條）-->
+      <aside class="w-[340px] xl:w-[600px] flex-shrink-0 border-l border-bd bg-surface-raised flex flex-col">
         <div class="p-4 border-b border-bd flex-shrink-0">
           <h2 class="text-sm font-semibold text-fg mb-2">可用供應商</h2>
           <div class="relative">
@@ -192,19 +192,19 @@
               </span>
               <span class="text-[10px] text-fg-tertiary tabular-nums">{{ group.items.length }}</span>
             </button>
-            <div v-show="!collapsedGroups.has(group.key)" class="mt-1.5 space-y-2">
+            <div v-show="!collapsedGroups.has(group.key)" class="mt-1.5 grid grid-cols-1 xl:grid-cols-2 gap-2">
           <div
             v-for="entry in group.items" :key="entry.type"
-            class="border border-bd rounded-lg p-3 hover:border-brand-300 hover:bg-brand-50/30 transition-colors"
+            class="border border-bd rounded-lg p-2.5 hover:border-brand-300 hover:bg-brand-50/30 transition-colors"
           >
-            <div class="flex items-start justify-between mb-1.5">
+            <div class="flex items-start justify-between mb-1">
               <div class="flex items-center gap-2 min-w-0">
-                <div class="w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                <div class="w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                      :style="{background: providerColor(entry.type)}">
                   {{ providerInitials(entry.label) }}
                 </div>
                 <div class="min-w-0">
-                  <div class="text-sm font-medium text-fg truncate flex items-center gap-1">
+                  <div class="text-[13px] font-medium text-fg truncate flex items-center gap-1">
                     {{ entry.label }}
                     <span v-if="entry.is_local" class="text-[9px] px-1 py-0 rounded bg-success-100 text-success-700 font-semibold uppercase">地端</span>
                   </div>
@@ -217,7 +217,7 @@
                 <SIcon name="plus" :size="10" />添加
               </button>
             </div>
-            <p v-if="entry.notes" class="text-[11px] text-fg-tertiary leading-snug mb-1.5 line-clamp-2" :title="entry.notes">{{ entry.notes }}</p>
+            <p v-if="entry.notes" class="text-[11px] text-fg-tertiary leading-snug mb-1 line-clamp-1" :title="entry.notes">{{ entry.notes }}</p>
             <div class="flex flex-wrap gap-1">
               <span
                 v-for="cap in (entry.capabilities || [])" :key="cap"
