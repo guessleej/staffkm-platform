@@ -192,39 +192,25 @@
               </span>
               <span class="text-[10px] text-fg-tertiary tabular-nums">{{ group.items.length }}</span>
             </button>
-            <div v-show="!collapsedGroups.has(group.key)" class="mt-1.5 grid grid-cols-1 xl:grid-cols-2 gap-2">
-          <div
-            v-for="entry in group.items" :key="entry.type"
-            class="border border-bd rounded-lg p-2.5 hover:border-brand-300 hover:bg-brand-50/30 transition-colors"
-          >
-            <div class="flex items-start justify-between mb-1">
-              <div class="flex items-center gap-2 min-w-0">
-                <div class="w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
-                     :style="{background: providerColor(entry.type)}">
-                  {{ providerInitials(entry.label) }}
-                </div>
-                <div class="min-w-0">
-                  <div class="text-[13px] font-medium text-fg truncate flex items-center gap-1">
-                    {{ entry.label }}
-                    <span v-if="entry.is_local" class="text-[9px] px-1 py-0 rounded bg-success-100 text-success-700 font-semibold uppercase">地端</span>
-                  </div>
-                </div>
-              </div>
+            <!-- v5.12：每個 provider 收斂成單行（整列可點即添加、描述移 hover、能力小字）-->
+            <div v-show="!collapsedGroups.has(group.key)" class="mt-1 grid grid-cols-1 xl:grid-cols-2 gap-x-3 gap-y-0.5">
               <button
+                v-for="entry in group.items" :key="entry.type"
                 @click="addFromCatalog(entry)"
-                class="text-[11px] px-2 py-0.5 rounded-md bg-brand-600 text-white hover:bg-brand-700 flex items-center gap-0.5 flex-shrink-0"
+                :title="entry.notes || entry.label"
+                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent
+                       hover:border-brand-300 hover:bg-brand-50/40 transition-colors text-left group/row"
               >
-                <SIcon name="plus" :size="10" />添加
+                <span class="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                      :style="{background: providerColor(entry.type)}">{{ providerInitials(entry.label) }}</span>
+                <span class="text-[13px] text-fg truncate min-w-0 flex-1">{{ entry.label }}</span>
+                <span v-if="entry.is_local"
+                      class="text-[8px] px-1 rounded bg-success-100 text-success-700 font-semibold uppercase flex-shrink-0">地端</span>
+                <span class="text-[9px] text-fg-tertiary uppercase tracking-wide flex-shrink-0 hidden sm:inline">
+                  {{ (entry.capabilities || []).join('·') }}</span>
+                <SIcon name="plus" :size="13"
+                       class="text-fg-tertiary group-hover/row:text-brand-600 flex-shrink-0" />
               </button>
-            </div>
-            <p v-if="entry.notes" class="text-[11px] text-fg-tertiary leading-snug mb-1 line-clamp-1" :title="entry.notes">{{ entry.notes }}</p>
-            <div class="flex flex-wrap gap-1">
-              <span
-                v-for="cap in (entry.capabilities || [])" :key="cap"
-                class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-fg-tertiary uppercase font-medium"
-              >{{ cap }}</span>
-            </div>
-          </div>
             </div>
           </div>
         </div>
