@@ -472,19 +472,26 @@ async def list_provider_models(
     _require_admin(request)
     from sqlalchemy import text
 
-    # 確認供應商存在，並取得 type / base_url（ollama 要即時同步真實模型）
+    # 確認供應商存在，並取得 type / base_url（自架伺服器要即時同步真實模型）
     exist = await session.execute(
-        text("SELECT id, provider_type, base_url FROM model_providers WHERE id = :id"),
+        text("SELECT id, provider_type, base_url, api_key_enc FROM model_providers WHERE id = :id"),
         {"id": str(provider_id)},
     )
     prov = exist.fetchone()
     if not prov:
         raise HTTPException(status_code=404, detail="供應商不存在")
 
-    # ollama：打 /api/tags 動態同步伺服器上「實際存在」的模型（多了補、少了刪），
-    # 不寫死任何模型名。失敗（伺服器沒開）時靜默略過，沿用 DB 既有清單。
+    # 動態同步伺服器上「實際存在」的模型（多了補、少了刪），不寫死任何模型名。
+    # 失敗（伺服器沒開）時靜默略過，沿用 DB 既有清單。
+    #  - ollama：原生 /api/tags
+    #  - 所有 OpenAI 相容（雲端 + 自架）：/v1/models（v5.12 scope A 擴大；抓不到 → 保留 DB 既有）
     if prov.provider_type == "ollama":
         await _sync_ollama_models(session, str(provider_id), prov.base_url)
+    elif prov.provider_type in _OPENAI_COMPAT_DEFAULT_BASE:
+        api_key = decrypt_secret(prov.api_key_enc) or "" if prov.api_key_enc else ""
+        # 雲端 provider 沒填 base_url → 用 registry 預設（如 together → api.together.xyz/v1）
+        base = prov.base_url or _OPENAI_COMPAT_DEFAULT_BASE[prov.provider_type]
+        await _sync_openai_compat_models(session, str(provider_id), base, api_key)
 
     offset = (page - 1) * page_size
     count_result = await session.execute(
@@ -784,6 +791,79 @@ async def _sync_ollama_models(session: AsyncSession, provider_id: str, base_url:
     await session.commit()
 
 
+# OpenAI 相容 provider 的預設 base_url（單一來源 — verify 與 /v1/models 動態同步共用）。
+# v5.12（scope A）：模型清單動態同步從「只有 5 個自架 type」擴大到**所有 openai_compat type**
+# （這份 dict 的 keys）。任何有 base_url + api_key 的 openai 相容 provider 都會即時打
+# /v1/models 抓真實模型清單（抓不到/401 → graceful、保留 DB 既有 seeded 清單）。
+# ⚠ 這份是 auth 服務內「哪些 type 走 /v1/models」的唯一權威；新增 openai_compat provider
+#   一律加進這裡（別再分散成多份清單 → 漂移）。非 openai_compat（anthropic/azure/gemini/
+#   vertex/bedrock + 特殊 API deepgram/elevenlabs/stability/voyage/jina）走各自路徑（B 隨後）。
+_OPENAI_COMPAT_DEFAULT_BASE: dict[str, str] = {
+    "openai":       "https://api.openai.com/v1",
+    "custom":       "",  # 必須 user 自填
+    "moonshot":     "https://api.moonshot.ai/v1",
+    "groq":         "https://api.groq.com/openai/v1",
+    "together":     "https://api.together.xyz/v1",
+    "mistral":      "https://api.mistral.ai/v1",
+    "perplexity":   "https://api.perplexity.ai",
+    "openrouter":   "https://openrouter.ai/api/v1",
+    "xai":          "https://api.x.ai/v1",
+    "fireworks":    "https://api.fireworks.ai/inference/v1",
+    "nvidia_nim":   "https://integrate.api.nvidia.com/v1",
+    # 地端 self-host：沒填 base_url 直接報錯
+    "llama_cpp": "", "vllm": "", "sglang": "", "tgi": "", "lmstudio": "",
+    "xinference": "", "localai": "", "text_gen_webui": "", "gpt4all": "",
+}
+
+
+async def _sync_openai_compat_models(
+    session: AsyncSession, provider_id: str, base_url: str | None, api_key: str | None
+) -> None:
+    """打 OpenAI 相容 /v1/models，把伺服器上實際存在的模型同步進 ai_models。
+
+    對齊 `_sync_ollama_models` 的「多補少刪」語意（只反映自架伺服器現況）。
+    伺服器不可達 / 回非 200 時靜默 return，不動 DB（沿用既有清單）。
+    """
+    from sqlalchemy import text
+    url = (base_url or "").rstrip("/")
+    # base_url 可能帶 /v1（OpenAI 相容慣例）→ 補 /models；否則補 /v1/models
+    url = url + "/models" if url.endswith("/v1") else url + "/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0)) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            return
+        payload = resp.json()
+    except Exception as exc:  # noqa: BLE001 — 伺服器沒開不致命
+        import structlog
+        structlog.get_logger().info("openai_models_sync_skipped", error=str(exc), url=url)
+        return
+
+    live: dict[str, str] = {}  # model_name -> model_type（沿用 ollama 的關鍵字推測）
+    for m in payload.get("data", []) or []:
+        name = m.get("id") or m.get("name") if isinstance(m, dict) else None
+        if not name:
+            continue
+        live[name] = _guess_ollama_model_type(name)
+    if not live:
+        return
+
+    for name, mtype in live.items():
+        await session.execute(text("""
+            INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default, config)
+            VALUES (CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE, '{}'::jsonb)
+            ON CONFLICT (provider_id, model_name) DO NOTHING
+        """), {"pid": provider_id, "n": name, "t": mtype, "d": name})
+
+    await session.execute(text("""
+        DELETE FROM ai_models
+        WHERE provider_id = CAST(:pid AS uuid)
+          AND model_name <> ALL(:keep)
+    """), {"pid": provider_id, "keep": list(live.keys())})
+    await session.commit()
+
+
 def _require_admin(request: Request | None) -> None:
     """檢查請求者是否擁有 admin 角色（從 Gateway 注入的標頭）。"""
     if request is None:
@@ -804,28 +884,9 @@ async def _verify_connection(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    # v5.0.15: 30+ provider 都走 openai_compat adapter，verify 應沿用 /v1/models
-    # 預設 base_url 用 registry 對齊；只有 anthropic / azure / bedrock / gemini 等
-    # 非 openai_compat 才需要專屬驗證流程
-    _OPENAI_COMPAT_DEFAULT_BASE: dict[str, str] = {
-        "openai":       "https://api.openai.com/v1",
-        "custom":       "",  # 必須 user 自填
-        # v5.7: 中國雲僅保留 Moonshot
-        # v5.9.7: 改成國際版 (.ai) 預設 — 中國平台 user 自填 base_url 改 .cn
-        "moonshot":     "https://api.moonshot.ai/v1",
-        "groq":         "https://api.groq.com/openai/v1",
-        "together":     "https://api.together.xyz/v1",
-        "mistral":      "https://api.mistral.ai/v1",
-        "perplexity":   "https://api.perplexity.ai",
-        "openrouter":   "https://openrouter.ai/api/v1",
-        "xai":          "https://api.x.ai/v1",
-        "fireworks":    "https://api.fireworks.ai/inference/v1",
-        "nvidia_nim":   "https://integrate.api.nvidia.com/v1",
-        # 地端 self-host：沒填 base_url 直接報錯
-        "llama_cpp": "", "vllm": "", "sglang": "", "tgi": "", "lmstudio": "",
-        "xinference": "", "localai": "", "text_gen_webui": "", "gpt4all": "",
-    }
-
+    # v5.0.15 / v5.12: openai_compat provider 走 /v1/models verify。預設 base_url 用
+    # 模組級 _OPENAI_COMPAT_DEFAULT_BASE（與 list_provider_models 的動態同步共用同一份）。
+    # 只有 anthropic / azure / bedrock / gemini 等非 openai_compat 才走專屬驗證流程。
     try:
         if provider_type == "ollama":
             url = (base_url or "http://localhost:11434").rstrip("/") + "/api/tags"
