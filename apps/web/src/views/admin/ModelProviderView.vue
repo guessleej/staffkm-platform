@@ -198,17 +198,17 @@
                 v-for="entry in group.items" :key="entry.type"
                 @click="addFromCatalog(entry)"
                 :title="entry.notes || entry.label"
-                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent
+                class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md border border-transparent
                        hover:border-brand-300 hover:bg-brand-50/40 transition-colors text-left group/row"
               >
-                <span class="w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                <span class="w-6 h-6 rounded flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                       :style="{background: providerColor(entry.type)}">{{ providerInitials(entry.label) }}</span>
-                <span class="text-[13px] text-fg truncate min-w-0 flex-1">{{ entry.label }}</span>
+                <span class="text-sm text-fg truncate min-w-0 flex-1">{{ entry.label }}</span>
                 <span v-if="entry.is_local"
-                      class="text-[8px] px-1 rounded bg-success-100 text-success-700 font-semibold uppercase flex-shrink-0">地端</span>
-                <span class="text-[9px] text-fg-tertiary uppercase tracking-wide flex-shrink-0 hidden sm:inline">
+                      class="text-[9px] px-1 rounded bg-success-100 text-success-700 font-semibold uppercase flex-shrink-0">地端</span>
+                <span class="text-[10px] text-fg-tertiary uppercase tracking-wide flex-shrink-0 hidden sm:inline">
                   {{ (entry.capabilities || []).join('·') }}</span>
-                <SIcon name="plus" :size="13"
+                <SIcon name="plus" :size="15"
                        class="text-fg-tertiary group-hover/row:text-brand-600 flex-shrink-0" />
               </button>
             </div>
