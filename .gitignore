@@ -106,3 +106,6 @@ site/
 # dev 自簽 TLS 憑證（gen-dev-cert.sh 產，不進版控）
 infra/nginx/ssl/dev.crt
 infra/nginx/ssl/dev.key
+
+# DB schema 備份檔（重生成 init.sql 時的舊版備份，不進版控）
+infra/postgres/*.bak-*

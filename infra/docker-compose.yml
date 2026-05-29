@@ -176,7 +176,7 @@ services:
   #  ARM64 / x86_64 雙平台原生
   # ══════════════════════════════════════════════════════════════
   embedder:
-    image: ollama/ollama:0.24
+    image: ollama/ollama:0.24.0
     container_name: staffkm-embedder
     restart: unless-stopped
     volumes:
@@ -205,7 +205,7 @@ services:
 
   # 一次性：拉取 bge-m3 + gemma4:e4b（healthcheck 兩個都要在才通過）
   embedder-init:
-    image: ollama/ollama:0.24
+    image: ollama/ollama:0.24.0
     container_name: staffkm-embedder-init
     restart: "no"
     depends_on:
