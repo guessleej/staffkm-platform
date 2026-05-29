@@ -37,14 +37,59 @@ _DEFAULT_MODELS_ON_CREATE: dict[str, list[tuple[str, str, str]]] = {
         ("claude-3-5-sonnet-20241022", "llm", "Claude 3.5 Sonnet"),
         ("claude-3-5-haiku-20241022",  "llm", "Claude 3.5 Haiku"),
     ],
-    "google": [
-        ("gemini-1.5-pro",   "llm", "Gemini 1.5 Pro"),
-        ("gemini-1.5-flash", "llm", "Gemini 1.5 Flash"),
+    # v5.12: registry type 是 gemini（非 google）→ 種子 key 對齊，否則建 gemini provider 種不到
+    "gemini": [
+        ("gemini-2.0-flash",   "llm",       "Gemini 2.0 Flash"),
+        ("gemini-1.5-pro",     "llm",       "Gemini 1.5 Pro"),
+        ("gemini-1.5-flash",   "llm",       "Gemini 1.5 Flash"),
+        ("text-embedding-004", "embedding", "Gemini Embedding 004"),
     ],
     # ollama 不寫死 — 模型清單由 list_provider_models 即時打 /api/tags 動態同步。
     "cohere": [
         ("command-r-plus",          "llm",      "Command R+"),
         ("rerank-multilingual-v3.0","reranker", "Rerank multilingual v3"),
+    ],
+    # ── v5.12 scope B：非 openai_compat / 特殊 API → 種精選預設清單（保證「加了就有模型」）──
+    # gemini/azure/deepgram/elevenlabs/stability 另疊 live-fetch（見 _sync_special_provider_models）；
+    # vertex/bedrock 需雲端 SDK/OAuth、voyage/jina 無公開 list endpoint → 僅種子。
+    "azure_openai": [
+        ("gpt-4o",                 "llm",       "GPT-4o (Azure 部署名請依實際調整)"),
+        ("gpt-4o-mini",            "llm",       "GPT-4o mini (Azure)"),
+        ("text-embedding-3-large", "embedding", "Embedding 3 large (Azure)"),
+    ],
+    "vertex_ai": [
+        ("gemini-1.5-pro",     "llm",       "Gemini 1.5 Pro (Vertex)"),
+        ("gemini-1.5-flash",   "llm",       "Gemini 1.5 Flash (Vertex)"),
+        ("text-embedding-005", "embedding", "Vertex Embedding 005"),
+    ],
+    "bedrock": [
+        ("anthropic.claude-3-5-sonnet-20241022-v2:0", "llm",       "Claude 3.5 Sonnet (Bedrock)"),
+        ("anthropic.claude-3-5-haiku-20241022-v1:0",  "llm",       "Claude 3.5 Haiku (Bedrock)"),
+        ("amazon.titan-embed-text-v2:0",              "embedding", "Titan Embed v2 (Bedrock)"),
+        ("meta.llama3-1-70b-instruct-v1:0",           "llm",       "Llama 3.1 70B (Bedrock)"),
+    ],
+    "deepgram": [
+        ("nova-3", "stt", "Deepgram Nova-3"),
+        ("nova-2", "stt", "Deepgram Nova-2"),
+    ],
+    "elevenlabs": [
+        ("eleven_multilingual_v2", "tts", "Multilingual v2"),
+        ("eleven_turbo_v2_5",      "tts", "Turbo v2.5"),
+        ("eleven_flash_v2_5",      "tts", "Flash v2.5"),
+    ],
+    "stability_ai": [
+        ("stable-diffusion-3.5-large", "image", "SD 3.5 Large"),
+        ("sd3.5-medium",               "image", "SD 3.5 Medium"),
+        ("stable-image-core",          "image", "Stable Image Core"),
+    ],
+    "voyage": [
+        ("voyage-3",      "embedding", "Voyage 3"),
+        ("voyage-3-lite", "embedding", "Voyage 3 Lite"),
+        ("rerank-2",      "reranker",  "Voyage Rerank 2"),
+    ],
+    "jina": [
+        ("jina-embeddings-v3",                   "embedding", "Jina Embeddings v3"),
+        ("jina-reranker-v2-base-multilingual",   "reranker",  "Jina Reranker v2"),
     ],
     "moonshot": [
         ("kimi-k2.6",                       "llm",    "Kimi K2.6 (旗艦)"),
@@ -492,6 +537,12 @@ async def list_provider_models(
         # 雲端 provider 沒填 base_url → 用 registry 預設（如 together → api.together.xyz/v1）
         base = prov.base_url or _OPENAI_COMPAT_DEFAULT_BASE[prov.provider_type]
         await _sync_openai_compat_models(session, str(provider_id), base, api_key)
+    elif prov.provider_type in _SPECIAL_LIST_FETCH:
+        # v5.12 scope B：gemini/azure/deepgram/elevenlabs/stability best-effort live-fetch
+        # （ADD-only、不刪 seeded；無 key/失敗 → 沿用建立時種的預設清單）
+        api_key = decrypt_secret(prov.api_key_enc) or "" if prov.api_key_enc else ""
+        await _sync_special_provider_models(
+            session, str(provider_id), prov.provider_type, prov.base_url, api_key)
 
     offset = (page - 1) * page_size
     count_result = await session.execute(
@@ -862,6 +913,92 @@ async def _sync_openai_compat_models(
           AND model_name <> ALL(:keep)
     """), {"pid": provider_id, "keep": list(live.keys())})
     await session.commit()
+
+
+# 非 openai_compat 但有可 live-fetch 的 list endpoint（各自 auth header 不同）。
+# vertex_ai/bedrock（需雲端 SDK/OAuth）+ voyage/jina（無公開 list endpoint）不在此 → 僅靠種子清單。
+_SPECIAL_LIST_FETCH = {"gemini", "azure_openai", "deepgram", "elevenlabs", "stability_ai"}
+
+
+async def _sync_special_provider_models(
+    session: AsyncSession, provider_id: str, provider_type: str,
+    base_url: str | None, api_key: str | None,
+) -> None:
+    """非 openai_compat provider 的 best-effort live-fetch（v5.12 scope B）。
+
+    **ADD-only**（不刪既有 seeded — 這些 API 的 list 可能不全，如 deepgram stt/tts 分開）。
+    無 api_key / 非 200 / 例外 → 靜默 return，沿用建立時種的預設清單（保證不空）。
+    ⚠ 各家 endpoint/auth/回應格式不同；parser 已防禦式處理，抓不到就退種子。
+    """
+    if not api_key:
+        return  # 多數需 key 才能列；沒 key 就靠 seeded 清單
+    from sqlalchemy import text
+    names: dict[str, str] = {}  # model_name -> model_type
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0)) as client:
+            if provider_type == "gemini":
+                base = (base_url or "https://generativelanguage.googleapis.com").rstrip("/")
+                r = await client.get(f"{base}/v1beta/models", params={"key": api_key})
+                if r.status_code != 200:
+                    return
+                for m in r.json().get("models", []) or []:
+                    nm = (m.get("name") or "").split("/")[-1]
+                    if nm:
+                        names[nm] = "embedding" if "embedding" in nm else "llm"
+            elif provider_type == "azure_openai":
+                if not base_url:
+                    return
+                r = await client.get(base_url.rstrip("/") + "/openai/models",
+                                     params={"api-version": "2024-10-21"}, headers={"api-key": api_key})
+                if r.status_code != 200:
+                    return
+                for m in r.json().get("data", []) or []:
+                    if m.get("id"):
+                        names[m["id"]] = _guess_ollama_model_type(m["id"])
+            elif provider_type == "deepgram":
+                r = await client.get("https://api.deepgram.com/v1/models",
+                                     headers={"Authorization": f"Token {api_key}"})
+                if r.status_code != 200:
+                    return
+                p = r.json()
+                for grp, mtype in (("stt", "stt"), ("tts", "tts")):
+                    for m in p.get(grp, []) or []:
+                        nm = m.get("canonical_name") or m.get("name")
+                        if nm:
+                            names[nm] = mtype
+            elif provider_type == "elevenlabs":
+                r = await client.get("https://api.elevenlabs.io/v1/models",
+                                     headers={"xi-api-key": api_key})
+                if r.status_code != 200:
+                    return
+                data = r.json()
+                for m in (data if isinstance(data, list) else data.get("models", [])) or []:
+                    nm = m.get("model_id") or m.get("name")
+                    if nm:
+                        names[nm] = "tts"
+            elif provider_type == "stability_ai":
+                r = await client.get("https://api.stability.ai/v1/engines/list",
+                                     headers={"Authorization": f"Bearer {api_key}"})
+                if r.status_code != 200:
+                    return
+                for m in r.json() or []:
+                    if isinstance(m, dict) and m.get("id"):
+                        names[m["id"]] = "image"
+            else:
+                return
+    except Exception as exc:  # noqa: BLE001 — 第三方 API 不穩不致命
+        import structlog
+        structlog.get_logger().info("special_models_sync_skipped", provider_type=provider_type, error=str(exc))
+        return
+
+    for nm, mtype in names.items():
+        await session.execute(text("""
+            INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default, config)
+            VALUES (CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE, '{}'::jsonb)
+            ON CONFLICT (provider_id, model_name) DO NOTHING
+        """), {"pid": provider_id, "n": nm, "t": mtype, "d": nm})
+    if names:
+        await session.commit()
 
 
 def _require_admin(request: Request | None) -> None:

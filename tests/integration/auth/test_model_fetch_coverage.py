@@ -8,7 +8,22 @@ openai_compat type**。本檔把「哪些 type 走動態抓」鎖住，避免日
 """
 from __future__ import annotations
 
-from app.api.models import _OPENAI_COMPAT_DEFAULT_BASE
+from app.api.models import (
+    _DEFAULT_MODELS_ON_CREATE,
+    _OPENAI_COMPAT_DEFAULT_BASE,
+    _SPECIAL_LIST_FETCH,
+)
+
+
+# registry 全部 31 個 provider type（鏡像 services/agent/.../providers/registry.py；
+# registry 新增 type 時這份要同步更新，否則本守衛會紅 → 提醒「新 provider 沒接抓模型」）。
+_ALL_REGISTRY_TYPES = {
+    "openai", "anthropic", "gemini", "vertex_ai", "bedrock", "azure_openai",
+    "cohere", "mistral", "groq", "together", "fireworks", "perplexity",
+    "openrouter", "xai", "nvidia_nim", "moonshot", "deepgram", "elevenlabs",
+    "stability_ai", "jina", "voyage", "ollama", "llama_cpp", "vllm", "sglang",
+    "tgi", "lmstudio", "localai", "text_gen_webui", "gpt4all", "xinference",
+}
 
 
 # scope A 必須涵蓋的 openai 相容 provider（雲端 + 自架）→ 都要走 /v1/models 動態抓
@@ -40,3 +55,22 @@ def test_cloud_providers_have_default_base():
     for t in ("openai", "together", "fireworks", "perplexity", "nvidia_nim", "groq", "mistral"):
         base = _OPENAI_COMPAT_DEFAULT_BASE.get(t)
         assert base and base.startswith("http"), f"{t} 缺預設 base_url"
+
+
+def test_every_registry_provider_has_model_source():
+    """scope B 核心保證「31 個全包」：每個 registry provider 加了都有模型來源
+    （動態 ollama / 動態 openai_compat / live-fetch special / 種子預設）→ 永不空清單。"""
+    covered = (
+        {"ollama"}                              # /api/tags 動態
+        | set(_OPENAI_COMPAT_DEFAULT_BASE)      # /v1/models 動態
+        | set(_SPECIAL_LIST_FETCH)              # 特殊 API live-fetch
+        | set(_DEFAULT_MODELS_ON_CREATE)        # 種子預設
+    )
+    missing = _ALL_REGISTRY_TYPES - covered
+    assert not missing, f"以下 provider 加了會空清單（沒接任何模型來源）: {sorted(missing)}"
+
+
+def test_special_fetch_providers_also_seeded():
+    """live-fetch 的 special provider 都有種子 fallback（無 key/抓失敗也不空）。"""
+    for t in _SPECIAL_LIST_FETCH:
+        assert t in _DEFAULT_MODELS_ON_CREATE, f"{t} 有 live-fetch 但無種子 fallback"
