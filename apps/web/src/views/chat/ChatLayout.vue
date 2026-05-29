@@ -188,16 +188,16 @@ function toggleKb(id: string) {
 async function loadOverrideOptions() {
   // 撈當前 workspace 可用 model 清單
   try {
-    const { data } = await http.get('/admin/models')
+    const { data } = await http.get('/admin/models/models', { params: { model_type: 'llm', page_size: 100 } })
     const items = data.data?.items ?? data.data ?? []
     availableModels.value = items
-      .filter((m: any) => m.is_enabled !== false)
+      .filter((m: any) => m.status !== 'disabled' && m.is_enabled !== false)
       .map((m: any) => m.model_name || m.name)
       .filter(Boolean)
   } catch { /* admin/models 可能無權限 → 用 application chat 預設 */ }
   // 撈可選 KBs
   try {
-    const { data } = await http.get('/knowledge')
+    const { data } = await http.get('/knowledge/bases')
     availableKbs.value = (data.data?.items ?? data.data ?? [])
       .map((k: any) => ({ id: k.id, name: k.name }))
   } catch { /* 非關鍵 */ }

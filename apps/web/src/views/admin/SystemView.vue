@@ -68,6 +68,12 @@
                   class="w-full h-9 px-3 text-sm font-mono rounded-md border border-neutral-200 bg-surface-raised text-fg focus:outline-none focus:ring-1 focus:ring-brand-400"
                 />
 
+                <!-- object (系統管理的 JSON 狀態，唯讀) -->
+                <div v-else-if="kind(s.value) === 'object'">
+                  <pre class="w-full px-3 py-2 text-xs font-mono rounded-md border border-neutral-200 bg-neutral-100 text-fg-secondary overflow-auto max-h-48 whitespace-pre">{{ prettyJson(s.value) }}</pre>
+                  <p class="text-[10px] text-fg-tertiary mt-1">系統自動維護，唯讀</p>
+                </div>
+
                 <!-- string / fallback -->
                 <input
                   v-else
@@ -79,6 +85,7 @@
               <div class="mt-3 flex items-center justify-between text-[11px] text-fg-tertiary">
                 <span>最後更新：{{ fmtDate(s.updated_at) }}</span>
                 <button
+                  v-if="kind(s.value) !== 'object'"
                   @click="save(s)"
                   :disabled="busy[s.key] || !changed(s)"
                   class="px-3 py-1 text-[11px] text-white bg-brand-600 hover:bg-brand-700 rounded disabled:opacity-40"
@@ -122,11 +129,16 @@ const groups = computed(() => {
   })).filter(g => g.items.length > 0)
 })
 
-function kind(v: any): 'boolean' | 'number' | 'array' | 'string' {
+function kind(v: any): 'boolean' | 'number' | 'array' | 'object' | 'string' {
   if (typeof v === 'boolean') return 'boolean'
   if (typeof v === 'number')  return 'number'
   if (Array.isArray(v))       return 'array'
+  if (v !== null && typeof v === 'object') return 'object'
   return 'string'
+}
+
+function prettyJson(v: any): string {
+  try { return JSON.stringify(v, null, 2) } catch { return String(v) }
 }
 
 function resetDraft(s: SystemSetting) {
