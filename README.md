@@ -53,7 +53,8 @@ docker compose up -d
 
 # 3. 瀏覽系統
 open http://localhost
-# 預設帳號: admin / Admin@2026
+# 預設帳號 admin（預設密碼見 docs/deploy/production-deploy.md）
+# ⚠ 首次以 admin 登入會「強制改密」後才能使用 — 請立即設定新密碼
 ```
 
 ## 技術規格

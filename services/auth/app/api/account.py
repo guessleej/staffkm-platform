@@ -152,9 +152,10 @@ async def reset_password(
 
     await session.execute(text("""
         UPDATE users
-           SET password_hash    = :p,
-               reset_token      = NULL,
-               reset_token_exp  = NULL
+           SET password_hash         = :p,
+               must_change_password  = false,
+               reset_token           = NULL,
+               reset_token_exp       = NULL
          WHERE id = :id
     """), {"p": pwd_hash, "id": str(row.id)})
     await session.commit()

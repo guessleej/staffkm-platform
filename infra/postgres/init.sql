@@ -4076,3 +4076,11 @@ COPY public.workspace_member (id, workspace_id, user_id, role, invited_by, invit
 
 \unrestrict NuSrHlQ39WONZhVHxmVuTG7xk6mnZ0qf1rG7aao1VK2w841elBU6el3pBkMda36
 
+--
+-- v5.12 post-init（銷售交付）：首次登入強制改密
+--   出廠預設 admin 密碼為已知值（部署文件公開）→ 標記強制首登改密，
+--   降低「客戶忘了改、預設帳密被人登入」風險。idempotent，重跑安全。
+--
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS must_change_password boolean DEFAULT false NOT NULL;
+UPDATE public.users SET must_change_password = true WHERE username = 'admin';
+

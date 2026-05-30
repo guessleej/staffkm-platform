@@ -9,6 +9,7 @@ interface UserInfo {
   email: string | null
   roles: string[]
   department: string | null
+  must_change_password?: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -17,6 +18,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 只看 token；user 由 init() 非同步補齊（避免 reload 時的 race condition）
   const isAuthenticated = computed(() => !!accessToken.value)
+
+  // v5.12：首登強制改密旗標（出廠預設 admin = true）
+  const mustChangePassword = computed(() => !!user.value?.must_change_password)
+
+  function clearMustChangePassword() {
+    if (user.value) user.value = { ...user.value, must_change_password: false }
+  }
 
   function hasRole(roles: string[]): boolean {
     return roles.some(r => user.value?.roles.includes(r))
@@ -65,5 +73,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refresh_token')
   }
 
-  return { user, accessToken, isAuthenticated, hasRole, init, login, setTokens, logout }
+  return { user, accessToken, isAuthenticated, mustChangePassword, clearMustChangePassword, hasRole, init, login, setTokens, logout }
 })

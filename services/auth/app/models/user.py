@@ -38,3 +38,5 @@ class User(Base, UUIDPrimaryKeyMixin, AuditMixin):
     allowed_login_methods: Mapped[list[str] | None] = mapped_column(
         ARRAY(String), nullable=True, default=None,
     )
+    # v5.12：首次登入強制改密 — 出廠預設 admin 帳號設 true（init.sql），改密後清除。
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

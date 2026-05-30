@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth_service import AuthService
@@ -197,6 +197,8 @@ async def login(body: LoginRequest, request: Request, session: AsyncSession = De
                 "email": user.email,
                 "roles": user.roles,
                 "department": user.department,
+                # v5.12：首登強制改密旗標，前端據此攔截導向改密
+                "must_change_password": bool(getattr(user, "must_change_password", False)),
             },
         ),
         message="登入成功",
@@ -249,4 +251,38 @@ async def me(request: Request, session: AsyncSession = Depends(get_session)):
         "department": user.department,
         # v2.7 X-Pack
         "allowed_login_methods": user.allowed_login_methods,
+        # v5.12：首登強制改密 — 前端登入後若 true 強制導向改密
+        "must_change_password": bool(getattr(user, "must_change_password", False)),
     })
+
+
+class ChangeMyPasswordRequest(BaseModel):
+    current_password: str | None = None       # 已有密碼者必填；純 SSO 帳號可省
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+@router.post("/change-password", response_model=ApiResponse, summary="變更自己的密碼（已登入）")
+async def change_my_password(
+    body: ChangeMyPasswordRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """v5.12：已登入使用者改自己密碼，並清除 must_change_password（首登強制改密用）。"""
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未驗證")
+    from app.models.user import User
+    from passlib.hash import bcrypt
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="使用者不存在")
+    # 已有密碼者必須驗證目前密碼（防 session 被盜後直接改密）；純 SSO（password_hash 空）可豁免
+    if user.password_hash:
+        if not body.current_password or not bcrypt.verify(body.current_password, user.password_hash):
+            raise HTTPException(status_code=400, detail="目前密碼不正確")
+        if body.current_password == body.new_password:
+            raise HTTPException(status_code=400, detail="新密碼不可與目前密碼相同")
+    user.password_hash = bcrypt.hash(body.new_password)
+    user.must_change_password = False
+    await session.commit()
+    return ApiResponse(message="密碼已更新")

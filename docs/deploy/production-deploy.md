@@ -54,6 +54,14 @@ curl -I https://staffkm.example.com
 # HTTP/2 200 (or 301/302 to login)
 ```
 
+### 首次登入（務必執行）
+
+- 預設管理員帳號：`admin`，預設密碼：`Admin@2026`
+- ⚠ **此密碼為出廠公開值**。首次以 admin 登入後，系統會**強制導向改密頁**，
+  設定新密碼前無法進入任何功能（`must_change_password` 機制，init.sql 出廠標記）。
+- 請立即改成高強度密碼。改密後 `must_change_password` 自動清除。
+- 若要重設：admin 後台 `使用者管理` → 對該帳號 `重設密碼`，或走「忘記密碼」email 流程。
+
 ## 日常維運
 
 ### 升級程式碼（git pull + rebuild）

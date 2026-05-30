@@ -66,6 +66,14 @@ export const authApi = {
     })
     return data
   },
+  // v5.12: 已登入使用者改自己密碼（首登強制改密用）
+  async changePassword(currentPassword: string, newPassword: string) {
+    const { data } = await http.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    return data
+  },
 
   // ── v4.6 F: self-service OAuth (Google / GitHub) ──────────────
   async oauthAuthorize(provider: 'google' | 'github') {

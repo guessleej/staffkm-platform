@@ -269,6 +269,12 @@ const router = createRouter({
       component: () => import('../views/application/PublicChatView.vue'),
       meta: { public: true },
     },
+    // v5.12: 首登強制改密頁（需登入、非 public）
+    {
+      path: '/change-password',
+      name: 'change-password',
+      component: () => import('../views/login/ForceChangePasswordView.vue'),
+    },
     // v4.10 J: 跨 org public workflow marketplace
     {
       path: '/marketplace',
@@ -298,6 +304,8 @@ router.beforeEach(async (to) => {
     await auth.init()
     if (!auth.isAuthenticated) return '/login'   // init 失敗 → token 無效
   }
+  // v5.12: 首登強制改密 — 未改密前只能停在改密頁（出廠預設 admin 密碼公開、強制改掉）
+  if (auth.mustChangePassword && to.path !== '/change-password') return '/change-password'
   if (to.meta.roles && !auth.hasRole(to.meta.roles as string[])) return '/'
   return true
 })
