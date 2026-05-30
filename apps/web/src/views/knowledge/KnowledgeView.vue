@@ -297,6 +297,7 @@
                 type="text"
                 placeholder="例：人事法規、採購規範"
                 class="form-input"
+                @keyup.enter="onNameEnter"
               />
             </div>
             <div>
@@ -785,6 +786,14 @@ async function load() {
     console.error('KnowledgeView load failed:', e)
   } finally {
     loading.value = false
+  }
+}
+
+// v5.12: 名稱輸入框按 Enter 送出（只在 manual 模式 + 有名稱 + 非送出中；
+//   web 模式還有 URL/sitemap 等必填欄位，不該在名稱按 Enter 就提前建立）。
+function onNameEnter() {
+  if (createMode.value === 'manual' && form.value.name.trim() && !submitting.value) {
+    createKB()
   }
 }
 
