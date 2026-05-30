@@ -62,6 +62,7 @@
         <input
           ref="fileInput"
           type="file"
+          multiple
           class="hidden"
           accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.html,.png,.jpg,.jpeg,.webp,.tiff,.bmp"
           @change="onFileSelected"
@@ -467,29 +468,34 @@ onBeforeUnmount(stopPolling)
 
 async function onFileSelected(e: Event) {
   const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) await upload(file)
-  input.value = ''
+  if (input.files?.length) await uploadMany(input.files)
+  input.value = ''   // 清空，讓同一批檔可再次選取觸發 change
 }
 
 function onDrop(e: DragEvent) {
   dragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file) upload(file)
+  if (e.dataTransfer?.files?.length) uploadMany(e.dataTransfer.files)
 }
 
-async function upload(file: File) {
-  uploadingFile.value = file
-  uploadProgress.value = 0
-  try {
-    await knowledgeApi.uploadDocument(kbId.value, file, p => (uploadProgress.value = p))
-    await loadDocs()
-  } catch (e: any) {
-    alert('上傳失敗：' + (e.response?.data?.detail || e.message))
-  } finally {
-    uploadingFile.value = null
+// v5.12: 支援一次多選 / 多檔拖放 — 循序上傳（避免同時打爆後端），每檔各自顯示進度，
+//   單檔失敗只提示該檔、不中斷其餘，全部完成後重載一次清單。
+async function uploadMany(files: FileList | File[]) {
+  const list = Array.from(files)
+  if (!list.length) return
+  const failed: string[] = []
+  for (const file of list) {
+    uploadingFile.value = file
     uploadProgress.value = 0
+    try {
+      await knowledgeApi.uploadDocument(kbId.value, file, p => (uploadProgress.value = p))
+    } catch (e: any) {
+      failed.push(`${file.name}：${e.response?.data?.detail || e.message}`)
+    }
   }
+  uploadingFile.value = null
+  uploadProgress.value = 0
+  await loadDocs()
+  if (failed.length) alert(`${failed.length} 個檔案上傳失敗：\n` + failed.join('\n'))
 }
 
 async function onDelete(doc: any) {
