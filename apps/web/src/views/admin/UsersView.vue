@@ -113,7 +113,7 @@
         <div class="mt-4 space-y-3">
           <div>
             <label class="block text-xs text-fg-secondary mb-1">使用者名稱 *</label>
-            <input v-model="inviteForm.username" class="form-input" />
+            <input v-model="inviteForm.username" class="form-input" @keyup.enter="submitInvite" />
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">Email</label>

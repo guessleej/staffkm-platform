@@ -58,7 +58,7 @@
           <div class="px-5 py-4 space-y-3">
             <div>
               <label class="block text-xs text-neutral-500 mb-1">名稱</label>
-              <input v-model="draft.name" class="form-input" />
+              <input v-model="draft.name" class="form-input" @keyup.enter="onCreate" />
             </div>
             <div>
               <label class="block text-xs text-neutral-500 mb-1">說明</label>
