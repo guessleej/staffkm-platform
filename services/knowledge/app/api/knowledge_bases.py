@@ -77,7 +77,13 @@ async def list_knowledge_bases(
     session: AsyncSession = Depends(get_session),
 ):
     offset = (page - 1) * page_size
-    q = WorkspaceScopedQuery(KnowledgeBase).select().offset(offset).limit(page_size)
+    # v5.12: 補 ORDER BY created_at DESC — 原本無排序 + 分頁，>page_size 時新建的 KB 不保證在
+    #   第一頁 → 看似「建了就消失」。新 KB 排最前。
+    q = (
+        WorkspaceScopedQuery(KnowledgeBase).select()
+        .order_by(KnowledgeBase.created_at.desc())
+        .offset(offset).limit(page_size)
+    )
     result = await session.execute(q)
     kbs = result.scalars().all()
 

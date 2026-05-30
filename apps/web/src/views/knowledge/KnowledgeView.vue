@@ -832,6 +832,13 @@ async function createKB() {
     createMode.value = 'manual'
     webSubMode.value = 'urls'
     await load()
+    // v5.12: 若有「啟用中的專案」且新 KB 不在該專案範圍 → filteredKbs 會把它藏起來（看似建了就消失）。
+    //   切回「所有知識庫」檢視讓使用者看得到剛建的 KB。
+    const newId = res?.id || res?.data?.id
+    if (newId && projects.active && !(projects.active.knowledge_base_ids || []).includes(newId)) {
+      projects.activeId = null
+      alert('已建立知識庫。已切換到「所有知識庫」檢視（新知識庫不屬於目前啟用的專案）。')
+    }
   } catch (e: any) {
     // v5.12: 補 catch — 建 KB 失敗（重名/500）原本無提示、modal 不關，使用者重複按不知原因
     alert(`建立知識庫失敗：${e?.response?.data?.detail || e?.response?.data?.message || e?.message || '請稍後再試'}`)
