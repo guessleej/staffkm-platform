@@ -732,6 +732,8 @@ class ApplicationAgent:
                 head, pending = split_trailing_newlines(pending + delta)
                 if head:
                     yield {"type": "token", "data": head}
+            if pending:  # v5.12: flush 結尾殘留純換行（原本被丟棄）
+                yield {"type": "token", "data": pending}
         except Exception as e:
             # 鐵則 5：LLM 錯誤 catch + 友善訊息，不可把原始 exception 當 token 串流
             log.warning("application_agent_llm_stream_failed", app_id=self.app_id, error=str(e))
@@ -1022,6 +1024,8 @@ class ApplicationAgent:
                 head, pending = split_trailing_newlines(pending + delta)
                 if head:
                     yield {"type": "token", "data": head}
+            if pending:  # v5.12: flush 結尾殘留純換行（原本被丟棄）
+                yield {"type": "token", "data": pending}
         except Exception as e:
             log.warning("application_agent_final_stream_failed", app_id=self.app_id, error=str(e))
             yield {"type": "token", "data": "（很抱歉，回應時發生錯誤，請稍後再試。）"}

@@ -2,6 +2,7 @@
 import json
 import uuid
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -19,6 +20,7 @@ from staffkm_core.utils.database import get_session
 from staffkm_tenant import TenantContext, require_member
 
 router = APIRouter()
+log = structlog.get_logger()
 
 
 # ── 場景代理人（舊有，向下相容）────────────────────────────────────────────
@@ -67,6 +69,7 @@ async def chat_with_agent(
             yield {"event": "done", "data": "[DONE]"}
 
         except Exception as e:
+            log.error("scenario_stream_failed", error=str(e))  # v5.12: 原本只回前端 error event、後端無痕
             yield {"event": "error", "data": str(e)}
 
     return EventSourceResponse(event_generator())

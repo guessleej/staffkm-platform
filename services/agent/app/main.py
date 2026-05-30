@@ -57,6 +57,12 @@ async def lifespan(app: FastAPI):
         worker_task = asyncio.create_task(
             trigger_worker_loop(lambda: _db._session_factory, interval_sec=60),
         )
+        # v5.12：啟動先回收前一個 process crash/腰斬留下的殭屍 trigger run（running>15min → queued）
+        try:
+            from app.core.trigger_dispatcher import reap_stale_runs
+            await reap_stale_runs(_db._session_factory)
+        except Exception as _re:
+            log.warning("reap_stale_runs_failed", error=str(_re))
         # v2.1 12-4：背景啟動 dispatcher（每 10s 從 queued runs 真實執行 workflow）
         dispatcher_task = asyncio.create_task(
             trigger_dispatcher_loop(lambda: _db._session_factory, interval_sec=10),
@@ -98,20 +104,15 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        # v3.6 P4: graceful shutdown — 等 running workflow 收尾才 cancel worker
+        # v3.6 P4 / v5.12: graceful shutdown — 只等「本 process」正在跑的 trigger run 收尾。
+        # 改用 process-local inflight_count()（原本數全表 running → 多副本會誤等別人的、或自己腰斬）。
         log.info("agent_service_shutting_down")
         try:
             import datetime as _dt
+            from app.core.trigger_dispatcher import inflight_count
             deadline = _dt.datetime.utcnow() + _dt.timedelta(seconds=30)
-            from sqlalchemy import text as _text
             while _dt.datetime.utcnow() < deadline:
-                if _db._session_factory is None:
-                    break
-                async with _db._session_factory() as _s:
-                    r = await _s.execute(_text(
-                        "SELECT COUNT(*) FROM event_trigger_runs WHERE status='running'"
-                    ))
-                    running = int(r.scalar_one() or 0)
+                running = inflight_count()
                 if running == 0:
                     log.info("graceful_shutdown_no_inflight")
                     break

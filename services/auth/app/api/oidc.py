@@ -148,9 +148,12 @@ async def oidc_callback(
     res = await session.execute(select(User).where(User.oidc_sub == sub))
     user = res.scalar_one_or_none()
     if not user:
-        # 用 email 再找一次（既有 user 第一次 SSO 自動連結）
-        res = await session.execute(select(User).where(User.email == email))
-        user = res.scalar_one_or_none()
+        # v5.12：以 email 連結既有本地帳號前，要求 IdP 已驗證該 email。
+        # 否則惡意 IdP 帳號可宣稱任意 email → 接管同 email 的既有帳號（account takeover）。
+        email_verified = userinfo.get('email_verified')
+        if email_verified in (True, 'true', 'True'):
+            res = await session.execute(select(User).where(User.email == email))
+            user = res.scalar_one_or_none()
     if not user:
         user = User(
             id=uuid.uuid4(),

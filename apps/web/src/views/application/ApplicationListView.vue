@@ -672,7 +672,7 @@ const shareTargetApp = ref<Application | null>(null)
 const shareCopied = ref(false)
 
 const shareUrl = computed(() =>
-  shareTargetApp.value ? `${window.location.origin}/share/${shareTargetApp.value.id}` : ''
+  shareTargetApp.value ? `${window.location.origin}/app/${shareTargetApp.value.id}` : ''
 )
 
 function openShareDialog(app: Application) {

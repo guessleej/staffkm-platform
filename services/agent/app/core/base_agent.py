@@ -308,6 +308,8 @@ class BaseAdminAgent(ABC):
                 head, pending = split_trailing_newlines(pending + delta)
                 if head:
                     yield head
+            if pending:  # v5.12: flush 結尾殘留 — 最後一段純換行原本停在 pending 被丟棄
+                yield pending
         except Exception as e:
             msg = str(e)
             log.error("llm_call_failed", model=model_name, error=msg[:300])

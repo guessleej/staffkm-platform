@@ -26,6 +26,9 @@ services:
     environment:
       DOMAIN:        ${PUBLIC_DOMAIN:-staffkm.example.com}
       ADMIN_EMAIL:   ${ADMIN_EMAIL:-admin@example.com}
+      # v5.12: Caddyfile 的 /grafana/* basicauth 用 {$GRAFANA_BASIC_AUTH_HASH}，
+      #        --env-file 只做 compose 內插、不會注入容器行程 → 必須顯式傳，否則 hash 為空、保護失效。
+      GRAFANA_BASIC_AUTH_HASH: ${GRAFANA_BASIC_AUTH_HASH:-}
     ports:
       - "80:80"
       - "443:443"
@@ -87,6 +90,9 @@ services:
   grafana:
     profiles: []
     restart: always
+    # v5.12: 收掉 host:3000 裸埠 — base compose 開了 3000:3000，prod 必須只走 Caddy /grafana/*
+    #        反代（含 basicauth），否則 http://<server-ip>:3000 直連會繞過所有保護。
+    ports: !reset []
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-staffkm_grafana}
       GF_SERVER_ROOT_URL:         https://${PUBLIC_DOMAIN:-staffkm.example.com}/grafana/

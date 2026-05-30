@@ -260,8 +260,11 @@ const router = createRouter({
         },
       ],
     },
+    // v5.12：公開應用分享改前綴 /app/:appId —
+    //   原本 /share/:appId 與上面 /share/:token（對話分享）同前綴，被先註冊的 :token 完全蓋掉，
+    //   公開應用分享連結永遠導到對話分享頁 → 404「連結無效」。改前綴避開衝突。
     {
-      path: '/share/:appId',
+      path: '/app/:appId',
       name: 'public-chat',
       component: () => import('../views/application/PublicChatView.vue'),
       meta: { public: true },

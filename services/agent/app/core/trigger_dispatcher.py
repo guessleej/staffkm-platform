@@ -29,6 +29,37 @@ from app.core.workflow.executor import WorkflowExecutor
 
 log = structlog.get_logger()
 
+# v5.12：本 process 目前正在跑的 run_id（供 graceful shutdown 精確等待「自己的」in-flight，
+# 不再數全表 running（多副本會誤等別人的、或腰斬自己的）。crash 殘留由 reap_stale_runs 回收。
+_inflight: set[str] = set()
+
+
+def inflight_count() -> int:
+    """本 process 正在執行的 trigger run 數（graceful shutdown 用）。"""
+    return len(_inflight)
+
+
+async def reap_stale_runs(session_factory) -> int:
+    """worker 啟動時呼叫：把卡在 running 過久（>15min）的 run 視為前一個 process crash/腰斬的殭屍，
+    重設回 queued 重新排入。用 fired_at 判 stale（非無條件重設）→ 多副本下剛 fire、仍在跑的 run 不被誤回收。"""
+    if session_factory is None:
+        return 0
+    async with session_factory() as session:
+        r = await session.execute(
+            text(
+                """
+                UPDATE event_trigger_runs
+                SET status='queued', output_summary='[reaped] worker 重啟回收、重新排入'
+                WHERE status='running' AND fired_at < now() - interval '15 minutes'
+                """
+            )
+        )
+        await session.commit()
+        n = r.rowcount or 0
+    if n:
+        log.warning("trigger_runs_reaped", count=n)
+    return n
+
 
 async def _claim_one(session) -> dict[str, Any] | None:
     """以 FOR UPDATE SKIP LOCKED 撈一筆 queued run 並標 running；找不到回 None。"""
@@ -160,8 +191,11 @@ async def _process_one(session_factory) -> bool:
         rec = await _claim_one(session)
         if not rec:
             return False
-    # 在新 session 跑 workflow，避免長交易卡 lock
-    async with session_factory() as session:
+    run_id = str(rec["run_id"])
+    _inflight.add(run_id)  # v5.12：標記為本 process in-flight，供 graceful shutdown 等待
+    try:
+      # 在新 session 跑 workflow，避免長交易卡 lock
+      async with session_factory() as session:
         try:
             status, summary = await _run_workflow(rec, session)
         except Exception as e:
@@ -243,9 +277,11 @@ async def _process_one(session_factory) -> bool:
             await session.commit()
         except Exception as e:
             log.warning("dispatcher_writeback_failed", run=str(rec["run_id"]), error=str(e))
-    log.info("dispatcher_run_done", run=str(rec["run_id"]),
-             trigger=str(rec["trigger_id"]), status=status)
-    return True
+      log.info("dispatcher_run_done", run=str(rec["run_id"]),
+               trigger=str(rec["trigger_id"]), status=status)
+      return True
+    finally:
+        _inflight.discard(run_id)
 
 
 async def trigger_dispatcher_loop(session_factory_getter, *, interval_sec: int = 10) -> None:
