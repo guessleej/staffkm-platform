@@ -57,11 +57,20 @@ Monorepo（apps/* + services/* + packages/*），Vue 3 + FastAPI + PostgreSQL + 
 - ❌ `:args::jsonb` — asyncpg dialect bug（cast 後 `$N` 跟 `:name` 混用）
 - ✅ `CAST(:args AS jsonb)` — 語意一致、不會被 dialect translator 卡
 
-### 9. Idempotent DDL — bootstrap_ddl.py 永遠 ALTER ... IF NOT EXISTS
-- 舊 deploy schema 跟新 code 不一致時，CREATE TABLE IF NOT EXISTS **不會補欄位**
-- 永遠用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 補
-- 型別變更用 `ALTER COLUMN ... TYPE ... USING ...`
-- 教訓：v2.1 long_term_memories table 缺 6 欄炸 → PR #155 補
+### 9. Idempotent DDL + 既有部署升級路徑（**改 schema 必讀**）
+- **schema 兩處來源**：`infra/postgres/init.sql`（全新 DB 第一次建立才由 postgres entrypoint 跑一次）
+  + `infra/postgres/upgrade.sql`（db-migrate **每次部署都跑**的 idempotent 加法 DDL，補既有 DB）。
+- **鐵則：任何加進 init.sql 的「新欄位/新索引/型別放寬」，同一個 PR 必須也在 `upgrade.sql` 補對應
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`**。只改 init.sql →
+  既有部署升級時補不到（init.sql 不重跑）→ 程式查新欄位炸（v5.12 `must_change_password` 只進
+  init.sql → 既有 DB 升級後**登入直接失敗**，即此雷）。
+- `upgrade.sql` 每次重跑，**只放加法/可重複**：ADD COLUMN/INDEX IF NOT EXISTS、DROP NOT NULL。
+  **不可放**破壞性（DROP COLUMN、改維度 `ALTER TYPE ... USING NULL` 會清資料）或 seed/UPDATE 資料
+  （會每次部署覆寫客戶資料，如 admin must_change_password=true 只屬 init.sql 全新出廠）。
+- db-migrate 用 `pgvector/pgvector:pg16` image 跑 `psql -f upgrade.sql`（DB_URL 去掉 `+asyncpg`/`?ssl=disable`）；
+  其他 service `depends_on: db-migrate service_completed_successfully`。
+- 型別變更用 `ALTER COLUMN ... TYPE ... USING ...`（破壞性 → 走專屬一次性 migration，非 upgrade.sql）。
+- 教訓：v2.1 long_term_memories 缺 6 欄炸（PR #155）；v5.12 must_change_password 漏 upgrade.sql 害既有部署登入失敗。
 
 ### 10. Frontend performance
 - 大 chunk lazy import (`defineAsyncComponent`)：ArtifactPane、NodeConfigPanel 都這樣處理

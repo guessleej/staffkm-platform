@@ -303,16 +303,23 @@ services:
   # ══════════════════════════════════════════════════════════════
 
   db-migrate:
-    build:
-      context: .
-      dockerfile: services/knowledge/Dockerfile
-      target: base
+    # v5.12: 用 postgres client image（有 psql）跑 idempotent upgrade.sql，讓「既有 DB 升級」
+    #   也能補上新欄位/索引（init.sql 只在全新 DB 跑一次 → 升級不會補欄位 → 程式炸）。
+    #   全新 DB 跑這支只是 no-op。其他 service depends_on db-migrate service_completed_successfully。
+    image: pgvector/pgvector:pg16
     container_name: staffkm-db-migrate
     restart: "no"
     entrypoint: ["sh", "-c"]
-    command: ["echo '✅ Schema 由 init.sql 建立，跳過 migration'"]
+    command:
+      - |
+        echo '▶ 套用 idempotent schema upgrade（既有 DB 補欄位/索引；全新 DB 為 no-op）…'
+        DB_URI=$$(echo "$$DB_URL" | sed 's/+asyncpg//; s/?ssl=disable//')
+        psql "$$DB_URI" -v ON_ERROR_STOP=1 -f /upgrade.sql
+        echo '✅ schema upgrade 完成'
     environment:
       <<: [*db-env, *secrets-env]
+    volumes:
+      - ./infra/postgres/upgrade.sql:/upgrade.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
