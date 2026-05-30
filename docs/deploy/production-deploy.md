@@ -9,10 +9,24 @@
 |---|---|
 | OS | Linux x86_64（測過 Ubuntu 22.04 / Debian 12） |
 | Docker | ≥ 24.0、Compose plugin v2 |
-| RAM | 建議 ≥ 8 GB（含 monitoring）|
+| **RAM** | **預設 LLM gemma4:e4b 需 embedder 容器 ≥ 12 GB → 整機建議 ≥ 20 GB**。低 RAM 機改小 LLM（見下）後可降到 ~10–12 GB |
 | Disk | ≥ 50 GB（postgres + minio + ollama models）|
 | Public DNS | A record 指到此 server（auto-TLS 需要）|
 | Port 80/443 | open（auto-TLS challenge 需要）|
+
+### 地端 LLM 與記憶體（重要）
+系統預設用地端 Ollama 跑 LLM（無雲端成本/資料不出境）。**LLM 模型大小直接決定 embedder 容器要多少 RAM**：
+
+| LLM_MODEL | embedder RAM | 說明 |
+|---|---|---|
+| `gemma4:e4b`（預設） | **≥ 12 GB** | 多模態、品質好、中文佳 |
+| `qwen2.5:3b` | ~4–6 GB | 中文佳、省 RAM |
+| `llama3.2:3b` | ~4–6 GB | 通用、省 RAM |
+| `gemma3:1b` | ~2–3 GB | 最省、品質一般 |
+
+低 RAM 機在 `.env.production` 設 `LLM_MODEL=qwen2.5:3b`（embedder-init 會自動 pull）+ 視情況 `EMBEDDER_MEM_LIMIT=8g`。
+或把 LLM 接**外部 endpoint**（`LLM_BASE_URL` 指向另一台 Ollama/vLLM/雲端 OpenAI 相容 API），embedder 只跑 embedding（~2 GB）。
+embedding 模型 `snowflake-arctic-embed2`（~1.2 GB）固定，與 LLM 選擇無關。
 
 ## 一次性設定（init）
 

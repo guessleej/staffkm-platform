@@ -192,15 +192,18 @@ services:
       OLLAMA_KEEP_ALIVE: "-1"
       OLLAMA_MAX_LOADED_MODELS: "2"   # 同時常駐 embedding + LLM
     healthcheck:
-      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q arctic-embed && ollama list 2>/dev/null | grep -q gemma4 || exit 1"]
+      # v5.12：只檢 embedding 模型在（embedder 核心職責）。LLM 可換（LLM_MODEL），不硬綁 gemma4。
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q arctic-embed || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 1800s   # 首次需下載 ~11GB 模型（snowflake-arctic-embed2 + gemma4:e4b）
+      start_period: 1800s   # 首次需下載模型（arctic ~1.2GB + LLM；gemma4 ~9.6GB）
     deploy:
       resources:
         limits:
-          memory: 16g     # gemma4:e4b 需 ~8GB + embedding ~2GB + buffer
+          # ⚠ gemma4:e4b 需 ~10GB RAM 才載得動（embedder 容器需 ≥12g）。
+          # 低 RAM 機請設 LLM_MODEL 為較小模型（見 .env.production.example / docs/deploy）。
+          memory: ${EMBEDDER_MEM_LIMIT:-16g}
           cpus: "4.0"
         reservations:
           memory: 6g
@@ -209,7 +212,7 @@ services:
       - backend
       - frontend  # 首次拉模型需連 ollama.com
 
-  # 一次性：拉取 snowflake-arctic-embed2 + gemma4:e4b（healthcheck 兩個都要在才通過）
+  # 一次性：拉取 arctic embedding + LLM_MODEL（預設 gemma4:e4b；可換小模型）
   embedder-init:
     image: ollama/ollama:0.24.0
     container_name: staffkm-embedder-init
@@ -224,20 +227,22 @@ services:
         until ollama list >/dev/null 2>&1; do sleep 2; done
         echo "📦 拉取 snowflake-arctic-embed2 (~1.2 GB) — Embedding 模型（非中國/Apache-2.0/多語含繁中）..."
         ollama pull snowflake-arctic-embed2
-        echo "🧠 拉取 gemma4:e4b (~9.6 GB) — Google Gemma 4 E4B 多模態 LLM..."
-        ollama pull gemma4:e4b
-        # 雙重確認模型在 list 中（防止 pull 假成功）
+        echo "🧠 拉取 LLM: $LLM_MODEL（gemma4:e4b ~9.6GB 需 ≥12g RAM；低 RAM 改設 LLM_MODEL 小模型）..."
+        ollama pull "$LLM_MODEL"
+        # 確認模型在 list 中（防止 pull 假成功）
         ollama list | grep -q arctic-embed || { echo "❌ snowflake-arctic-embed2 not in list"; exit 1; }
-        ollama list | grep -q gemma4 || { echo "❌ gemma4 not in list"; exit 1; }
-        # v5.12：部署後預熱 — 先把兩個模型載進記憶體（配合 OLLAMA_KEEP_ALIVE=-1 → 永久常駐）→
-        # 首次真實呼叫即快、不冷啟動。
+        ollama list | grep -q "$(echo "$LLM_MODEL" | cut -d: -f1)" || { echo "❌ $LLM_MODEL not in list"; exit 1; }
+        # v5.12：部署後預熱 — 先把模型載進記憶體（配合 OLLAMA_KEEP_ALIVE=-1 → 永久常駐）→ 呼叫即快。
         echo "🔥 預熱模型（載入記憶體常駐）..."
-        ollama run gemma4:e4b "hi" >/dev/null 2>&1 || true
+        ollama run "$LLM_MODEL" "hi" >/dev/null 2>&1 || true
         ollama embed snowflake-arctic-embed2 "warmup" >/dev/null 2>&1 \
           || ollama run snowflake-arctic-embed2 "warmup" >/dev/null 2>&1 || true
         echo "✅ AI 模型就緒並常駐（embedding + LLM，不待機）"
     environment:
       OLLAMA_HOST: "embedder:11434"
+      # v5.12：LLM 模型可換（同一變數也餵給 agent 使用）。低 RAM 機改設小模型，如
+      # qwen2.5:3b / gemma3:1b / llama3.2:3b（≤4GB）。預設 gemma4:e4b 需 ≥12g RAM。
+      LLM_MODEL: ${LLM_MODEL:-gemma4:e4b}
     networks:
       - backend
 
