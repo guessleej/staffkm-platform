@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "staffkm-docs"
     MINIO_SECURE: bool = False
 
-    # Embedding 服務 — 預設指向內網 Ollama (bge-m3, 1024 維)
+    # Embedding 服務 — 預設指向內網 Ollama (snowflake-arctic-embed2, 1024 維)
     # 若要改回 OpenAI：EMBEDDING_BASE_URL="" + EMBEDDING_MODEL=text-embedding-3-small + EMBEDDING_DIMENSION=1536
-    EMBEDDING_MODEL: str = "bge-m3"
+    EMBEDDING_MODEL: str = "snowflake-arctic-embed2"
     EMBEDDING_BASE_URL: str = "http://embedder:11434/v1"
     EMBEDDING_DIMENSION: int = 1024
     OPENAI_API_KEY: str = ""

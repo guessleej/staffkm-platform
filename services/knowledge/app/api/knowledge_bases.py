@@ -31,7 +31,7 @@ async def _safe_audit(session: AsyncSession, **kwargs) -> None:
 class KBCreate(BaseModel):
     name: str
     description: str | None = None
-    embedding_model: str = "bge-m3"
+    embedding_model: str = "snowflake-arctic-embed2"
     is_public: bool = False
     # RFC-006 切片技術升級
     chunk_strategy: str = "auto"      # auto / recursive / markdown / qa
@@ -384,7 +384,7 @@ async def import_kb_full(
         workspace_id=ctx.workspace_id,
         name=(rename_to or kb_meta.get("name") or "Imported KB")[:128],
         description=kb_meta.get("description"),
-        embedding_model=kb_meta.get("embedding_model") or "bge-m3",
+        embedding_model=kb_meta.get("embedding_model") or "snowflake-arctic-embed2",
         vector_store_type=kb_meta.get("vector_store_type") or "pgvector",
         chunk_strategy=kb_meta.get("chunk_strategy") or "auto",
         chunk_size=kb_meta.get("chunk_size") or 512,

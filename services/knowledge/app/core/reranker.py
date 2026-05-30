@@ -140,7 +140,7 @@ async def _rerank_ollama(query, documents, config, top_n):
     """
     base_url = (config.get("base_url") or "http://embedder:11434").rstrip("/")
     model = config.get("model_name") or "bge-reranker-v2-m3"
-    embed_model = config.get("embed_model") or "bge-m3"
+    embed_model = config.get("embed_model") or "snowflake-arctic-embed2"
 
     # 路徑 1：嘗試 Ollama 原生 rerank（多數版本沒有，預期 404）
     async with httpx.AsyncClient(timeout=20.0) as client:

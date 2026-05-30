@@ -175,7 +175,7 @@ services:
   # ══════════════════════════════════════════════════════════════
   #  Ollama — 內網 AI 引擎（地端優先策略，RFC-005）
   #  跑兩個模型：
-  #    - bge-m3       (embedding, ~1.2 GB)
+  #    - snowflake-arctic-embed2  (embedding, ~1.2 GB) — 非中國/Apache-2.0/多語含繁中
   #    - gemma4:e4b   (LLM, ~9.6 GB) ← Google Gemma 4 E4B、4.5B 有效參數、128K context、多模態
   #  ARM64 / x86_64 雙平台原生
   # ══════════════════════════════════════════════════════════════
@@ -190,11 +190,11 @@ services:
       OLLAMA_KEEP_ALIVE: "24h"
       OLLAMA_MAX_LOADED_MODELS: "2"   # 同時載入 embedding + LLM
     healthcheck:
-      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q bge-m3 && ollama list 2>/dev/null | grep -q gemma4 || exit 1"]
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q arctic-embed && ollama list 2>/dev/null | grep -q gemma4 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 1800s   # 首次需下載 ~9GB 模型（bge-m3 + gemma4:e4b）
+      start_period: 1800s   # 首次需下載 ~11GB 模型（snowflake-arctic-embed2 + gemma4:e4b）
     deploy:
       resources:
         limits:
@@ -225,7 +225,7 @@ services:
         echo "🧠 拉取 gemma4:e4b (~9.6 GB) — Google Gemma 4 E4B 多模態 LLM..."
         ollama pull gemma4:e4b
         # 雙重確認模型在 list 中（防止 pull 假成功）
-        ollama list | grep -q bge-m3 || { echo "❌ bge-m3 not in list"; exit 1; }
+        ollama list | grep -q arctic-embed || { echo "❌ snowflake-arctic-embed2 not in list"; exit 1; }
         ollama list | grep -q gemma4 || { echo "❌ gemma4 not in list"; exit 1; }
         echo "✅ AI 模型就緒（embedding + LLM）"
     environment:
