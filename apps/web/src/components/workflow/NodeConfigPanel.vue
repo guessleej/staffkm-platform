@@ -763,6 +763,7 @@ import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch, defineCo
 import type { Directive } from 'vue'
 import { NODE_META } from './lf-nodes'
 import { knowledgeApi } from '../../api/knowledge'
+import { escapeHtml } from '../../utils/markdown'
 import { SIcon } from '@staffkm/ui-kit'
 
 // v2.7：點外面關閉 dropdown
@@ -934,10 +935,13 @@ const filteredKbs = computed(() => {
 })
 const selectedKbName = computed(() => workflowKbs.value.find((kb) => kb.id === props.node.config.kb_id)?.name || '')
 function highlightMatch(text: string, kw: string) {
-  if (!kw.trim()) return text
+  // v5.12: text 是使用者建立的 KB 名稱 → 先 escape 再拼 <mark>，否則 v-html 會 stored XSS
+  const safe = escapeHtml(text)
+  if (!kw.trim()) return safe
   const i = text.toLowerCase().indexOf(kw.trim().toLowerCase())
-  if (i < 0) return text
-  return text.slice(0, i) + '<mark class="bg-yellow-200 text-fg">' + text.slice(i, i + kw.length) + '</mark>' + text.slice(i + kw.length)
+  if (i < 0) return safe
+  return escapeHtml(text.slice(0, i)) + '<mark class="bg-yellow-200 text-fg">'
+    + escapeHtml(text.slice(i, i + kw.length)) + '</mark>' + escapeHtml(text.slice(i + kw.length))
 }
 
 // ── v2.1：kb_writer node — 載入 workspace 內所有「workflow KB」供下拉 ──

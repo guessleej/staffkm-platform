@@ -10,21 +10,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { marked } from 'marked'
+import { renderMarkdown } from '../../utils/markdown'
 
 const props = defineProps<{ content: string }>()
 
-marked.setOptions({ breaks: true, gfm: true })
-
-const rendered = computed(() => {
-  const src = props.content || ''
-  try {
-    return marked.parse(src, { async: false }) as string
-  } catch {
-    // 解析失敗 → 退回純文字（保留換行）
-    return src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')
-  }
-})
+// v5.12: 走集中消毒 util（DOMPurify）— LLM 回覆不可信，防 XSS
+const rendered = computed(() => renderMarkdown(props.content))
 </script>
 
 <style scoped>

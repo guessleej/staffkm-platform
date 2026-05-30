@@ -790,6 +790,11 @@ async function load() {
 
 async function createKB() {
   if (submitting.value) return
+  // v5.12: 前端驗證 — overlap 必須小於 size，否則送壞值給後端
+  if (form.value.chunk_overlap >= form.value.chunk_size) {
+    alert('分塊重疊（chunk overlap）必須小於分塊大小（chunk size）')
+    return
+  }
   submitting.value = true
   try {
     const res: any = await knowledgeApi.createBase({
@@ -827,6 +832,9 @@ async function createKB() {
     createMode.value = 'manual'
     webSubMode.value = 'urls'
     await load()
+  } catch (e: any) {
+    // v5.12: 補 catch — 建 KB 失敗（重名/500）原本無提示、modal 不關，使用者重複按不知原因
+    alert(`建立知識庫失敗：${e?.response?.data?.detail || e?.response?.data?.message || e?.message || '請稍後再試'}`)
   } finally {
     submitting.value = false
   }
@@ -834,8 +842,12 @@ async function createKB() {
 
 async function deleteKB(id: string) {
   if (!confirm('確定要刪除？其下的文件與向量資料會一併移除。')) return
-  await knowledgeApi.deleteBase(id)
-  await load()
+  try {
+    await knowledgeApi.deleteBase(id)
+    await load()
+  } catch (e: any) {
+    alert(`刪除失敗：${e?.response?.data?.detail || e?.message || '請稍後再試'}`)
+  }
 }
 
 // ── v2.8 H1：整 KB 匯出 / 匯入 ────────────────────────────────────

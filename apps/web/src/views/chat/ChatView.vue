@@ -361,8 +361,12 @@ async function onSubmit() {
         sending.value = false
         nextTick(scrollToBottom)
       },
-      () => {
-        // v5.10.15：無法回答 → 關閉 streaming（停止閃爍）；空回應就不留內容
+      (e: string) => {
+        // v5.12：顯示錯誤訊息而非留白 — LLM 失敗（如 host Ollama 沒起 → Connection error）時
+        // 原本只關 streaming 留空泡泡，使用者零回饋。沒有任何 token 時補一則可見錯誤。
+        if (!streamingText.value) {
+          convStore.appendToken(assistant.id, `⚠️ 回應失敗：${e || '請稍後再試'}`)
+        }
         convStore.finishAssistantMessage(assistant.id, [])
         sending.value = false
         streamingText.value = ''

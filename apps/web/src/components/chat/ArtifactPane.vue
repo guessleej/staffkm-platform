@@ -83,7 +83,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { marked } from 'marked'
+import { renderMarkdown } from '../../utils/markdown'
 // 19-perf：highlight.js/lib/common 只含 top ~30 個常用 language
 // （vs 預設 192 個 → md-vendor 從 1MB 縮到 ~250KB）
 import hljs from 'highlight.js/lib/common'
@@ -124,16 +124,12 @@ async function onCopy() {
   } catch { /* clipboard 被瀏覽器禁時不致命 */ }
 }
 
-// 渲染 markdown — 安全模式（不解析 raw HTML）
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-})
+// v5.12: markdown 走集中消毒 util（DOMPurify）。
+// 原註解「安全模式（不解析 raw HTML）」是誤解 — marked 預設**會**解析 raw HTML，需 sanitize。
 const renderedMd = computed(() => {
   const cur = a.value
   if (!cur || cur.kind !== 'document') return ''
-  // marked v15 可能 sync 也可能 async；用 parse + async:false 強制同步
-  return marked.parse(cur.content || '', { async: false }) as string
+  return renderMarkdown(cur.content || '')
 })
 
 // code 高亮（highlight.js auto-detect 或指定 language）
