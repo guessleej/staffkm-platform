@@ -326,6 +326,12 @@ grep -rnE "ANY\(['\"]\\\\?\{[a-z0-9_,\\-]+\}['\"]\)" services/ --include="*.py" 
 # 5. 檢查 NOT NULL JSONB INSERT 沒有 None fallback（CLAUDE.md 踩雷集新加）
 grep -rnE "json\.dumps\([^)]+\) if [^)]+ else None" services/ --include="*.py" 2>/dev/null
 # 預期：no matches（應該是 else '{}' 或 else '[]'，避免 NotNullViolationError 被 starlette 吞）
+
+# 6. 全新部署 schema 煙霧測試（§9 — 防 init.sql 與 upgrade.sql 漂移、防既有部署升級炸）
+#    用 init.sql 起全新 PG → 跑 upgrade.sql 必須「全 no-op」（每條加法 DDL 都 already-exists）。
+#    若 FAIL → 某條 delta 只在 upgrade.sql、init.sql 缺 → 全新部署會缺欄/索引，補進 init.sql。
+bash tools/scripts/schema-smoke-test.sh
+# 預期：PASS（exit 0）。需 docker（pgvector/pgvector:pg16），約 15s。
 ```
 
 額外建議：
