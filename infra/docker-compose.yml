@@ -187,8 +187,10 @@ services:
       - embedder_cache:/root/.ollama
     environment:
       OLLAMA_HOST: "0.0.0.0:11434"
-      OLLAMA_KEEP_ALIVE: "24h"
-      OLLAMA_MAX_LOADED_MODELS: "2"   # 同時載入 embedding + LLM
+      # v5.12：-1 = 模型載入後「永不」idle 卸載（預設 5min 沒用就卸 → 下次呼叫冷啟動慢，
+      # gemma4 9.6GB 重載數秒~數十秒）。常駐 → 呼叫即用、不待機。
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_MAX_LOADED_MODELS: "2"   # 同時常駐 embedding + LLM
     healthcheck:
       test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q arctic-embed && ollama list 2>/dev/null | grep -q gemma4 || exit 1"]
       interval: 30s
@@ -227,7 +229,13 @@ services:
         # 雙重確認模型在 list 中（防止 pull 假成功）
         ollama list | grep -q arctic-embed || { echo "❌ snowflake-arctic-embed2 not in list"; exit 1; }
         ollama list | grep -q gemma4 || { echo "❌ gemma4 not in list"; exit 1; }
-        echo "✅ AI 模型就緒（embedding + LLM）"
+        # v5.12：部署後預熱 — 先把兩個模型載進記憶體（配合 OLLAMA_KEEP_ALIVE=-1 → 永久常駐）→
+        # 首次真實呼叫即快、不冷啟動。
+        echo "🔥 預熱模型（載入記憶體常駐）..."
+        ollama run gemma4:e4b "hi" >/dev/null 2>&1 || true
+        ollama embed snowflake-arctic-embed2 "warmup" >/dev/null 2>&1 \
+          || ollama run snowflake-arctic-embed2 "warmup" >/dev/null 2>&1 || true
+        echo "✅ AI 模型就緒並常駐（embedding + LLM，不待機）"
     environment:
       OLLAMA_HOST: "embedder:11434"
     networks:
