@@ -89,11 +89,18 @@ async def list_documents(
     kb_id: uuid.UUID,
     ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
+    page: int = 1,
+    page_size: int = 1000,
 ):
     await _verify_kb_in_workspace(kb_id, ctx, session)
+    # v5.12: 加分頁 + hard cap 防 OOM — 單一 KB 文件數上千時原本一次全載
+    page = max(1, page)
+    page_size = min(max(1, page_size), 2000)
     q = (
         WorkspaceScopedQuery(Document).select()
         .where(Document.knowledge_base_id == kb_id)
+        .order_by(Document.created_at.desc())
+        .limit(page_size).offset((page - 1) * page_size)
     )
     docs = (await session.execute(q)).scalars().all()
     return ApiResponse(data=[

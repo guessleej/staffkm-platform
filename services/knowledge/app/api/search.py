@@ -1,4 +1,5 @@
 """語意檢索 API — 向量 + PostgreSQL FTS Hybrid Search（RRF）"""
+import asyncio
 import json
 import uuid
 from typing import Literal
@@ -15,6 +16,7 @@ from app.core.vectorstore import hybrid_search
 from app.models.knowledge_base import KnowledgeBase
 from staffkm_core.schemas.response import ApiResponse
 from staffkm_core.utils.database import get_session
+from staffkm_core.utils import database as _db
 from staffkm_tenant import TenantContext, WorkspaceScopedQuery, require_member
 
 router = APIRouter()
@@ -200,10 +202,9 @@ async def search(
             return ApiResponse(data=SearchResponse(citations=[], total=0, search_mode=body.search_mode))
         fetch_k = max(fetch_k, 50)
 
-    all_results: list[dict] = []
-    for kb_id in allowed_kb_ids:
-        hits = await hybrid_search(
-            session=session,
+    async def _search_kb(s: AsyncSession, kb_id) -> list[dict]:
+        return await hybrid_search(
+            session=s,
             kb_id=kb_id,
             query_embedding=query_embedding,
             query_text=body.query,
@@ -213,7 +214,25 @@ async def search(
             search_mode=body.search_mode,
             rrf_k=body.rrf_k,
         )
-        all_results.extend(hits)
+
+    all_results: list[dict] = []
+    if len(allowed_kb_ids) <= 1 or _db._session_factory is None:
+        # 單 KB（最常見）走注入 session，免開新連線
+        for kb_id in allowed_kb_ids:
+            all_results.extend(await _search_kb(session, kb_id))
+    else:
+        # v5.12: 多 KB 並發 — 原本逐 KB 序列化、延遲線性放大。asyncpg 同連線不可並發 →
+        #   各 KB 開獨立 session；semaphore 限流避免打穿連線池。
+        sem = asyncio.Semaphore(5)
+
+        async def _one(kb_id):
+            async with sem:
+                async with _db._session_factory() as s:
+                    return await _search_kb(s, kb_id)
+
+        per_kb = await asyncio.gather(*[_one(k) for k in allowed_kb_ids])
+        for hits in per_kb:
+            all_results.extend(hits)
 
     # RFC-014 GraphRAG（MVP）：實體錨定召回 → RRF 第三路融合（僅 graph_enabled 的 KB；查詢時零 LLM）
     if query_embedding:

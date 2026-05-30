@@ -52,6 +52,8 @@ async def list_paragraphs(
     doc_id: uuid.UUID,
     ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
+    page: int = 1,
+    page_size: int = 1000,
 ):
     # 確認 doc 屬於當前 workspace
     doc_q = WorkspaceScopedQuery(Document).select().where(Document.id == doc_id)
@@ -64,10 +66,14 @@ async def list_paragraphs(
     await enforce_kb_access(ctx, doc.knowledge_base_id, session, need="read")
 
     # 段落本身也帶 workspace_id（從 process_document 寫入時帶入）
+    # v5.12: 加分頁 + hard cap 防 OOM — 長文件（PDF/書）段落數可達數千
+    page = max(1, page)
+    page_size = min(max(1, page_size), 2000)
     q = (
         WorkspaceScopedQuery(Paragraph).select()
         .where(Paragraph.document_id == doc_id)
         .order_by(Paragraph.order_index)
+        .limit(page_size).offset((page - 1) * page_size)
     )
     paragraphs = (await session.execute(q)).scalars().all()
 

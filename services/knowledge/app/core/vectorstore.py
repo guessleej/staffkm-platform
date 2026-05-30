@@ -223,9 +223,13 @@ async def hybrid_search(
                 FROM merged m
                 JOIN paragraphs p ON p.id = m.paragraph_id
                 JOIN documents  d ON d.id = p.document_id
-                -- 純向量命中但相似度低於閾值，且未被 FTS 收錄者予以過濾
-                WHERE (m.vector_score >= :threshold)
-                   OR (m.vector_score = 0.0)       -- FTS-only 命中，不受向量閾值限制
+                -- v5.12: 補 is_active 濾 — vector_ranked CTE 只用 kb_id 未濾 is_active，
+                --   軟刪/停用段落會經向量路徑回傳被引用（FTS 分支已濾、vector-only 漏網）。
+                WHERE p.is_active = true
+                  AND (
+                       (m.vector_score >= :threshold)
+                    OR (m.vector_score = 0.0)       -- FTS-only 命中，不受向量閾值限制
+                  )
                 ORDER BY m.rrf_score DESC
                 LIMIT :top_k
             """),

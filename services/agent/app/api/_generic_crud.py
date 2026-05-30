@@ -51,10 +51,18 @@ def make_crud_router(
     async def list_items(
         ctx: TenantContext = Depends(require_member),
         session: AsyncSession = Depends(get_session),
+        page: int = 1,
+        page_size: int = 1000,
     ):
+        # v5.12: 加分頁 + hard cap 防 OOM — 原本無 LIMIT，租戶資源長到數千筆會一次全載。
+        #   預設 page_size=1000（多數情境一頁載完、前端無感）；上限 2000 擋極端。
+        page = max(1, page)
+        page_size = min(max(1, page_size), 2000)
+        offset = (page - 1) * page_size
         rows = await session.execute(
-            text(f"SELECT * FROM {table} WHERE workspace_id = :ws ORDER BY created_at DESC"),
-            {"ws": str(ctx.workspace_id)},
+            text(f"SELECT * FROM {table} WHERE workspace_id = :ws "
+                 f"ORDER BY created_at DESC LIMIT :lim OFFSET :off"),
+            {"ws": str(ctx.workspace_id), "lim": page_size, "off": offset},
         )
         items = [_normalize(dict(r._mapping)) for r in rows.fetchall()]
         return ApiResponse(data=[out_model(**x) for x in items])
