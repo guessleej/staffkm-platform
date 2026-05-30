@@ -38,7 +38,8 @@ async def resolve_embedding(session) -> tuple[str, str, str | None]:
             return env
         return (
             raw["model"],
-            raw.get("api_key") or settings.OPENAI_API_KEY,
+            # v5.12：api_key 加密存 → 解密讀（decrypt_secret 對舊明文 "dummy" 有 legacy 相容）
+            decrypt_secret(raw.get("api_key")) or settings.OPENAI_API_KEY,
             raw.get("base_url") or settings.EMBEDDING_BASE_URL or None,
         )
     except Exception as e:  # noqa: BLE001 — 解析失敗一律 fallback env（不可讓檢索整個壞掉）

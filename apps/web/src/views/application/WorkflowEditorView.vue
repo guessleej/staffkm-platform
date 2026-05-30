@@ -837,13 +837,21 @@ async function runTest() {
   testEvents.value  = []
 
   try {
+    // v5.12：raw fetch 必須手動注入 X-Workspace-ID（繞過 axios interceptor）→
+    // 否則 gateway 退 legacy 路徑 → 404 空串流（同 chat.ts v5.9.14 的雷）。
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+      Accept: 'text/event-stream',
+    }
+    try {
+      const { useWorkspaceStore } = await import('../../stores/workspace')
+      const wsId = useWorkspaceStore().currentId
+      if (wsId) headers['X-Workspace-ID'] = wsId
+    } catch { /* store 未 init */ }
     const response = await fetch(workflowApi.chatUrl(appId), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        Accept: 'text/event-stream',
-      },
+      headers,
       body: JSON.stringify({
         messages: [{ role: 'user', content: testInput.value.trim() }],
       }),

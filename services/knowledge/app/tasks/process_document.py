@@ -132,6 +132,12 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 # 向量化
                 embedder = await get_active_embedder(session)
                 embeddings = await embedder.embed_batch(chunks)
+                # v5.12：embedder 回傳數量短少時不可繼續（否則 zip 截斷 → 文件標 READY 但段落/向量缺、無錯）
+                if len(embeddings) != len(chunks):
+                    raise RuntimeError(
+                        f"embed_batch 回傳數量不符：chunks={len(chunks)} embeddings={len(embeddings)}"
+                        "（embedder 丟棄過長輸入或回傳部分批次）→ 中止交給 retry，不標 READY"
+                    )
                 await set_progress(70, "正在寫入段落與向量…")
 
                 # 冪等清理：先刪除舊段落（retry 場景）

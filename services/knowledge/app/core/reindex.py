@@ -19,6 +19,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.core.embedder import get_embedder
 from app.core.vectorstore import upsert_embedding
+from staffkm_core.secrets import encrypt_secret
 
 log = structlog.get_logger()
 
@@ -82,8 +83,10 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
 
     # 重嵌前先把 active 切到目標模型 → runtime query/ingest 與「已遷移的欄位維度」一致，
     # 重嵌期間頂多回空結果（向量尚未填），不會 1024-query vs 768-column 的硬維度錯誤。
+    # v5.12：api_key 加密存（雲端 embedding key 不可明文落 DB / 進備份）。resolve_embedding 解密讀。
     await _set_setting(session, ACTIVE_KEY, {
-        "model": model, "base_url": base_url, "api_key": api_key, "dim": target_dim,
+        "model": model, "base_url": base_url,
+        "api_key": encrypt_secret(api_key), "dim": target_dim,
     })
 
     embedder = get_embedder(model, api_key, base_url)

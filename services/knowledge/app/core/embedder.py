@@ -68,6 +68,8 @@ class EmbeddingService:
         return results
 
 
-@lru_cache
+@lru_cache(maxsize=64)
 def get_embedder(model: str, api_key: str, base_url: str | None = None) -> EmbeddingService:
+    # v5.12：限 maxsize — 原本無上限 → key 含 api_key，每次 key 輪換都新增一筆、
+    # 舊 AsyncOpenAI client 與 secret 永久常駐記憶體（worker 長跑會慢慢漏）。
     return EmbeddingService(model=model, api_key=api_key, base_url=base_url)
