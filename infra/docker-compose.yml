@@ -152,7 +152,7 @@ services:
   # ── v4.0 P7: MinIO secondary（multi-region readiness）──────────
   # 預設關（profile=multi-region）；production 設 mc replicate rule sync
   minio-secondary:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     container_name: staffkm-minio-secondary
     profiles: ["multi-region"]
     restart: unless-stopped
@@ -259,7 +259,7 @@ services:
 
   # MinIO 初始化：建立預設 bucket
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
     container_name: staffkm-minio-init
     restart: "no"
     depends_on:

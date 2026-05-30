@@ -1,6 +1,7 @@
 -- staffKM init.sql — 由本機(可運作) DB 匯出，全新部署用
 -- 產生: pg_dump schema-only(73 tables) + bootstrap seed(users/workspace/workspace_member/system_settings)
--- admin 密碼: Admin@2026
+-- ⚠ 預設管理員密碼為 bootstrap 預設值（見部署文件 docs/deploy/production-deploy.md）。
+--   正式部署「首次登入後務必立即更改密碼」，勿沿用預設值對外。
 
 --
 -- PostgreSQL database dump
