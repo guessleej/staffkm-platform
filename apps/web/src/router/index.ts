@@ -310,4 +310,19 @@ router.beforeEach(async (to) => {
   return true
 })
 
+// v5.12: 動態 import 的 route/component chunk 在「新部署後 hash 變了」會載入失敗（舊分頁點下去
+//   → Failed to fetch dynamically imported module → 白屏卡死、無法復原）。偵測到就整頁重載抓新
+//   bundle，導回原本要去的頁。客戶升級 / 滾動部署都會遇到，這是必要的韌性處理。
+//   防重載迴圈：同一目標只重載一次（用 sessionStorage 記錄）。
+router.onError((error, to) => {
+  const msg = (error as Error)?.message || ''
+  const isChunkError = /dynamically imported module|Failed to fetch|Importing a module script failed|ChunkLoadError|error loading dynamically/i.test(msg)
+  if (!isChunkError) return
+  const target = to?.fullPath || window.location.pathname
+  const key = `staffkm.chunk_reload:${target}`
+  if (sessionStorage.getItem(key)) return        // 已重載過一次仍失敗 → 不再無限重載
+  sessionStorage.setItem(key, '1')
+  window.location.assign(target)
+})
+
 export default router
