@@ -5,6 +5,10 @@ name: staffkm
 # ────────────────────────────────────────────────────────────────
 x-db-env: &db-env
   DB_URL: postgresql+asyncpg://${DB_USER:-staffkm}:${DB_PASSWORD:-staffkm_secret}@postgres:5432/${DB_NAME:-staffkm}?ssl=disable
+  # v5.12：所有 python service 行程 TZ 釘 UTC。asyncpg 用「行程 TZ」編碼 naive datetime →
+  # 若容器 TZ≠UTC（如客戶設 Asia/Taipei 看 log），naive datetime.utcnow() 寫 timestamptz 會偏
+  # 8h（觸發時間/API key·trial·驗證 token 到期全錯）。釘 UTC 根治。日誌時間請在前端轉在地時區。
+  TZ: UTC
 
 x-redis-env: &redis-env
   REDIS_PASSWORD: ${REDIS_PASSWORD:-staffkm_redis}

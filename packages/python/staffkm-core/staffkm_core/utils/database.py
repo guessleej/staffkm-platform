@@ -21,10 +21,15 @@ def init_db(db_url: str, read_url: str | None = None, echo: bool = False):
     設了不同的 URL → 額外開 read pool，給 `get_read_session()` 用。
     """
     global _engine, _session_factory, _read_engine, _read_session_factory
-    _engine = create_async_engine(db_url, echo=echo, pool_size=10, max_overflow=20)
+    # v5.12：postgres session timezone=UTC（衛生 — 讓 server-side now()/date_trunc 一致走 UTC）。
+    # ⚠ 這「不」修 naive datetime.utcnow() 寫 timestamptz 的偏移 —— asyncpg 是用「python 行程 TZ」
+    #   編碼 naive datetime（非 session TZ，已實測）→ 真正修法是把容器 TZ 釘 UTC（compose x-db-env）。
+    #   兩者都 UTC = 完全一致。
+    _conn_args = {"server_settings": {"timezone": "UTC"}}
+    _engine = create_async_engine(db_url, echo=echo, pool_size=10, max_overflow=20, connect_args=_conn_args)
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
     if read_url and read_url != db_url:
-        _read_engine = create_async_engine(read_url, echo=echo, pool_size=10, max_overflow=20)
+        _read_engine = create_async_engine(read_url, echo=echo, pool_size=10, max_overflow=20, connect_args=_conn_args)
         _read_session_factory = async_sessionmaker(_read_engine, expire_on_commit=False)
     else:
         _read_engine = None
