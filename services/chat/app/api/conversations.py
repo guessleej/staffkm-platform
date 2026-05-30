@@ -302,11 +302,17 @@ async def delete_conversation(
 async def export_conversation(
     conv_id: uuid.UUID,
     format: str = "markdown",  # "markdown" | "json"
+    request: Request = None,
     session: AsyncSession = Depends(get_session),
 ):
+    # v5.12: 補 ownership check — export 是 read-side IDOR 漏網（get_messages/delete/share 早已補）。
+    # 知道/猜到 conv_id 即可匯出他人完整對話 → 與 get_messages 同類，對齊處理。
+    user_id = getattr(request.state, "user_id", None) if request else None
     conv = await session.get(Conversation, conv_id)
     if not conv:
         raise HTTPException(status_code=404, detail="對話不存在")
+    if user_id and conv.user_id not in (user_id, "anonymous"):
+        raise HTTPException(status_code=403, detail="無權匯出此對話")
 
     msgs_result = await session.execute(
         select(Message).where(Message.conversation_id == conv_id).order_by(Message.created_at)

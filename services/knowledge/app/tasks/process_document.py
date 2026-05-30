@@ -72,6 +72,11 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                     embedder = await get_active_embedder(session)
                     contents = [p.content for p in paras]
                     embeddings = await embedder.embed_batch(contents)
+                    # v5.12: 數量不符代表 embedder 丟棄/截斷批次 → zip 會靜默漏向量、文件仍標 READY。
+                    if len(embeddings) != len(paras):
+                        raise RuntimeError(
+                            f"inline embedding 數量不符：{len(embeddings)} != {len(paras)}（疑批次截斷）"
+                        )
                     for p, emb in zip(paras, embeddings):
                         await upsert_embedding(session, p.id, doc.knowledge_base_id, emb)
                         await update_search_vector(session, p.id, p.content)
@@ -236,6 +241,11 @@ async def _async_regen(paragraph_ids: list[str]) -> dict:
 
             embedder = await get_active_embedder(session)
             embeddings = await embedder.embed_batch([p.content for p in paras])
+            # v5.12: 同 inline — 數量不符即丟錯交給 Celery retry，避免靜默漏向量。
+            if len(embeddings) != len(paras):
+                raise RuntimeError(
+                    f"regen embedding 數量不符：{len(embeddings)} != {len(paras)}（疑批次截斷）"
+                )
             done = 0
             for p, emb in zip(paras, embeddings):
                 await upsert_embedding(session, p.id, p.knowledge_base_id, emb)

@@ -74,7 +74,7 @@ services:
   knowledge:  { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
   agent:      { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
   chat:       { restart: always, deploy: { resources: { limits: { memory: 512m } } } }
-  integration:{ restart: always, deploy: { resources: { limits: { memory: 256m } } } }
+  integration: { restart: always, deploy: { resources: { limits: { memory: 256m } } } }
   ui:         { restart: always, deploy: { resources: { limits: { memory: 128m } } } }
   knowledge-worker: { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
   embedder:   { restart: always }    # Ollama 自己有 mem 管理

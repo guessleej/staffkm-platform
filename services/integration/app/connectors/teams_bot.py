@@ -60,18 +60,20 @@ async def _ask_agent(user_message: str, session_id: str) -> str:
 
 async def _send_teams_reply(service_url: str, conversation_id: str, activity_id: str, text: str):
     """透過 Bot Framework REST API 回覆 Teams 訊息。"""
-    token_resp = httpx.post(
-        "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token",
-        data={
-            "grant_type": "client_credentials",
-            "client_id": settings.TEAMS_APP_ID,
-            "client_secret": settings.TEAMS_APP_PASSWORD,
-            "scope": "https://api.botframework.com/.default",
-        },
-    )
-    access_token = token_resp.json().get("access_token", "")
+    # v5.12：原本用同步 httpx.post 取 token → 在 async webhook 內會「阻塞整個 event loop」
+    # （Teams 一來訊息、token 端點慢回，integration service 含 LINE 全卡）。改全 async + timeout。
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        token_resp = await client.post(
+            "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": settings.TEAMS_APP_ID,
+                "client_secret": settings.TEAMS_APP_PASSWORD,
+                "scope": "https://api.botframework.com/.default",
+            },
+        )
+        access_token = token_resp.json().get("access_token", "")
 
-    async with httpx.AsyncClient() as client:
         await client.post(
             f"{service_url}v3/conversations/{conversation_id}/activities/{activity_id}",
             headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
