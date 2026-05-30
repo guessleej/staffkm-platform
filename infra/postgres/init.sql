@@ -4020,7 +4020,7 @@ SET row_security = off;
 --
 
 COPY public.system_settings (key, value, description, updated_at, updated_by) FROM stdin;
-embedding.default_model	"bge-m3"	Default embedding model	2026-05-18 23:58:33.502484+08	\N
+embedding.default_model	"snowflake-arctic-embed2"	Default embedding model	2026-05-18 23:58:33.502484+08	\N
 embedding.dimension	1024	Embedding vector dimension	2026-05-18 23:58:33.502484+08	\N
 reranker.default_type	"cross_encoder"	Default reranker (cohere/ollama/cross_encoder/http)	2026-05-18 23:58:33.502484+08	\N
 search.rrf_default_vector_weight	0.7	Hybrid search vector weight (0-1)	2026-05-18 23:58:33.502484+08	\N
@@ -4029,7 +4029,7 @@ upload.max_file_size_mb	50	Max upload size (MB)	2026-05-18 23:58:33.502484+08	\N
 security.password_min_length	8	Min password length	2026-05-18 23:58:33.502484+08	\N
 security.login_lockout_threshold	5	Failed login attempts before captcha	2026-05-18 23:58:33.502484+08	\N
 security.session_timeout_minutes	60	Session idle timeout (minutes)	2026-05-18 23:58:33.502484+08	\N
-embedding.active	{"dim": 1024, "model": "bge-m3", "api_key": "dummy", "base_url": "http://embedder:11434/v1"}	\N	2026-05-26 03:26:47.749802+08	\N
+embedding.active	{"dim": 1024, "model": "snowflake-arctic-embed2", "api_key": "dummy", "base_url": "http://embedder:11434/v1"}	\N	2026-05-26 03:26:47.749802+08	\N
 upload.allowed_extensions	["pdf", "docx", "doc", "md", "txt", "csv", "html", "xlsx", "xls", "png", "jpg", "jpeg", "webp", "tiff", "bmp"]	Allowed extensions	2026-05-18 23:58:33.502484+08	\N
 embedding.reindex	{"done": 3806, "model": "bge-m3", "total": 3806, "status": "done", "entities": 165, "migrated": true, "started_at": "2026-05-25T19:26:47.083458", "target_dim": 1024, "finished_at": "2026-05-25T19:56:38.312898"}	\N	2026-05-26 03:56:38.313259+08	\N
 default.llm	"gemma4:e4b"	\N	2026-05-23 09:12:09.299798+08	cf4633da-9d2c-453b-a198-218031b17f96

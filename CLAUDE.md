@@ -181,7 +181,7 @@ services/
   knowledge/     # KBs / Documents / Paragraphs / Search / Hit-test / Web sync / Inline write
   chat/          # Conversations / Messages
   integration/   # LINE / Teams webhooks
-  embedder/      # Ollama 容器（bge-m3 預設）
+  embedder/      # Ollama 容器（預設 snowflake-arctic-embed2 — 非中國/Apache-2.0/多語含繁中/1024 維；v5.12 換掉 bge-m3）
 packages/
   ts/
     design-tokens/   # HSL CSS vars + Tailwind preset

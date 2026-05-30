@@ -203,7 +203,7 @@ services:
       - backend
       - frontend  # 首次拉模型需連 ollama.com
 
-  # 一次性：拉取 bge-m3 + gemma4:e4b（healthcheck 兩個都要在才通過）
+  # 一次性：拉取 snowflake-arctic-embed2 + gemma4:e4b（healthcheck 兩個都要在才通過）
   embedder-init:
     image: ollama/ollama:0.24.0
     container_name: staffkm-embedder-init
@@ -216,8 +216,8 @@ services:
         set -e   # 任何 pull 失敗都立即退出（避免假 "✅ 就緒" 訊息）
         echo "⏳ 等 Ollama 啟動..."
         until ollama list >/dev/null 2>&1; do sleep 2; done
-        echo "📦 拉取 bge-m3 (~1.2 GB) — Embedding 模型..."
-        ollama pull bge-m3
+        echo "📦 拉取 snowflake-arctic-embed2 (~1.2 GB) — Embedding 模型（非中國/Apache-2.0/多語含繁中）..."
+        ollama pull snowflake-arctic-embed2
         echo "🧠 拉取 gemma4:e4b (~9.6 GB) — Google Gemma 4 E4B 多模態 LLM..."
         ollama pull gemma4:e4b
         # 雙重確認模型在 list 中（防止 pull 假成功）
