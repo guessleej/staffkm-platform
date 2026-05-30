@@ -15,18 +15,15 @@
 | Port 80/443 | open（auto-TLS challenge 需要）|
 
 ### 地端 LLM 與記憶體（重要）
-系統預設用地端 Ollama 跑 LLM（無雲端成本/資料不出境）。**LLM 模型大小直接決定 embedder 容器要多少 RAM**：
+系統用地端 Ollama 跑 LLM `gemma4:e4b`（無雲端成本、資料不出境、中文佳）。
 
-| LLM_MODEL | embedder RAM | 說明 |
-|---|---|---|
-| `gemma4:e4b`（預設） | **≥ 12 GB** | 多模態、品質好、中文佳 |
-| `qwen2.5:3b` | ~4–6 GB | 中文佳、省 RAM |
-| `llama3.2:3b` | ~4–6 GB | 通用、省 RAM |
-| `gemma3:1b` | ~2–3 GB | 最省、品質一般 |
-
-低 RAM 機在 `.env.production` 設 `LLM_MODEL=qwen2.5:3b`（embedder-init 會自動 pull）+ 視情況 `EMBEDDER_MEM_LIMIT=8g`。
-或把 LLM 接**外部 endpoint**（`LLM_BASE_URL` 指向另一台 Ollama/vLLM/雲端 OpenAI 相容 API），embedder 只跑 embedding（~2 GB）。
-embedding 模型 `snowflake-arctic-embed2`（~1.2 GB）固定，與 LLM 選擇無關。
+- **硬性需求**：embedder 容器需 **≥ 12 GB RAM** 才載得動 gemma4（整機建議 **≥ 20 GB**）。
+  RAM 不足時 gemma4 的 llama runner 會 OOM 終止（log: `llama runner process has terminated`）。
+  → **請擴充硬體（加 RAM）**；本系統不降級模型品質。
+- embedding 模型 `snowflake-arctic-embed2`（~1.2 GB）固定，與 LLM 無關。
+- 進階（選用）：若不想在本機跑 LLM，可把 `LLM_BASE_URL` 指向**外部 LLM endpoint**
+  （另一台 Ollama / vLLM / 雲端 OpenAI 相容 API），embedder 只負責 embedding（~2 GB）。
+  此時可調低 `EMBEDDER_MEM_LIMIT`。
 
 ## 一次性設定（init）
 
@@ -40,6 +37,8 @@ cp .env.production.example .env.production
 # 用 openssl 產生 secrets
 SECRET_KEY=$(openssl rand -hex 32) sed -i "s|___CHANGE_ME_openssl_rand_hex_32___|$SECRET_KEY|" .env.production
 DB_PW=$(openssl rand -hex 16) sed -i "s|___CHANGE_ME_TO_LONG_RANDOM___|$DB_PW|" .env.production
+# ⚠ API key 加密金鑰（不設 → provider/embedding 的 api_key 明文存 DB）
+SK=$(openssl rand -base64 32) sed -i "s|___CHANGE_ME_openssl_rand_base64_32___|$SK|" .env.production
 # 編輯 PUBLIC_DOMAIN / ADMIN_EMAIL / GRAFANA_BASIC_AUTH_HASH
 vi .env.production
 

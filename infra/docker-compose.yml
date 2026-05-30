@@ -13,6 +13,11 @@ x-db-env: &db-env
 x-redis-env: &redis-env
   REDIS_PASSWORD: ${REDIS_PASSWORD:-staffkm_redis}
 
+# v5.12：API key 加密金鑰（fernet）。**務必在 .env 設定** → 否則 provider/embedding 的 api_key
+# 以明文 plain: 存 DB（賣存客戶 LLM key 的系統大忌）。產生：openssl rand -base64 32
+x-secrets-env: &secrets-env
+  STAFFKM_SECRETS_KEY: ${STAFFKM_SECRETS_KEY:-}
+
 x-logging: &default-logging
   driver: json-file
   options:
@@ -201,8 +206,8 @@ services:
     deploy:
       resources:
         limits:
-          # ⚠ gemma4:e4b 需 ~10GB RAM 才載得動（embedder 容器需 ≥12g）。
-          # 低 RAM 機請設 LLM_MODEL 為較小模型（見 .env.production.example / docs/deploy）。
+          # ⚠ gemma4:e4b 需 ~10GB RAM 才載得動（embedder 容器需 ≥12g）→ RAM 不足請擴充硬體。
+          # （進階：LLM 可接外部 endpoint，見 docs/deploy/production-deploy.md）
           memory: ${EMBEDDER_MEM_LIMIT:-16g}
           cpus: "4.0"
         reservations:
@@ -307,7 +312,7 @@ services:
     entrypoint: ["sh", "-c"]
     command: ["echo '✅ Schema 由 init.sql 建立，跳過 migration'"]
     environment:
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
     depends_on:
       postgres:
         condition: service_healthy
@@ -379,7 +384,7 @@ services:
       - "8001"
     environment:
       PORT: 8001
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/1
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-staffkm}
@@ -434,7 +439,7 @@ services:
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 -Q knowledge
     environment:
       PORT: 8001
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/1
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-staffkm}
@@ -494,7 +499,7 @@ services:
       - "8002"
     environment:
       PORT: 8002
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2
       KNOWLEDGE_SERVICE_URL: http://knowledge:8001
       # P0-2 SSRF allowlist：workflow http_request / MCP 可呼叫的內部服務 host
@@ -577,7 +582,7 @@ services:
       retries: 3
       start_period: 20s
     environment:
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/2
       KNOWLEDGE_SERVICE_URL: http://knowledge:8001
       # P0-2 SSRF allowlist（同 agent；觸發式 workflow 也在 worker 跑 executor）
@@ -635,7 +640,7 @@ services:
       - "8003"
     environment:
       PORT: 8003
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/3
       SECRET_KEY: ${SECRET_KEY}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
@@ -733,7 +738,7 @@ services:
       - "8005"
     environment:
       PORT: 8005
-      <<: *db-env
+      <<: [*db-env, *secrets-env]
       REDIS_URL: redis://:${REDIS_PASSWORD:-staffkm_redis}@redis:6379/5
       AGENT_SERVICE_URL: http://agent:8002
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-20}
