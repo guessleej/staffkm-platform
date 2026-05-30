@@ -166,6 +166,16 @@ docker exec staffkm-postgres psql -U staffkm -d staffkm -c "\dt"
 ./tools/backup/backup-minio.sh
 ```
 
+## 銷售交付包（規則 — v5.12）
+
+- **開發 repo** = `/Users/jeff/Desktop/08.開發環境/TUT/staffKM/code/staffKM-Service`（這裡，含 .git/tests/CI/CLAUDE.md）。
+- **乾淨銷售交付包** 產到 `/Users/jeff/Desktop/08.開發環境/TUT/staffKM/release/`（與 dev、與 `code/MaxKB` 參考分開）。
+- 產生方式（**唯一**、可重複，勿手搬）：`./tools/scripts/make-release.sh`（可 `RELEASE_DIR=... ` 覆寫）。
+  - 來源 `git archive HEAD`（只含已提交、自動排 .git/.gitignore/未追蹤）。
+  - **剝除**：`.github`(CI) / `CLAUDE.md`(內部記憶) / `docs/dev` / 所有 `tests/` / `tools/{eval,perf}` / 秘密(.env/*.key/*.pem) / 備份(*.bak*) / 建置產物(node_modules/dist/__pycache__)。
+  - **保留**：`services/` `packages/` `apps/web`(原始碼) `infra/` `docs/{deploy,user-guide}` `tools/{scripts,backup}` `.env.production.example` + 自動生成的交付 README。
+- 交付前**人工複查**：`grep -rIl 'sk-\|fernet:\|PASSWORD='` 應無真 secret；確認 `.env.production.example` 有 `STAFFKM_SECRETS_KEY` 說明 + 預設密碼「首登即改」提醒。
+
 ## Repo 結構
 
 ```
