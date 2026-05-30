@@ -20,10 +20,13 @@ _parser = WebhookParser(settings.LINE_CHANNEL_SECRET)
 
 
 def _verify_signature(body: bytes, signature: str) -> bool:
-    hash_val = hmac.new(
-        settings.LINE_CHANNEL_SECRET.encode(), body, hashlib.sha256
-    ).digest()
-    return hmac.compare_digest(base64.b64encode(hash_val).decode(), signature)
+    # v5.12：secret 未設定一律拒（不可把「未設定連接器」當開放 → 否則 HMAC("",body) 可偽造簽章）。
+    secret = settings.LINE_CHANNEL_SECRET or ""
+    if not secret:
+        log.warning("line_webhook_rejected_no_secret")
+        return False
+    hash_val = hmac.new(secret.encode(), body, hashlib.sha256).digest()
+    return hmac.compare_digest(base64.b64encode(hash_val).decode(), signature or "")
 
 
 async def _ask_agent(user_message: str, session_id: str) -> str:

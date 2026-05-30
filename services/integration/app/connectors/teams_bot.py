@@ -1,13 +1,25 @@
 """Microsoft Teams Bot 整合連接器"""
+from urllib.parse import urlparse
+
 import httpx
 import structlog
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.config import settings
 
 log = structlog.get_logger()
 router = APIRouter()
+
+
+def _is_trusted_service_url(url: str) -> bool:
+    """v5.12：serviceUrl 取自 webhook body（攻擊者可控）。回覆時會帶 bot 的 AAD token POST 過去
+    → 若不限制，attacker 設 serviceUrl=自己主機可竊 token + SSRF。只放行 Bot Framework 官方主機。"""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return host.endswith(".botframework.com") or host.endswith(".trafficmanager.net")
 
 
 class TeamsActivity(BaseModel):
@@ -69,6 +81,9 @@ async def _send_teams_reply(service_url: str, conversation_id: str, activity_id:
 
 @router.post("/teams/webhook", summary="Teams Bot Webhook 接收端點")
 async def teams_webhook(request: Request):
+    # v5.12：未設定連接器一律拒（不可把未設定當開放）。
+    if not settings.TEAMS_APP_ID or not settings.TEAMS_APP_PASSWORD:
+        raise HTTPException(status_code=503, detail="Teams 連接器未設定")
     body = await request.json()
     activity_type = body.get("type", "")
     if activity_type != "message":
@@ -79,6 +94,11 @@ async def teams_webhook(request: Request):
     activity_id = body.get("id", "")
     service_url = body.get("serviceUrl", "")
     from_id = body.get("from", {}).get("id", "unknown")
+
+    # v5.12：serviceUrl 必須是 Bot Framework 官方主機才回覆（否則 bot 的 AAD token 會被竊）。
+    if service_url and not _is_trusted_service_url(service_url):
+        log.warning("teams_webhook_untrusted_service_url", service_url=service_url[:80])
+        raise HTTPException(status_code=400, detail="不信任的 serviceUrl")
 
     if user_text:
         session_id = f"teams_{from_id}"
