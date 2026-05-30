@@ -71,6 +71,11 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = null
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    // v5.12: 一併清 user-scoped 持久狀態，避免同機換帳號殘留（前一人的 active project / workspace /
+    //   onboarding 帶到下一人 → 列表被舊 project 篩、停在別人 workspace）。配合登出整頁重載清 pinia。
+    localStorage.removeItem('staffkm.active_project_id')
+    localStorage.removeItem('staffkm.current_workspace_id')
+    localStorage.removeItem('staffkm.onboarding.done')
   }
 
   return { user, accessToken, isAuthenticated, mustChangePassword, clearMustChangePassword, hasRole, init, login, setTokens, logout }

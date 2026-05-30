@@ -25,7 +25,8 @@ export interface AiModel {
 
 export const modelProviderApi = {
   listProviders(params?: { page?: number; page_size?: number }) {
-    return http.get('/admin/models/providers', { params })
+    // v5.12: 預設 page_size 提高，避免供應商 >20 筆靜默截斷（無分頁 UI）
+    return http.get('/admin/models/providers', { params: { page_size: 500, ...params } })
   },
 
   createProvider(data: { name: string; provider_type: string; base_url?: string; api_key?: string; config?: Record<string, any> }) {
@@ -50,7 +51,8 @@ export const modelProviderApi = {
 
   listModels(providerId?: string, modelType?: string) {
     if (providerId) {
-      return http.get(`/admin/models/providers/${providerId}/models`)
+      // v5.12: 帶大 page_size，避免供應商模型 >50 筆（如 ollama 動態同步多模型）靜默截斷
+      return http.get(`/admin/models/providers/${providerId}/models`, { params: { page_size: 500 } })
     }
     return http.get('/admin/models/models', { params: { model_type: modelType } })
   },

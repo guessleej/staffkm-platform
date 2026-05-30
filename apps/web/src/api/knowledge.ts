@@ -16,7 +16,7 @@ export interface KbFolderNode extends KbFolder {
 }
 
 export const knowledgeApi = {
-  async listBases(page = 1, pageSize = 20) {
+  async listBases(page = 1, pageSize = 500) {   // v5.12: 提高預設避免 >20 KB 靜默截斷（無分頁 UI）
     const { data } = await http.get('/knowledge/bases', { params: { page, page_size: pageSize } })
     return data
   },

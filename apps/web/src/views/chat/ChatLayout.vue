@@ -237,7 +237,9 @@ async function onDelete(id: string) {
 async function onLogout() {
   userMenuOpen.value = false
   auth.logout()
-  router.push('/login')
+  // v5.12: 整頁重載（非 SPA router.push）→ 清掉所有 pinia in-memory store，
+  //   避免同機換帳號時殘留前一人的對話/專案/KB（與 401 攔截器的 location.href 一致）。
+  window.location.href = '/login'
 }
 
 onMounted(async () => {

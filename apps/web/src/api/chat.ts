@@ -17,8 +17,8 @@ export const shareApi = {
 }
 
 export const chatApi = {
-  async listConversations(page = 1) {
-    const { data } = await http.get('/chat/conversations', { params: { page } })
+  async listConversations(page = 1, pageSize = 200) {   // v5.12: 提高避免側欄對話 >20 筆靜默截斷
+    const { data } = await http.get('/chat/conversations', { params: { page, page_size: pageSize } })
     return data
   },
   async createConversation(scenarioId: string, kbIds: string[] = []) {

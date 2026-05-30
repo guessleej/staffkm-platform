@@ -332,6 +332,12 @@ async function maybePollForReply(id: string) {
 async function selectFromRoute() {
   stopReplyPoll()
   const id = route.query.conv as string
+  // v5.12: 切到「不同」對話 → 重置臨時 model/KB 覆寫（避免幽靈黏著到別的對話）+ 關掉上一個
+  //   對話的引用面板（避免幽靈殘留）。同對話（reload/返回）不重置，保留使用者設定。
+  if (id !== convStore.currentConversation?.id) {
+    chatOverride.reset()
+    artifact.close()
+  }
   if (!id) { convStore.currentConversation = null; convStore.messages = []; return }
   // v5.12.x：返回到「正在串流中的同一對話」（例：聊天中點去設定看模型再點回來）→ **不** wipe+refetch。
   // 否則 selectConversation 清空 messages + fetchMessages 覆蓋會抹掉進行中的回答（背景 streamChat

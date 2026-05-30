@@ -873,6 +873,7 @@ async function saveApp() {
       delete configPayload.reranker_model_id
     }
     const payload = { ...form, config: configPayload }
+    const wasCreate = !editingApp.value
     if (editingApp.value) {
       await applicationApi.update(editingApp.value.id, payload)
     } else {
@@ -880,6 +881,12 @@ async function saveApp() {
     }
     showDialog.value = false
     await load()
+    // v5.12: 新應用落在 root / 不屬目前 project，會被 displayedApps 篩掉「看似建了就消失」。
+    //   建立後切回全部（清 folder + project 篩選）讓使用者看得到剛建的應用。
+    if (wasCreate) {
+      activeFolderId.value = null
+      if (projects.active) projects.activeId = null
+    }
   } catch (e: any) {
     // v5.9.24: 之前沒 catch，update 失敗就靜默不關 modal
     alert(e?.response?.data?.detail || e?.message || '儲存失敗，請重試')

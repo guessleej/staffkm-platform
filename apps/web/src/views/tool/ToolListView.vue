@@ -325,6 +325,8 @@ async function onCreate() {
   draft.name = ''; draft.description = ''; draft.kind = 'http'; draft.application_id = ''
   showCreate.value = false
   await load()
+  // v5.12: 新工具落在 root，若正在看某資料夾會被 items 篩掉「看似建了就消失」→ 切回全部
+  activeFolderId.value = null
 }
 async function onDelete(id: string) {
   if (!(await dialog.confirm('確定要刪除此工具？此動作無法復原。', { tone: 'danger', confirmLabel: '刪除' }))) return
