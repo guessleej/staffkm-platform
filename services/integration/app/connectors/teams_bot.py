@@ -1,4 +1,5 @@
 """Microsoft Teams Bot 整合連接器"""
+import asyncio
 from urllib.parse import urlparse
 
 import httpx
@@ -10,6 +11,50 @@ from app.config import settings
 
 log = structlog.get_logger()
 router = APIRouter()
+
+# v5.12：Bot Connector 簽發入站 Activity 的 JWT 簽章/簽發者。
+# 驗證 issuer + audience(=Bot App ID) + RS256 簽章，擋未認證者直接 POST 驅動 agent。
+# 注意：PyJWT 採 lazy import（函式內）→ 萬一容器尚未 rebuild 裝 pyjwt，也只讓 Teams 驗證
+# fail-closed（回 401），不會在模組載入時炸掉整個 integration service（含 LINE）。
+_BOTFRAMEWORK_ISSUER = "https://api.botframework.com"
+_BOTFRAMEWORK_JWKS = "https://login.botframework.com/v1/.well-known/keys"
+_jwks_client = None  # type: ignore[var-annotated]
+
+
+def _get_jwks_client():
+    global _jwks_client
+    if _jwks_client is None:
+        from jwt import PyJWKClient  # lazy
+        # PyJWKClient 內建 key 快取（lifespan）→ 不會每次請求都抓 JWKS。
+        _jwks_client = PyJWKClient(_BOTFRAMEWORK_JWKS)
+    return _jwks_client
+
+
+async def _verify_inbound_jwt(auth_header: str) -> bool:
+    """驗證 Teams/Bot Connector 入站 JWT。JWKS 抓取 + 簽章驗證為同步（urllib）→
+    丟 threadpool 避免阻塞 event loop。驗不過 / pyjwt 未裝皆回 False（fail-closed）。"""
+    if not auth_header or not auth_header.lower().startswith("bearer "):
+        return False
+    token = auth_header[7:].strip()
+
+    def _decode():
+        import jwt  # lazy
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=settings.TEAMS_APP_ID,
+            issuer=_BOTFRAMEWORK_ISSUER,
+            options={"require": ["exp", "iss", "aud"]},
+        )
+
+    try:
+        await asyncio.get_event_loop().run_in_executor(None, _decode)
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.warning("teams_inbound_jwt_invalid", error=str(e)[:120])
+        return False
 
 
 def _is_trusted_service_url(url: str) -> bool:
@@ -86,6 +131,10 @@ async def teams_webhook(request: Request):
     # v5.12：未設定連接器一律拒（不可把未設定當開放）。
     if not settings.TEAMS_APP_ID or not settings.TEAMS_APP_PASSWORD:
         raise HTTPException(status_code=503, detail="Teams 連接器未設定")
+    # v5.12：驗證 Bot Connector 入站 JWT — 否則未認證者可直接 POST 驅動 agent
+    # （消耗 LLM 配額 / prompt injection / 對 botframework 任意 conversation 發訊息）。
+    if not await _verify_inbound_jwt(request.headers.get("authorization", "")):
+        raise HTTPException(status_code=401, detail="入站 JWT 驗證失敗")
     body = await request.json()
     activity_type = body.get("type", "")
     if activity_type != "message":
