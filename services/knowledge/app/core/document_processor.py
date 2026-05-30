@@ -185,7 +185,8 @@ class DocumentProcessor:
         except ImportError:
             return ""
         try:
-            images = convert_from_bytes(data, dpi=200)
+            # v5.12: 200→300 DPI（OCR 標準）；掃描 PDF 轉圖解析度是 OCR 準度最大單一變因
+            images = convert_from_bytes(data, dpi=300)
         except Exception:
             return ""
         pages = []
@@ -205,11 +206,39 @@ class DocumentProcessor:
             raise ValueError("圖片 OCR 未辨識到任何文字（可能是純圖像 / 字太小 / 太模糊）。")
         return text
 
+    # ── OCR 前處理（引擎感知）────────────────────────────────────────
+    def _preprocess_for_ocr(self, img_bytes: bytes, engine: str) -> bytes:
+        """v5.12: OCR 前處理提升準度。失敗回原圖（不阻斷）。
+        - 共同：解析度太低 → LANCZOS 升採樣（OCR 對小字最敏感）。
+        - tesseract（古典 OCR）：轉灰階 + autocontrast（受惠；不做激進二值化以免過頭）。
+        - vision/glm-ocr（vision-LLM）：保留彩色自然影像（二值化反而傷它），只做輕度對比。
+        """
+        try:
+            from PIL import Image, ImageOps
+            import io as _io
+            img = Image.open(_io.BytesIO(img_bytes))
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            if img.width < 1600:   # 升採樣（300DPI A4 約 2480px，掃描件常更小）
+                scale = 1600 / img.width
+                img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+            if engine == "tesseract":
+                img = ImageOps.autocontrast(ImageOps.grayscale(img), cutoff=1)
+            else:                  # vision：保留彩色，僅輕度對比
+                img = ImageOps.autocontrast(img, cutoff=1)
+            out = _io.BytesIO()
+            img.save(out, format="PNG")
+            return out.getvalue()
+        except Exception as e:  # noqa: BLE001
+            log.warning("ocr_preprocess_failed", error=str(e)[:120])
+            return img_bytes
+
     # ── OCR 引擎分派 ────────────────────────────────────────────────
     def _ocr_image_bytes(self, img_bytes: bytes) -> str:
         """依 settings.OCR_ENGINE 選引擎；vision 失敗可 fallback tesseract。"""
         from app.config import settings
         engine = (self._ocr_engine_override or settings.OCR_ENGINE or "tesseract").lower()
+        img_bytes = self._preprocess_for_ocr(img_bytes, engine)   # v5.12: 前處理
         if engine == "vision":
             try:
                 txt = self._ocr_vision(img_bytes)
@@ -261,7 +290,8 @@ class DocumentProcessor:
                 "content": [
                     {"type": "text", "text":
                         "你是 OCR 引擎。請逐字提取這張圖片中的所有文字，"
-                        "原樣輸出（保留換行 / 表格結構），不要加任何說明、標題或評論。"
+                        "原樣輸出（保留換行 / 表格結構 / 完整保留所有標點符號），"
+                        "不要漏字、不要翻譯、不要加任何說明、標題或評論。"
                         "若圖片沒有文字就回空字串。"},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
                 ],
