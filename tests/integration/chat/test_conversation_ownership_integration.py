@@ -188,3 +188,22 @@ async def test_stream_own_ok(db_session, monkeypatch):
     assert "text/event-stream" in r.headers.get("content-type", "")
     assert "你好" in r.text                       # 擁有者拿得到 AI 回應 token
     assert await _message_count(db_session, a) == 2   # user + assistant 都落地
+
+
+# ── 匯出：匯不到別人的（v5.12 補 export IDOR 漏網；read-side 與 get_messages 同類）──────
+async def test_export_others_forbidden(db_session):
+    b = await _seed_conv(db_session, "user-b", with_message=True)
+    app = _make_app()
+    async with _client(app, "user-a") as c:
+        r = await c.get(f"{_PREFIX}/{b}/export")
+    assert r.status_code == 403            # A 匯不到 B 的對話內容
+    assert "secret of user-b" not in r.text  # 內容沒外洩
+
+
+async def test_export_own_ok(db_session):
+    a = await _seed_conv(db_session, "user-a", title="A 的對話", with_message=True)
+    app = _make_app()
+    async with _client(app, "user-a") as c:
+        r = await c.get(f"{_PREFIX}/{a}/export?format=markdown")
+    assert r.status_code == 200            # 自己的匯得出來
+    assert "secret of user-a" in r.text

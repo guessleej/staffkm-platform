@@ -113,3 +113,29 @@ async def test_sse_accept_not_cached(db_session):
         r = await c.post("/api/v1/things", headers=h)
     assert r.json() == {"n": 2}
     assert state["things"] == 2
+
+
+# ── 並發同 key → advisory lock 原子保留：handler 只跑一次（v5.12 P0）──────────
+async def test_concurrent_same_key_runs_handler_once(db_session):
+    """證明上輪 advisory lock 修復：兩個並發同 Idempotency-Key 請求，handler 只執行一次。
+    原本 lookup→run 無保留 → 兩個都 miss、都跑 handler（對非冪等寫入＝重複副作用）。"""
+    import asyncio
+
+    state = {"n": 0}
+
+    async def slow(request):
+        state["n"] += 1
+        await asyncio.sleep(0.3)  # 撐開臨界區，讓兩個並發請求真正重疊
+        return JSONResponse({"n": state["n"]})
+
+    app = Starlette(routes=[Route("/api/v1/pay", slow, methods=["POST"])])
+    app.add_middleware(IdempotencyMiddleware)
+
+    async with _client(app) as c:
+        r1, r2 = await asyncio.gather(
+            c.post("/api/v1/pay", headers={"Idempotency-Key": "same"}),
+            c.post("/api/v1/pay", headers={"Idempotency-Key": "same"}),
+        )
+    assert state["n"] == 1                         # advisory lock 序列化 → handler 只跑一次
+    assert r1.json() == r2.json() == {"n": 1}      # 兩個回應一致
+    assert await _count_keys(db_session) == 1

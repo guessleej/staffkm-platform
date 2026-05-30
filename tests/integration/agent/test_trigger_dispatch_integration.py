@@ -95,3 +95,32 @@ async def test_concurrent_claim_no_double_process(db_session):
     assert len(got) == 1                          # 只有一個副本拿到（SKIP LOCKED 去重）
     assert str(got[0]["run_id"]) == run_id
     assert await _status(db_session, run_id) == "running"
+
+
+# ── reaper：crash 殘留的殭屍 run 回收（v5.12）─────────────────────────────────
+async def test_reaper_recovers_stale_running(db_session):
+    """fired >15min 前仍 running → 視為前一個 process crash/腰斬的殭屍 → 回收 queued。"""
+    from app.core.trigger_dispatcher import reap_stale_runs
+    ws = _ws()
+    run_id = await _enqueue(db_session, ws, status="running", fired_offset_sec=-1200)  # 20min 前
+    n = await reap_stale_runs(_db._session_factory)
+    assert n >= 1
+    assert await _status(db_session, run_id) == "queued"      # 被回收重排
+
+
+async def test_reaper_leaves_fresh_running(db_session):
+    """剛 fired、仍 running → 進行中，多副本下不可誤回收（用 fired_at 判 stale 的關鍵不變式）。"""
+    from app.core.trigger_dispatcher import reap_stale_runs
+    ws = _ws()
+    run_id = await _enqueue(db_session, ws, status="running", fired_offset_sec=-60)  # 1min 前
+    await reap_stale_runs(_db._session_factory)
+    assert await _status(db_session, run_id) == "running"     # 不動
+
+
+async def test_reaper_ignores_non_running(db_session):
+    """非 running 的舊 run（paused 為合法非終態）不可被回收。"""
+    from app.core.trigger_dispatcher import reap_stale_runs
+    ws = _ws()
+    paused = await _enqueue(db_session, ws, status="paused", fired_offset_sec=-1200)
+    await reap_stale_runs(_db._session_factory)
+    assert await _status(db_session, paused) == "paused"      # 不動
