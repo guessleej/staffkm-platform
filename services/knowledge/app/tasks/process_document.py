@@ -258,3 +258,66 @@ async def _async_regen(paragraph_ids: list[str]) -> dict:
             return {"status": "success", "regenerated": done}
     finally:
         await engine.dispose()
+
+
+# ── v5.12: 卡住文件處理任務的回收 reaper ─────────────────────────────────────
+#   情境：批次上傳一堆檔 → 期間 worker 重啟（部署/crash/OOM）或 redis 中斷 → 佇列裡的
+#   process_document 任務遺失（celery redis broker 不保證重投遞）→ 文件永遠卡 pending、
+#   客戶以為傳了卻搜不到。失敗的會標 error，但「任務遺失」的停在 pending 沒人管。
+#   解法：worker 啟動 + beat 每 5 分鐘掃「卡 pending/processing 過久」的文件 → 重新 enqueue。
+_STALE_MINUTES = 15      # status 卡 pending/processing 超過此分鐘數未更新 → 視為任務遺失
+_MAX_REAP = 3            # 重排上限；達上限仍卡 → 標 error 放棄（避免無限重排）
+
+
+@celery_app.task(name="app.tasks.process_document.reap_stuck_documents")
+def reap_stuck_documents() -> dict:
+    """掃出卡住的文件並重新 enqueue 處理（見上方說明）。"""
+    return asyncio.run(_reap_stuck())
+
+
+async def _reap_stuck() -> dict:
+    engine = create_async_engine(settings.DB_URL, pool_size=1, max_overflow=0)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    requeue: list[tuple[str, str, str]] = []
+    gave_up = 0
+    try:
+        async with session_factory() as session:
+            rows = await session.execute(text_sql("""
+                SELECT id, storage_path, name, COALESCE((meta->>'reap_count')::int, 0) AS rc
+                FROM documents
+                WHERE status IN ('pending', 'processing')
+                  AND storage_path IS NOT NULL
+                  AND updated_at < now() - make_interval(mins => :mins)
+            """), {"mins": _STALE_MINUTES})
+            for r in rows.fetchall():
+                if r.rc >= _MAX_REAP:
+                    # 重排多次仍卡 → 放棄、標 error（不再無限重排）
+                    await session.execute(text_sql("""
+                        UPDATE documents SET status = 'error',
+                            meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{progress_message}',
+                                   '"處理任務多次遺失、已放棄，請重新上傳"'::jsonb)
+                        WHERE id = :id
+                    """), {"id": str(r.id)})
+                    gave_up += 1
+                    continue
+                # reap_count++ 並 bump updated_at（避免下一輪 beat 在任務跑起來前又重複回收）
+                await session.execute(text_sql("""
+                    UPDATE documents SET status = 'pending', updated_at = now(),
+                        meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{reap_count}',
+                               to_jsonb(COALESCE((meta->>'reap_count')::int, 0) + 1))
+                    WHERE id = :id
+                """), {"id": str(r.id)})
+                requeue.append((str(r.id), r.storage_path, r.name))
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+    # commit 後再送任務（避免任務先跑完、reap_count/updated_at 還沒落地造成重複回收）
+    for doc_id, key, name in requeue:
+        celery_app.send_task(
+            "app.tasks.process_document.process_document",
+            args=[doc_id, key, name], queue="knowledge",
+        )
+    if requeue or gave_up:
+        log.warning("documents_reaped", requeued=len(requeue), gave_up=gave_up)
+    return {"requeued": len(requeue), "gave_up": gave_up}

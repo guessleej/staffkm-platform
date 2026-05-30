@@ -443,7 +443,9 @@ services:
     image: staffkm/knowledge:${TAG:-latest}
     container_name: staffkm-knowledge-worker
     restart: unless-stopped
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 -Q knowledge
+    # v5.12: --beat 嵌入式排程器（單一 knowledge-worker）→ 每 5 分鐘跑卡住文件回收 reaper。
+    #   ⚠ 若日後把 knowledge-worker 擴成多副本，beat 要拆成獨立服務（避免多個 beat 重複排程）。
+    command: celery -A app.tasks.celery_app worker --beat --schedule /tmp/celerybeat-schedule --loglevel=info --concurrency=2 -Q knowledge
     environment:
       PORT: 8001
       <<: [*db-env, *secrets-env]
