@@ -1,4 +1,5 @@
 """對話管理 API — 建立/查詢/刪除 Session 及訊息記錄"""
+import asyncio
 import json
 import secrets
 import uuid
@@ -8,14 +9,18 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as FastAPIResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import settings
 from app.models.conversation import Conversation, Message
 from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
+from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import get_session
+
+# v5.12: 串流生成的背景 task 強引用集合 — 即使 client 斷線，生成+存檔仍跑完（不被 GC、不被取消）
+_stream_bg_tasks: set[asyncio.Task] = set()
 
 router = APIRouter()
 public_router = APIRouter()
@@ -181,49 +186,35 @@ async def stream_message(
     # v5.10.14：對話可綁 application（應用）或 scenario（代理人）→ 路由不同上游端點
     is_app = conv.application_id is not None
 
-    async def event_generator():
+    # v5.12: 生成的 upstream URL/body 先算好（純值），供背景 task 閉包捕捉（不可在 task 內碰
+    #   request-scoped 的 conv ORM 物件 — 斷線後 session 會關、conv 變 detached）。
+    upstream_kb_ids = body.kb_ids_override if body.kb_ids_override is not None else conv.kb_ids
+    ws_prefix = f"/workspace/{ws_id}" if ws_id else ""
+    if is_app:
+        upstream_body = {"session_id": str(conv_id), "messages": messages, "kb_ids": upstream_kb_ids or []}
+        upstream_url = f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}/applications/{conv.application_id}/chat"
+    else:
+        upstream_body = {"scenario_id": conv.scenario_id, "session_id": str(conv_id),
+                         "messages": messages, "kb_ids": upstream_kb_ids}
+        upstream_url = f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}/agents/{conv.scenario_id}/chat"
+    if body.model_override:
+        upstream_body["model_override"] = body.model_override
+
+    # v5.12: 生成+存檔放獨立背景 task（不綁 client 連線）。client 切走/斷線時，relay 被取消，
+    #   但這個 task 繼續把答案生成完、用「自己的 session」存完整答案 → 切回來 reload 看到完整回答
+    #   （原本：is_disconnected → break → 只存半截、上游 LLM 被中斷）。
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _consume_and_persist():
         full_response = ""
-        citations = []
+        citations: list = []
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                upstream_kb_ids = body.kb_ids_override if body.kb_ids_override is not None else conv.kb_ids
-                ws_prefix = f"/workspace/{ws_id}" if ws_id else ""
-                if is_app:
-                    upstream_body = {
-                        "session_id": str(conv_id),
-                        "messages": messages,
-                        "kb_ids": upstream_kb_ids or [],
-                    }
-                    upstream_url = (
-                        f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}"
-                        f"/applications/{conv.application_id}/chat"
-                    )
-                else:
-                    upstream_body = {
-                        "scenario_id": conv.scenario_id,
-                        "session_id": str(conv_id),
-                        "messages": messages,
-                        "kb_ids": upstream_kb_ids,
-                    }
-                    upstream_url = (
-                        f"{settings.AGENT_SERVICE_URL}/api/v1{ws_prefix}"
-                        f"/agents/{conv.scenario_id}/chat"
-                    )
-                if body.model_override:
-                    upstream_body["model_override"] = body.model_override
-
                 # 事件感知中繼：累積一個 event 的 data: 行，遇空行才用 \n 重組分派。
-                # （修 v5.10.13 同類雷：原本 .strip()+跳空 data → token 內換行全遺失、答案擠成一坨）
                 ev_type = ""
                 data_lines: list[str] = []
-                async with client.stream(
-                    "POST", upstream_url,
-                    json=upstream_body,
-                    headers=upstream_headers,
-                ) as upstream:
+                async with client.stream("POST", upstream_url, json=upstream_body, headers=upstream_headers) as upstream:
                     async for raw in upstream.aiter_lines():
-                        if await request.is_disconnected():
-                            break
                         line = raw.rstrip("\r")
                         if line != "":
                             if line.startswith("event:"):
@@ -232,7 +223,6 @@ async def stream_message(
                                 s = line[5:]
                                 data_lines.append(s[1:] if s.startswith(" ") else s)
                             continue
-                        # 空行 = event 邊界 → flush
                         if not data_lines and not ev_type:
                             continue
                         data = "\n".join(data_lines)
@@ -240,16 +230,15 @@ async def stream_message(
                         ev_type = ""
                         data_lines = []
                         if etype == "tool_call":
-                            yield {"event": "tool_call", "data": data}      # 工具呼叫過程透傳
+                            await queue.put({"event": "tool_call", "data": data})
                         elif etype == "citations":
                             try: citations = json.loads(data)
                             except json.JSONDecodeError: pass
                         elif etype == "error":
-                            yield {"event": "error", "data": data}
+                            await queue.put({"event": "error", "data": data})
                         elif etype == "done" or data == "[DONE]":
                             pass
                         else:
-                            # token（或 agents 端無 event: 標記）：內容是 list → 視為 citations（相容）
                             try:
                                 parsed = json.loads(data)
                                 if isinstance(parsed, list):
@@ -258,23 +247,37 @@ async def stream_message(
                             except json.JSONDecodeError:
                                 pass
                             full_response += data
-                            yield {"event": "token", "data": data}
+                            await queue.put({"event": "token", "data": data})
 
-            # 儲存 AI 回應
-            async with session.begin():
-                ai_msg = Message(
-                    conversation_id=conv.id, role="assistant",
-                    content=full_response, citations=citations,
-                )
-                session.add(ai_msg)
-                conv.message_count = (conv.message_count or 0) + 2
+            # 用自己的 session 存（request session 在 client 斷線後可能已關閉）
+            if full_response and _db._session_factory is not None:
+                async with _db._session_factory() as s:
+                    async with s.begin():
+                        s.add(Message(conversation_id=conv_id, role="assistant",
+                                      content=full_response, citations=citations))
+                        await s.execute(text(
+                            "UPDATE conversations SET message_count = COALESCE(message_count, 0) + 2 "
+                            "WHERE id = :id"), {"id": str(conv_id)})
 
-            yield {"event": "citations", "data": json.dumps(citations, ensure_ascii=False)}
-            yield {"event": "done", "data": "[DONE]"}
-
+            await queue.put({"event": "citations", "data": json.dumps(citations, ensure_ascii=False)})
+            await queue.put({"event": "done", "data": "[DONE]"})
         except Exception as e:
             log.error("stream_failed", conv_id=str(conv_id), error=str(e))
-            yield {"event": "error", "data": str(e)}
+            await queue.put({"event": "error", "data": str(e)})
+        finally:
+            await queue.put(None)  # sentinel：通知 relay 結束
+
+    task = asyncio.create_task(_consume_and_persist())
+    _stream_bg_tasks.add(task)                      # 強引用，避免被 GC
+    task.add_done_callback(_stream_bg_tasks.discard)
+
+    async def event_generator():
+        # 純 relay：client 斷線時這裡被 sse-starlette 取消，但上面的 task 不取消、繼續存檔
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
 
     return EventSourceResponse(event_generator())
 
