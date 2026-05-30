@@ -18,8 +18,8 @@
     <div class="bg-warning-50 border-b border-warning-200 px-6 py-3 flex-shrink-0 flex items-start gap-2">
       <SIcon name="alert-triangle" :size="14" class="text-warning-700 mt-0.5" />
       <div class="text-xs text-warning-700">
-        <p class="font-medium">部分設定目前為 advisory</p>
-        <p>嵌入模型 / RRF 權重等實際運行值仍由 env / per-call body 決定，這裡的變更會在 v5.x 版本正式接到 runtime。修改 embedding 設定後，既有文件需 reindex 才會生效。</p>
+        <p class="font-medium">⚠ 此頁設定為「顯示 / advisory」，修改不會即時改變 runtime 行為</p>
+        <p>Embedding / Reranker / RRF 權重 / 上傳 / 安全策略的實際運行值由 <code class="font-mono">.env</code> 或 per-call body 決定。請改用：<b>模型</b> → <a href="/admin/models" class="underline">模型管理</a>（即時生效）；<b>嵌入模型</b> → 知識庫「重新索引」流程；<b>其餘</b> → 部署 <code class="font-mono">.env.production</code> 後重啟服務。</p>
       </div>
     </div>
 
@@ -32,7 +32,10 @@
 
       <template v-else>
         <section v-for="g in groups" :key="g.prefix">
-          <h2 class="text-xs uppercase tracking-wider text-fg-tertiary font-semibold mb-3">{{ g.label }}</h2>
+          <h2 class="text-xs uppercase tracking-wider text-fg-tertiary font-semibold mb-3 flex items-center gap-2">
+            {{ g.label }}
+            <span class="normal-case tracking-normal text-[10px] text-warning-700 bg-warning-50 border border-warning-200 px-1.5 py-0.5 rounded">advisory</span>
+          </h2>
           <div class="grid gap-3 md:grid-cols-2">
             <div
               v-for="s in g.items" :key="s.key"

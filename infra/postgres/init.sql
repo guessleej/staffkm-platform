@@ -813,7 +813,7 @@ CREATE TABLE public.long_term_memories (
     content text NOT NULL,
     memory_type character varying(32) DEFAULT 'summary'::character varying NOT NULL,
     importance integer DEFAULT 5 NOT NULL,
-    embedding public.vector(1536),
+    embedding public.vector(1024),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     workspace_id uuid,

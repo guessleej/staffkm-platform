@@ -114,15 +114,16 @@ if [ $elapsed -ge 90 ]; then
   exit 2
 fi
 
-# 5) Smoke check — / 與 /login 必須 200
+# 5) Smoke check — / 與 /login 應回 200 或 3xx
+#    v5.12: prod 走 Caddy auto-TLS，http://localhost 會 308 跳轉 https → 接受 2xx/3xx 皆視為存活，
+#           避免 prod 部署正常卻誤報失敗（原本硬要 200）。
 sleep 1
 for path in / /login; do
   code=$(curl -sw "%{http_code}" -o /dev/null "http://localhost${path}")
-  if [ "$code" != "200" ]; then
-    echo "✗ smoke check failed：GET $path → $code"
-    exit 3
-  fi
-  echo "  ✓ GET $path → 200"
+  case "$code" in
+    200|301|302|307|308) echo "  ✓ GET $path → $code" ;;
+    *) echo "✗ smoke check failed：GET $path → $code"; exit 3 ;;
+  esac
 done
 
 echo "✅ Redeploy 完成"

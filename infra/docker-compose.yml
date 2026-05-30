@@ -88,7 +88,7 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_replica_data:/var/lib/postgresql/data
-      - ./postgres/replica-init.sh:/docker-entrypoint-initdb.d/replica-init.sh:ro
+      - ./infra/postgres/replica-init.sh:/docker-entrypoint-initdb.d/replica-init.sh:ro
     networks: [backend]
     depends_on:
       postgres:

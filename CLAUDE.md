@@ -46,8 +46,9 @@ Monorepo（apps/* + services/* + packages/*），Vue 3 + FastAPI + PostgreSQL + 
 
 ### 7. routing 三層必通
 任何新後端 endpoint 上線前 checklist：
-1. **agent / knowledge service** main.py 有 `include_router(...prefix=f"{_PREFIX}/...")`
-2. **agent legacy_bridge.py** `_LEGACY_PREFIXES` 加 `/api/v1/{your-prefix}`（沒加 → URL 不會 rewrite 成 workspace 版）
+1. **agent / knowledge service** main.py 有 `include_router(...prefix=f"{_PREFIX}/...")`（workspace-scoped prefix）
+2. **gateway `routers/{agent,knowledge,chat}.py` 的 `_target_url()`** 注入 `X-Workspace-ID` header → rewrite 成 workspace 版 URL（沒注入 → 後端只接 workspace-scoped、退回 legacy 會 404）。
+   ⚠ v4.0 P2 起 **LegacyURLBridge / `legacy_bridge.py` / `_LEGACY_PREFIXES` 已移除**（舊文件別再找這個檔）。
 3. **gateway main.py + _generic_proxy.py** 加對應 proxy（沒加 → 404）
 
 **verify**：curl `POST /api/v1/your/endpoint` with auth header；確保拿 200，不要只看 frontend empty state。

@@ -61,17 +61,7 @@
 
         <!-- 右側控制 -->
         <div class="flex items-center gap-1">
-          <!-- Locale switcher -->
-          <select
-            :value="$i18n.locale"
-            @change="onLocaleChange(($event.target as HTMLSelectElement).value)"
-            class="h-8 px-2 text-xs rounded-md border border-neutral-200 bg-transparent text-neutral-600 hover:bg-neutral-100 transition focus:outline-none focus:ring-1 focus:ring-brand-400"
-          >
-            <option v-for="l in SUPPORTED_LOCALES" :key="l.code" :value="l.code">
-              {{ l.label }}
-            </option>
-          </select>
-
+          <!-- v5.12: 移除語言切換器 — 產品定位純繁中（zh-TW），i18n 框架保留供日後啟用 -->
           <button
             @click="ui.toggleTheme()"
             class="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition"
@@ -143,7 +133,6 @@ const ArtifactPane = defineAsyncComponent(
   () => import('../../components/chat/ArtifactPane.vue')
 )
 import ProjectPicker from '../../components/project/ProjectPicker.vue'
-import { SUPPORTED_LOCALES, setLocale, type Locale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 import { formatUserName } from '../../utils/userName'
 import { useUIStore } from '../../stores/ui'
@@ -245,10 +234,6 @@ async function onLogout() {
   userMenuOpen.value = false
   auth.logout()
   router.push('/login')
-}
-
-function onLocaleChange(code: string) {
-  setLocale(code as Locale)
 }
 
 onMounted(async () => {
