@@ -152,6 +152,21 @@
           <!-- v5.10.15：思考中指示已移到 assistant 訊息本身（streaming && !content），
                提交後到首 token 前閃爍、無法回答則停止 → 此處舊 placeholder 已不需要 -->
 
+          <!-- v5.12：切走後再切回、但伺服器仍在生成上一則回答（背景 task 尚未存好）→ 輪詢中指示。
+               答案存好後自動補上（_maybePollForReply）。 -->
+          <div
+            v-if="pendingReply"
+            class="flex items-center gap-2 py-1 text-neutral-400"
+            aria-label="回應生成中"
+          >
+            <span class="inline-flex gap-1 items-center">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse [animation-delay:200ms]"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse [animation-delay:400ms]"></span>
+            </span>
+            <span class="text-xs animate-pulse">回應生成中…（完成後自動顯示）</span>
+          </div>
+
         </div>
       </div>
 
@@ -171,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import ChatInput from '../../components/chat/ChatInput.vue'
@@ -283,7 +298,39 @@ async function loadAgents() {
   } catch { /* 非關鍵 */ }
 }
 
+// v5.12：切走後再切回、但伺服器仍在生成上一則回答（後端背景 task 尚未存好）→ 輪詢補上。
+//   後端已把生成+存檔與 client 連線解耦：答案最終會存進 DB；前端輪詢直到它出現。
+const pendingReply = ref(false)
+let _pollHandle: ReturnType<typeof setTimeout> | null = null
+
+function stopReplyPoll() {
+  if (_pollHandle) { clearTimeout(_pollHandle); _pollHandle = null }
+  pendingReply.value = false
+}
+
+// 最後一則是「提問、後面沒有 assistant 回覆」→ 伺服器可能還在生成
+function _lastIsUnansweredUser(): boolean {
+  const msgs = convStore.messages
+  return msgs.length > 0 && msgs[msgs.length - 1].role === 'user'
+}
+
+async function maybePollForReply(id: string) {
+  stopReplyPoll()
+  if (!_lastIsUnansweredUser()) return
+  pendingReply.value = true
+  const startedAt = Date.now()
+  const tick = async () => {
+    if (route.query.conv !== id) { stopReplyPoll(); return }   // 對話已切換
+    if (Date.now() - startedAt > 90_000) { stopReplyPoll(); return }  // 逾時保險，不無限輪詢
+    await convStore.fetchMessages(id)
+    if (!_lastIsUnansweredUser()) { pendingReply.value = false; nextTick(scrollToBottom); return }  // 答案出現
+    _pollHandle = setTimeout(tick, 2500)
+  }
+  _pollHandle = setTimeout(tick, 2500)
+}
+
 async function selectFromRoute() {
+  stopReplyPoll()
   const id = route.query.conv as string
   if (!id) { convStore.currentConversation = null; convStore.messages = []; return }
   // v5.12.x：返回到「正在串流中的同一對話」（例：聊天中點去設定看模型再點回來）→ **不** wipe+refetch。
@@ -301,11 +348,14 @@ async function selectFromRoute() {
     convStore.selectConversation(conv)
     await convStore.fetchMessages(id)
     nextTick(scrollToBottom)
+    await maybePollForReply(id)   // 若回答還沒存好（後端仍在生成）→ 輪詢補上
   } else {
     convStore.currentConversation = null
     convStore.messages = []
   }
 }
+
+onUnmounted(stopReplyPoll)
 
 async function startWithScenario(scenarioId: string) {
   // Sprint 19.x：active Project → 自動把 project 的 KB list 帶進新對話 RAG scope
@@ -330,6 +380,7 @@ async function startWithApplication(appId: string, appName?: string) {
 async function onSubmit() {
   const text = draft.value.trim()
   if (!text || sending.value) return
+  stopReplyPoll()   // 送新訊息 → 停掉等舊回答的輪詢，避免 fetchMessages 洗掉本地串流
   // 若無 active conv，先用預設 scenario 開一個
   if (!activeConv.value) {
     const first = agents.value[0]?.scenario_id
