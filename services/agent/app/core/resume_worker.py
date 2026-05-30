@@ -108,7 +108,18 @@ async def _resume_or_reject(session_factory, rec: dict) -> None:
                 if name == "error":
                     final_status = "error"
         except WorkflowPaused as e:
-            # 又 hit 另一個 human_approval node（多階核 — v3.5 簡化視為仍 paused）
+            # v5.12: 多階核准 — resume 後又撞到下一個 human_approval。必須 (1) 把「這次消費掉的
+            #   approved approval」標記為 resumed，避免 _find_resumable 下次又選同一筆、從舊節點重跑；
+            #   (2) 把 run.resume_node 前移到新 pause 節點。run 保持 paused、resumed_at 仍 NULL
+            #   （等 executor 新建的 pending approval 被核可）。否則無窮重跑 + 重複執行兩核准間計費節點。
+            async with session_factory() as session:
+                await session.execute(text("""
+                    UPDATE workflow_approvals SET status='resumed' WHERE id=:aid
+                """), {"aid": str(rec["approval_id"])})
+                await session.execute(text("""
+                    UPDATE event_trigger_runs SET resume_node=:rn WHERE id=:id
+                """), {"rn": e.node_key, "id": run_id})
+                await session.commit()
             log.info("resume_hit_another_pause", run=run_id, node=e.node_key)
             return
 

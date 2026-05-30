@@ -202,7 +202,20 @@ async def check_quota(
 
     v3.3 D1：先檢 workspace 層、再檢 user 層；任一層超額就 raise，
     error message 標記哪一層（workspace / user）以利 UI 區分。
+    v5.12：最前面加 trial 凍結 enforce — trial_expiry_worker 標 is_frozen 後一律擋計費操作。
     """
+    # ── 0. trial 凍結（v5.12）─────────────────────────────────
+    # trial 到期被 trial_expiry_worker 標 is_frozen=TRUE，原本「標了沒人 enforce」→ 到期仍免費用。
+    # 在所有計費路徑共同入口（check_quota）擋下：LLM / 媒體 / 檢索消耗一律拒。
+    fr = await session.execute(
+        text("SELECT is_frozen FROM workspace WHERE id = :ws"), {"ws": workspace_id}
+    )
+    frow = fr.fetchone()
+    if frow is not None and frow.is_frozen:
+        raise QuotaExceeded(
+            f"[frozen] workspace {workspace_id} 已凍結（trial 到期），請升級方案後繼續使用"
+        )
+
     # ── 1. workspace cap ─────────────────────────────────────
     q = await get_quota(session, workspace_id)
     if q["monthly_token_cap"] is not None or q["monthly_cost_cap_usd"] is not None:

@@ -27,9 +27,19 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     # 查無價格的 model 預設 0 元由 meter 端處理。
     # v5.7 — 僅保留 Moonshot；其餘中國雲已移除
     # Moonshot (CNY 官價以 7.2 換算)
+    # ⚠ v5.12：kimi-k2.* 與 vision/auto 原本在 PROVIDER_DEFAULT_MODELS 被 seed 成可選模型，
+    #   但 MODEL_PRICING 無對應價 → calc_cost 回 0 元（旗艦模型免費計費、漏收）。補齊如下。
+    #   k2 價依 Moonshot 國際版官價估（input ~$0.6/M、output ~$2.5/M）；上線前請依實際合約校正。
+    "kimi-k2.6":           (0.0006, 0.0025),
+    "kimi-k2.5":           (0.0006, 0.0025),
     "moonshot-v1-8k":      (0.00167, 0.00167),
     "moonshot-v1-32k":     (0.00333, 0.00333),
     "moonshot-v1-128k":    (0.00833, 0.00833),
+    "moonshot-v1-auto":    (0.00333, 0.00333),
+    # Moonshot vision 模型吃圖+文、按 token 計（與同尺寸 v1 同價）
+    "moonshot-v1-8k-vision-preview":   (0.00167, 0.00167),
+    "moonshot-v1-32k-vision-preview":  (0.00333, 0.00333),
+    "moonshot-v1-128k-vision-preview": (0.00833, 0.00833),
     # Groq
     "llama-3.1-70b-versatile": (0.00059, 0.00079),
     "llama-3.1-8b-instant":    (0.00005, 0.00008),

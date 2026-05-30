@@ -111,6 +111,21 @@ async def add_credits(session: AsyncSession, workspace_id: str, delta_usd: float
     """), {"ws": workspace_id})
     row = r.fetchone()
     current = float(row.credits_balance) if row else 0.0
+
+    # v5.12: reference 去重 — Stripe webhook 是 at-least-once，重送同一 topup（或我方回 500 後
+    # Stripe 重試）不可重複加值。FOR UPDATE 鎖 billing_accounts（同 ws 序列化），在鎖內查 ledger；
+    # 同 reference 必同 ws → 第二筆並發會等前者 commit 後查到、直接跳過。reference 為 None
+    # （手動調整 / 消費扣款）不去重。另有 backstop partial unique index（init.sql）防 row 不存在的競態。
+    if reference:
+        dup = await session.execute(text("""
+            SELECT balance_after FROM credit_ledger WHERE reference = :ref LIMIT 1
+        """), {"ref": reference})
+        drow = dup.fetchone()
+        if drow is not None:
+            await session.commit()  # 釋放 FOR UPDATE 鎖
+            log.info("add_credits_duplicate_skipped", ws=workspace_id, reference=reference)
+            return float(drow.balance_after)
+
     new_balance = current + delta_usd
 
     if row:
@@ -140,10 +155,11 @@ async def report_usage_to_stripe(
     tokens: int,
     cost_usd: float,
 ) -> None:
-    """v4.8 H: 把當期 usage 透過 Stripe Usage Records API 回報。
+    """v4.8 H / v5.12: 把當期 usage 透過 Stripe Usage Records API 回報。
 
-    記錄到 usage_reports 表（unique key 防重送）。
-    真實 Stripe API call 留 TODO（需 subscription_item_id 機制）。
+    記錄到 usage_reports 表（unique key 防重送）。v5.12 補上真實 Stripe API 呼叫
+    （取 subscription 的 item → create_usage_record）。未設 Stripe / 無 subscription 時
+    僅記本地、不致命。⚠ 真實 metered 計費需在有 Stripe key + metered price 的環境端對端驗證。
     """
     # idempotent check
     r = await session.execute(text("""
@@ -154,14 +170,29 @@ async def report_usage_to_stripe(
         log.info("usage_already_reported", ws=workspace_id, period=str(period_start))
         return
 
-    # call stripe (placeholder — actual API: stripe.SubscriptionItem.create_usage_record)
+    # v5.12: 真實 Stripe usage record — 取 ws 的 subscription_item 後 increment quantity=tokens。
     event_id: str | None = None
     try:
-        _stripe()  # 確認 SDK 可用
-        # TODO: 取 subscription_item_id (從 billing_accounts.stripe_subscription_id 取 subscription
-        # 再列 items[0].id) → stripe.SubscriptionItem.create_usage_record(...)
-        log.info("usage_report_stripe_placeholder",
-                 ws=workspace_id, tokens=tokens, cost=cost_usd)
+        stripe = _stripe()  # 未設 STRIPE_SECRET_KEY 會 raise → except 記錄、僅本地存
+        acct = await session.execute(text("""
+            SELECT stripe_subscription_id FROM billing_accounts WHERE workspace_id = :ws
+        """), {"ws": workspace_id})
+        arow = acct.fetchone()
+        sub_id = getattr(arow, "stripe_subscription_id", None) if arow else None
+        if not sub_id:
+            log.info("usage_report_no_subscription", ws=workspace_id, tokens=tokens)
+        else:
+            sub = stripe.Subscription.retrieve(sub_id)
+            items = (sub.get("items", {}) or {}).get("data", [])
+            if not items:
+                log.warning("usage_report_no_sub_item", ws=workspace_id, sub=sub_id)
+            else:
+                rec = stripe.SubscriptionItem.create_usage_record(
+                    items[0]["id"], quantity=int(tokens), action="increment",
+                )
+                event_id = rec.get("id")
+                log.info("usage_report_stripe_ok",
+                         ws=workspace_id, tokens=tokens, usage_record=event_id)
     except Exception as e:
         log.warning("stripe_usage_report_failed", error=str(e))
 

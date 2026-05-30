@@ -30,6 +30,7 @@ import uuid
 from contextlib import asynccontextmanager
 
 import structlog
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.usage import (
@@ -42,6 +43,29 @@ from app.core.usage import (
 )
 
 log = structlog.get_logger()
+
+
+async def _consume_credits(session: AsyncSession, ws: str, cost: float) -> None:
+    """v5.12：topup / trial plan 的用量從 credits_balance 扣款（原本只增不減 → 儲值客戶永遠免費）。
+    - subscription plan（starter/pro）由訂閱 cover、metered（usage）plan 由 usage_report_worker 報 Stripe → 皆不扣 credits。
+    - balance<0 只 log warning，不做 hard stop（避免中斷在途請求 / demo）；硬性額度應走 check_quota。
+    reference=None → 每筆消費獨立記帳、不去重。
+    """
+    if cost is None or cost <= 0:
+        return
+    try:
+        r = await session.execute(
+            text("SELECT plan FROM billing_accounts WHERE workspace_id = :ws"), {"ws": ws}
+        )
+        row = r.fetchone()
+        if not row or row.plan not in ("topup", "trial"):
+            return
+        from app.core.billing import add_credits
+        new_bal = await add_credits(session, ws, -float(cost), reason="consume_usage", reference=None)
+        if new_bal < 0:
+            log.warning("credits_balance_negative", workspace=ws, balance=new_bal)
+    except Exception as e:  # noqa: BLE001
+        log.warning("consume_credits_failed", workspace=ws, error=str(e))
 
 
 class _Meter:
@@ -118,11 +142,8 @@ async def meter_llm_call(
                 feature=feature,
             ))
             await session.commit()
-            # v4.7 G TODO: 若 billing_accounts.plan in ('topup', 'trial') 且 cost > 0
-            #   → 從 credits_balance 扣 cost（add_credits delta=-cost, reason='consume_usage'）
-            #   subscription plan ('starter'/'pro') 由訂閱 cover，不從 credits 扣
-            #   metered 'usage' plan 由 usage_report_worker 報 Stripe，亦不扣 credits
-            #   balance < 0 只 log warning（不做 hard stop，避免 break demo）
+            # v5.12: topup/trial plan 從 credits_balance 扣用量（見 _consume_credits）
+            await _consume_credits(session, ws, cost)
         except Exception as e:
             log.warning("meter_record_failed", workspace=ws, error=str(e))
 
@@ -199,5 +220,7 @@ async def meter_media_call(
                 feature=feature,
             ))
             await session.commit()
+            # v5.12: 與 LLM 對稱 — topup/trial plan 從 credits 扣 media 用量
+            await _consume_credits(session, ws, cost)
         except Exception as e:
             log.warning("meter_media_record_failed", workspace=ws, error=str(e))
