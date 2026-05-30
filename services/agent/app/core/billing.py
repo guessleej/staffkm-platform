@@ -128,23 +128,40 @@ async def add_credits(session: AsyncSession, workspace_id: str, delta_usd: float
 
     new_balance = current + delta_usd
 
-    if row:
-        await session.execute(text("""
-            UPDATE billing_accounts SET credits_balance = :b, updated_at = now()
-            WHERE workspace_id = :ws
-        """), {"b": new_balance, "ws": workspace_id})
-    else:
-        await session.execute(text("""
-            INSERT INTO billing_accounts (workspace_id, credits_balance, plan, status)
-            VALUES (:ws, :b, 'trial', 'active')
-        """), {"ws": workspace_id, "b": new_balance})
+    from sqlalchemy.exc import IntegrityError
+    try:
+        if row:
+            await session.execute(text("""
+                UPDATE billing_accounts SET credits_balance = :b, updated_at = now()
+                WHERE workspace_id = :ws
+            """), {"b": new_balance, "ws": workspace_id})
+        else:
+            await session.execute(text("""
+                INSERT INTO billing_accounts (workspace_id, credits_balance, plan, status)
+                VALUES (:ws, :b, 'trial', 'active')
+            """), {"ws": workspace_id, "b": new_balance})
 
-    await session.execute(text("""
-        INSERT INTO credit_ledger (workspace_id, delta_usd, reason, reference, balance_after)
-        VALUES (:ws, :d, :r, :ref, :ba)
-    """), {"ws": workspace_id, "d": delta_usd, "r": reason, "ref": reference, "ba": new_balance})
-    await session.commit()
-    return new_balance
+        await session.execute(text("""
+            INSERT INTO credit_ledger (workspace_id, delta_usd, reason, reference, balance_after)
+            VALUES (:ws, :d, :r, :ref, :ba)
+        """), {"ws": workspace_id, "d": delta_usd, "r": reason, "ref": reference, "ba": new_balance})
+        await session.commit()
+        return new_balance
+    except IntegrityError:
+        # v5.12: 並發首次 topup（billing_accounts row 不存在 → FOR UPDATE 鎖不到、兩者都 miss
+        #   去重 SELECT）→ 兩筆都 INSERT 同 reference，第二筆撞 uq_credit_ledger_reference。
+        #   視為「已處理」：rollback + 回已寫入的 balance，不重複加值、也不讓 webhook 收 500
+        #   （避免 Stripe at-least-once 重試風暴）。
+        await session.rollback()
+        if reference:
+            dup = await session.execute(text(
+                "SELECT balance_after FROM credit_ledger WHERE reference = :ref LIMIT 1"
+            ), {"ref": reference})
+            drow = dup.fetchone()
+            if drow is not None:
+                log.info("add_credits_unique_conflict_skipped", ws=workspace_id, reference=reference)
+                return float(drow.balance_after)
+        raise  # 非 reference 去重衝突 → 真錯誤，往外傳
 
 
 async def report_usage_to_stripe(

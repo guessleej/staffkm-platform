@@ -47,25 +47,30 @@ log = structlog.get_logger()
 
 async def _consume_credits(session: AsyncSession, ws: str, cost: float) -> None:
     """v5.12：topup / trial plan 的用量從 credits_balance 扣款（原本只增不減 → 儲值客戶永遠免費）。
-    - subscription plan（starter/pro）由訂閱 cover、metered（usage）plan 由 usage_report_worker 報 Stripe → 皆不扣 credits。
-    - balance<0 只 log warning，不做 hard stop（避免中斷在途請求 / demo）；硬性額度應走 check_quota。
-    reference=None → 每筆消費獨立記帳、不去重。
+    與呼叫端的 usage record **同一交易**（不自行 commit）→ 用量與扣款原子落地，不會「記了用量卻沒扣款」。
+    - subscription（starter/pro）由訂閱 cover、metered（usage）由 usage_report_worker 報 Stripe → 皆不扣。
+    - balance<0 只 log warning，不做 hard stop（硬性額度走 check_quota）。每筆消費獨立記帳、不去重。
+    例外往外傳給呼叫端的 try（與 usage record 一起 rollback，保持原子）。
     """
     if cost is None or cost <= 0:
         return
-    try:
-        r = await session.execute(
-            text("SELECT plan FROM billing_accounts WHERE workspace_id = :ws"), {"ws": ws}
-        )
-        row = r.fetchone()
-        if not row or row.plan not in ("topup", "trial"):
-            return
-        from app.core.billing import add_credits
-        new_bal = await add_credits(session, ws, -float(cost), reason="consume_usage", reference=None)
-        if new_bal < 0:
-            log.warning("credits_balance_negative", workspace=ws, balance=new_bal)
-    except Exception as e:  # noqa: BLE001
-        log.warning("consume_credits_failed", workspace=ws, error=str(e))
+    r = await session.execute(
+        text("SELECT plan FROM billing_accounts WHERE workspace_id = :ws FOR UPDATE"), {"ws": ws}
+    )
+    row = r.fetchone()
+    if not row or row.plan not in ("topup", "trial"):
+        return
+    r2 = await session.execute(text("""
+        UPDATE billing_accounts SET credits_balance = credits_balance - :c, updated_at = now()
+        WHERE workspace_id = :ws RETURNING credits_balance
+    """), {"c": float(cost), "ws": ws})
+    new_bal = float(r2.scalar())
+    await session.execute(text("""
+        INSERT INTO credit_ledger (workspace_id, delta_usd, reason, reference, balance_after)
+        VALUES (:ws, :d, 'consume_usage', NULL, :ba)
+    """), {"ws": ws, "d": -float(cost), "ba": new_bal})
+    if new_bal < 0:
+        log.warning("credits_balance_negative", workspace=ws, balance=new_bal)
 
 
 class _Meter:
@@ -141,9 +146,11 @@ async def meter_llm_call(
                 message_id=str(message_id) if message_id else None,
                 feature=feature,
             ))
+            # v5.12: topup/trial 扣 credits — 與 usage record 同交易（原子）、只在成功時扣
+            #   （失敗請求不扣餘額）。任一步出錯 → 整批 rollback、不會出現「記用量沒扣款」。
+            if status == "ok":
+                await _consume_credits(session, ws, cost)
             await session.commit()
-            # v5.12: topup/trial plan 從 credits_balance 扣用量（見 _consume_credits）
-            await _consume_credits(session, ws, cost)
         except Exception as e:
             log.warning("meter_record_failed", workspace=ws, error=str(e))
 
@@ -219,8 +226,9 @@ async def meter_media_call(
                 message_id=str(message_id) if message_id else None,
                 feature=feature,
             ))
+            # v5.12: 與 LLM 對稱 — 同交易、只在成功時扣 media 用量
+            if status == "ok":
+                await _consume_credits(session, ws, cost)
             await session.commit()
-            # v5.12: 與 LLM 對稱 — topup/trial plan 從 credits 扣 media 用量
-            await _consume_credits(session, ws, cost)
         except Exception as e:
             log.warning("meter_media_record_failed", workspace=ws, error=str(e))

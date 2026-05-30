@@ -462,6 +462,13 @@ async def delete_provider(
     _require_admin(request)
     from sqlalchemy import text
 
+    # v5.12: 顯式刪該 provider 的 ai_models — 不依賴 FK ON DELETE CASCADE。
+    #   部分舊部署的 ai_models→model_providers FK 無 cascade（或缺 FK），只刪 provider 會留下
+    #   孤兒模型列，殘留在「設定預設模型」清單。先刪子列再刪父列，與同交易一起 commit。
+    await session.execute(
+        text("DELETE FROM ai_models WHERE provider_id = :id"),
+        {"id": str(provider_id)},
+    )
     result = await session.execute(
         text("DELETE FROM model_providers WHERE id = :id RETURNING id"),
         {"id": str(provider_id)},

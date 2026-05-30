@@ -481,6 +481,8 @@ async function loadProviders() {
   try {
     const { data } = await modelProviderApi.listProviders()
     providers.value = data.data?.items ?? data.data ?? []
+    // v5.12: 先清空，否則已刪 provider 的 key 會殘留在 dict → allModels/「設定預設模型」下拉還看得到
+    modelsByProvider.value = {}
     await Promise.all(providers.value.map(p => loadModels(p.id)))
   } finally { loading.value = false }
 }
