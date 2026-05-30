@@ -104,42 +104,39 @@ async def create_checkout_session(workspace_id: str, customer_id: str, plan: str
 
 async def add_credits(session: AsyncSession, workspace_id: str, delta_usd: float,
                       reason: str, reference: str | None = None) -> float:
-    """Update billing_accounts.credits_balance + write ledger entry. Returns new balance."""
-    r = await session.execute(text("""
-        SELECT credits_balance FROM billing_accounts WHERE workspace_id = :ws
-        FOR UPDATE
-    """), {"ws": workspace_id})
-    row = r.fetchone()
-    current = float(row.credits_balance) if row else 0.0
+    """billing_accounts.credits_balance += delta + 寫 ledger。回新 balance。
 
-    # v5.12: reference 去重 — Stripe webhook 是 at-least-once，重送同一 topup（或我方回 500 後
-    # Stripe 重試）不可重複加值。FOR UPDATE 鎖 billing_accounts（同 ws 序列化），在鎖內查 ledger；
-    # 同 reference 必同 ws → 第二筆並發會等前者 commit 後查到、直接跳過。reference 為 None
-    # （手動調整 / 消費扣款）不去重。另有 backstop partial unique index（init.sql）防 row 不存在的競態。
+    v5.12（合併 review 修正）：改用「相對 upsert」——
+      INSERT ... ON CONFLICT (workspace_id) DO UPDATE SET credits_balance = credits_balance + :d
+    取代原本「SELECT FOR UPDATE → 讀-改-寫絕對賦值 → 分 INSERT/UPDATE 分支」。一次解掉三件事：
+    (1) 消除讀-改-寫的 lost-update 脆弱；(2) 首次並發 topup 不再因裸 INSERT 撞 PK（ON CONFLICT 接手）；
+    (3) 與 metering 扣款的相對更新語義統一。reference 去重仍由 uq_credit_ledger_reference 把關。
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    # reference 去重（Stripe webhook at-least-once）：已處理過直接回現有 balance，不重複加值。
+    # reference=None（手動調整 / 消費扣款）不去重。
     if reference:
         dup = await session.execute(text("""
             SELECT balance_after FROM credit_ledger WHERE reference = :ref LIMIT 1
         """), {"ref": reference})
         drow = dup.fetchone()
         if drow is not None:
-            await session.commit()  # 釋放 FOR UPDATE 鎖
+            await session.commit()
             log.info("add_credits_duplicate_skipped", ws=workspace_id, reference=reference)
             return float(drow.balance_after)
 
-    new_balance = current + delta_usd
-
-    from sqlalchemy.exc import IntegrityError
     try:
-        if row:
-            await session.execute(text("""
-                UPDATE billing_accounts SET credits_balance = :b, updated_at = now()
-                WHERE workspace_id = :ws
-            """), {"b": new_balance, "ws": workspace_id})
-        else:
-            await session.execute(text("""
-                INSERT INTO billing_accounts (workspace_id, credits_balance, plan, status)
-                VALUES (:ws, :b, 'trial', 'active')
-            """), {"ws": workspace_id, "b": new_balance})
+        # 相對 upsert：原子 += delta（無讀-改-寫、無首次並發 PK 競態）
+        r = await session.execute(text("""
+            INSERT INTO billing_accounts (workspace_id, credits_balance, plan, status)
+            VALUES (:ws, :d, 'trial', 'active')
+            ON CONFLICT (workspace_id) DO UPDATE
+                SET credits_balance = billing_accounts.credits_balance + :d,
+                    updated_at = now()
+            RETURNING credits_balance
+        """), {"ws": workspace_id, "d": delta_usd})
+        new_balance = float(r.scalar())
 
         await session.execute(text("""
             INSERT INTO credit_ledger (workspace_id, delta_usd, reason, reference, balance_after)
@@ -148,10 +145,8 @@ async def add_credits(session: AsyncSession, workspace_id: str, delta_usd: float
         await session.commit()
         return new_balance
     except IntegrityError:
-        # v5.12: 並發首次 topup（billing_accounts row 不存在 → FOR UPDATE 鎖不到、兩者都 miss
-        #   去重 SELECT）→ 兩筆都 INSERT 同 reference，第二筆撞 uq_credit_ledger_reference。
-        #   視為「已處理」：rollback + 回已寫入的 balance，不重複加值、也不讓 webhook 收 500
-        #   （避免 Stripe at-least-once 重試風暴）。
+        # 真並發同 reference：第二筆 ledger INSERT 撞 uq_credit_ledger_reference。此交易的 upsert
+        # 增量也會隨 rollback 一起撤銷 → 不重複加值。回已寫入 balance、視為已處理（webhook 不收 500）。
         await session.rollback()
         if reference:
             dup = await session.execute(text(
@@ -159,8 +154,10 @@ async def add_credits(session: AsyncSession, workspace_id: str, delta_usd: float
             ), {"ref": reference})
             drow = dup.fetchone()
             if drow is not None:
+                await session.commit()  # 釋放讀交易（修 review #1：原本漏 commit）
                 log.info("add_credits_unique_conflict_skipped", ws=workspace_id, reference=reference)
                 return float(drow.balance_after)
+        await session.rollback()
         raise  # 非 reference 去重衝突 → 真錯誤，往外傳
 
 

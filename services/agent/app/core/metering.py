@@ -54,8 +54,10 @@ async def _consume_credits(session: AsyncSession, ws: str, cost: float) -> None:
     """
     if cost is None or cost <= 0:
         return
+    # v5.12: 不用 FOR UPDATE — 下面的相對 UPDATE 自帶行鎖且原子，先鎖只是讓每次 LLM 呼叫都對
+    #   billing_accounts 序列化（含非 topup/trial 也白拿鎖）。只讀 plan 判斷要不要扣。
     r = await session.execute(
-        text("SELECT plan FROM billing_accounts WHERE workspace_id = :ws FOR UPDATE"), {"ws": ws}
+        text("SELECT plan FROM billing_accounts WHERE workspace_id = :ws"), {"ws": ws}
     )
     row = r.fetchone()
     if not row or row.plan not in ("topup", "trial"):

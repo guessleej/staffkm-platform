@@ -4086,9 +4086,10 @@ UPDATE public.users SET must_change_password = true WHERE username = 'admin';
 
 --
 -- v5.12 post-init：credit_ledger.reference 去重 backstop
---   add_credits 主要靠 FOR UPDATE + 查 ledger 去重（防 Stripe webhook 重送重複加值）；
---   此 partial unique index 作終極保險，擋「billing_accounts row 尚不存在、FOR UPDATE 鎖不到」
---   的競態。reference 為 NULL（手動調整 / 消費扣款）不受限。idempotent。
+--   add_credits 先查 ledger 去重（防 Stripe webhook 重送重複加值）；此 partial unique index
+--   作終極保險，擋「真並發同 reference、兩者都通過去重 SELECT」的競態 —— 第二筆 ledger INSERT
+--   撞此 index → add_credits 捕捉 IntegrityError、rollback（連同相對 upsert 增量一起撤銷）視為已處理。
+--   reference 為 NULL（手動調整 / 消費扣款）不受限。idempotent。
 --
 CREATE UNIQUE INDEX IF NOT EXISTS uq_credit_ledger_reference
     ON public.credit_ledger(reference) WHERE reference IS NOT NULL;
