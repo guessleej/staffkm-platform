@@ -34,27 +34,31 @@
           <!-- KB override -->
           <span class="w-px h-5 bg-neutral-200"></span>
           <label class="text-xs uppercase tracking-widest text-neutral-400">KB</label>
-          <button
-            @click="kbPickerOpen = !kbPickerOpen"
-            ref="kbPickerBtn"
-            class="h-8 px-2 text-xs rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1"
-          >
-            <span>{{ chatOverride.kb_ids.length ? `已選 ${chatOverride.kb_ids.length}` : '預設' }}</span>
-            <SIcon name="chevron-down" :size="12" />
-          </button>
-          <div v-if="kbPickerOpen" ref="kbPickerPanel" class="absolute top-12 left-[280px] z-50 w-72 bg-surface-raised rounded-lg border border-neutral-200 shadow-lg p-2 max-h-72 overflow-auto">
-            <p v-if="!availableKbs.length" class="text-xs text-neutral-500 p-2">尚無可用知識庫</p>
-            <label v-for="kb in availableKbs" :key="kb.id" class="flex items-center gap-2 px-2 py-1.5 hover:bg-neutral-50 rounded cursor-pointer text-xs">
-              <input
-                type="checkbox"
-                :value="kb.id"
-                :checked="chatOverride.kb_ids.includes(kb.id)"
-                @change="toggleKb(kb.id)"
-              />
-              <span class="truncate">{{ kb.name }}</span>
-            </label>
-            <div v-if="chatOverride.kb_ids.length" class="border-t border-neutral-100 pt-2 mt-2">
-              <button @click="chatOverride.kb_ids = []" class="text-[11px] text-brand-600 hover:underline">清除</button>
+          <!-- v5.12: 包一層 relative，面板對齊按鈕（top-full left-0）。原本寫死 left-[280px]
+               絕對定位，版面一變就飄到最左邊。 -->
+          <div class="relative">
+            <button
+              @click="kbPickerOpen = !kbPickerOpen"
+              ref="kbPickerBtn"
+              class="h-8 px-2 text-xs rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1"
+            >
+              <span>{{ chatOverride.kb_ids.length ? `已選 ${chatOverride.kb_ids.length}` : '預設' }}</span>
+              <SIcon name="chevron-down" :size="12" />
+            </button>
+            <div v-if="kbPickerOpen" ref="kbPickerPanel" class="absolute top-full left-0 mt-1.5 z-50 w-72 bg-surface-raised rounded-lg border border-neutral-200 shadow-lg p-2 max-h-72 overflow-auto">
+              <p v-if="!availableKbs.length" class="text-xs text-neutral-500 p-2">尚無可用知識庫</p>
+              <label v-for="kb in availableKbs" :key="kb.id" class="flex items-center gap-2 px-2 py-1.5 hover:bg-neutral-50 rounded cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  :value="kb.id"
+                  :checked="chatOverride.kb_ids.includes(kb.id)"
+                  @change="toggleKb(kb.id)"
+                />
+                <span class="truncate">{{ kb.name }}</span>
+              </label>
+              <div v-if="chatOverride.kb_ids.length" class="border-t border-neutral-100 pt-2 mt-2">
+                <button @click="chatOverride.kb_ids = []" class="text-[11px] text-brand-600 hover:underline">清除</button>
+              </div>
             </div>
           </div>
         </div>
