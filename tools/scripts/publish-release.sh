@@ -31,10 +31,21 @@ echo "▶ 1/5 產乾淨交付包…"
 "$ROOT/tools/scripts/make-release.sh"
 
 echo "▶ 2/5 secret 安全閘…"
-if grep -rIlE 'sk-[A-Za-z0-9]{20}|fernet:|PASSWORD=.{8,}' "$STAGE" 2>/dev/null \
-     | grep -v '\.example' | grep -q .; then
-  echo "✗ 偵測到疑似真 secret，**中止發佈**。請檢查上列檔案。"
-  grep -rIlE 'sk-[A-Za-z0-9]{20}|fernet:|PASSWORD=.{8,}' "$STAGE" 2>/dev/null | grep -v '\.example'
+# 只攔「高信度真 secret 特徵」，排除：① 變數參照（=$VAR / =${VAR}）② 出廠預設 dev 密碼
+# （staffkm_secret/redis/minio/grafana）③ docstring/註解在說明格式的字面字串（fernet: 前綴、
+# sk-xxxx 範例）④ 文件遮罩（***）⑤ *.example。避免 false positive 卡死每次發佈。
+# 真特徵：OpenAI key（sk-+20碼）、fernet 密文（fernet:gAAAA+base64）、賦值給 16+ 碼高熵 token。
+SECRET_HITS="$(grep -rInE \
+  'sk-[A-Za-z0-9_-]{20,}|fernet:gAAAA[A-Za-z0-9_=-]{16,}|(PASSWORD|SECRET_KEY|API_KEY|TOKEN)=[A-Za-z0-9+/]{16,}' \
+  "$STAGE" 2>/dev/null \
+  | grep -vE '/\.git/' \
+  | grep -vE '\.example' \
+  | grep -vE '=["'\'']?\$\{?[A-Za-z_]' \
+  | grep -viE '(staffkm_secret|staffkm_redis|staffkm_minio|staffkm_grafana|change[-_]?me|your[-_]|example|xxxx|placeholder|<[^>]+>|\*\*\*)' \
+  || true)"
+if [ -n "$SECRET_HITS" ]; then
+  echo "✗ 偵測到疑似真 secret，**中止發佈**。請檢查下列位置（檔:行）："
+  echo "$SECRET_HITS"
   exit 1
 fi
 echo "  ✓ 無真 secret"
