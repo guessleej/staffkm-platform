@@ -53,13 +53,16 @@ echo "  ✓ 無真 secret"
 echo "▶ 3/5 同步進乾淨 release repo（保留 .git 歷史）…"
 if [ ! -d "$WORK/.git" ]; then
   git clone "$RELEASE_REPO" "$WORK" 2>/dev/null || {
-    mkdir -p "$WORK"; ( cd "$WORK" && git init -b main && git remote add origin "$RELEASE_REPO" )
+    mkdir -p "$WORK"; ( cd "$WORK" && git init -q && git remote add origin "$RELEASE_REPO" )
   }
 fi
 rsync -a --delete --exclude='.git' "$STAGE/" "$WORK/"   # 覆蓋內容、刪掉交付包已移除的舊檔
 ( cd "$WORK"
   git add -A
-  git commit -m "staffKM $VERSION release" || echo "  （內容無變更，沿用前次 commit）"
+  git commit -q -m "staffKM $VERSION release" || echo "  （內容無變更，沿用前次 commit）"
+  # 空 repo clone / git init 後，本地分支可能叫 master 或尚未誕生（隨機器 init.defaultBranch）。
+  # 正規化成 main 再推，避免 "src refspec main does not match any"。
+  git branch -M main
   git tag -f "$VERSION"
   git push -u origin main
   git push -f origin "$VERSION"
