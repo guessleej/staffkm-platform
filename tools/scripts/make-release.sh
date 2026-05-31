@@ -43,6 +43,8 @@ rm -rf \
   "$DEST/tests" \
   "$DEST/tools/eval" \
   "$DEST/tools/perf" \
+  "$DEST/tools/scripts/make-release.sh" \
+  "$DEST/tools/scripts/publish-release.sh" \
   "$DEST/.trivyignore" 2>/dev/null || true
 # 各 service / package 的 tests/
 find "$DEST/services" "$DEST/packages" -type d -name tests -prune -exec rm -rf {} + 2>/dev/null || true
