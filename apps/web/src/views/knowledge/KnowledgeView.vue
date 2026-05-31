@@ -89,6 +89,14 @@
           <IconSpinner :size="16" /> 載入中
         </div>
 
+        <!-- v5.12: 載入失敗 → 明確錯誤狀態（非空清單），避免誤判資料遺失 -->
+        <div v-else-if="loadError" class="flex flex-col items-center justify-center py-20 text-center gap-4">
+          <div class="max-w-md rounded-lg border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
+            {{ loadError }}
+          </div>
+          <button class="btn-primary px-4 py-2 text-sm" @click="load">重新載入</button>
+        </div>
+
         <EmptyState v-else-if="!filteredKbs.length"
                 icon="book-open"
                 title="尚未建立知識庫"
@@ -666,6 +674,9 @@ async function onCreateRagApp(kb: any) {
 const kbs = ref<any[]>([])
 const folders = ref<KbFolder[]>([])
 const loading = ref(true)
+// v5.12: 載入失敗要明確顯示「服務無法連線」，不能讓 catch 後落入「尚未建立知識庫」空狀態
+//   → 客戶會誤判「知識庫全不見/資料遺失」（實際是 knowledge 服務暫時掛了）。
+const loadError = ref('')
 const showCreate = ref(false)
 const showNewFolder = ref(false)
 const form = ref({
@@ -765,6 +776,7 @@ function statusLabel(s: string) {
 // 重試 + 永遠 finally 清 loading；避免 503 cold-start 後永遠卡在「載入中…」
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -782,8 +794,13 @@ async function load() {
         await new Promise(r => setTimeout(r, 800 * Math.pow(2, attempt)))
       }
     }
-  } catch (e) {
+  } catch (e: any) {
     console.error('KnowledgeView load failed:', e)
+    // 明確標記「載入失敗」而非靜默空清單 → 避免使用者誤判資料遺失。
+    const status = e?.response?.status
+    loadError.value = status
+      ? `無法載入知識庫（服務回應 ${status}）。這通常是知識服務暫時無法連線，您的資料並未遺失，請稍後重試。`
+      : '無法載入知識庫：目前無法連線到知識服務。您的資料並未遺失，請稍後重試。'
   } finally {
     loading.value = false
   }
