@@ -78,15 +78,25 @@ async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await run_alembic_upgrade()
     await _run_embedding_dimension_check()
-    # v5.12: 內建 reranker 安裝即啟用 → 啟動就 warmup 預載（避免第一次查詢慢）。失敗不阻斷。
+    # v5.12: 內建 reranker 若啟用 → 啟動就 warmup 預載（避免第一次查詢慢）。失敗不阻斷。
+    #   防呆：先判容器記憶體上限，不足就跳過 warmup 並給明確 error log（reranker 載入 ~1.9GB，
+    #   上限 <~2.3GB 會 OOM-SIGKILL 整個行程 → 無限重啟，看似「知識庫全掛」）。
     if settings.RERANKER_DEFAULT_LOCAL:
-        try:
-            from app.core.local_reranker import warmup
-            import anyio
-            ok = await anyio.to_thread.run_sync(warmup)
-            log.info("local_reranker_warmup", loaded=ok)
-        except Exception as e:  # noqa: BLE001
-            log.warning("local_reranker_warmup_failed", error=str(e)[:200])
+        from app.core.local_reranker import memory_guard, warmup
+        ok_mem, detail = memory_guard()
+        if not ok_mem:
+            log.error(
+                "local_reranker_warmup_skipped_low_memory",
+                reason=detail,
+                hint="raise knowledge container memory to >=3g, or set RERANKER_DEFAULT_LOCAL=false",
+            )
+        else:
+            try:
+                import anyio
+                ok = await anyio.to_thread.run_sync(warmup)
+                log.info("local_reranker_warmup", loaded=ok, memory=detail)
+            except Exception as e:  # noqa: BLE001
+                log.warning("local_reranker_warmup_failed", error=str(e)[:200])
     log.info("knowledge_service_ready")
     yield
 
