@@ -74,7 +74,7 @@ services:
   # ─── 應用層 — restart=always + resource limits ───
   gateway:    { restart: always, deploy: { resources: { limits: { memory: 512m } } } }
   auth:       { restart: always, deploy: { resources: { limits: { memory: 256m } } } }
-  knowledge:  { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
+  knowledge:  { restart: always, deploy: { resources: { limits: { memory: 1g } } } }   # ⚠ 啟用內建 reranker 需調 ≥3g
   agent:      { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
   chat:       { restart: always, deploy: { resources: { limits: { memory: 512m } } } }
   integration: { restart: always, deploy: { resources: { limits: { memory: 256m } } } }

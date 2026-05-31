@@ -191,7 +191,9 @@ async def search(
         embedder = await get_active_embedder(session)
         query_embedding = await embedder.embed_text(body.query)
 
-    fetch_k = body.retrieval_top_k if body.reranker else body.top_k
+    # v5.12: 內建 reranker 預設啟用時也要多撈候選給它重排（不只 body.reranker 才撈）
+    _will_rerank = bool(body.reranker) or settings.RERANKER_DEFAULT_LOCAL
+    fetch_k = body.retrieval_top_k if _will_rerank else body.top_k
 
     # P3 tag 過濾：先算出符合標籤的文件集合；有過濾時多撈候選避免 top_k 不足
     tag_doc_ids = await _docs_matching_tags(
@@ -260,10 +262,13 @@ async def search(
         deduped = [r for r in deduped if str(r.get("document_id")) in tag_doc_ids]
 
     # Reranker 重排：請求未帶 reranker → fallback 系統預設（system_settings.default.rerank）
+    #   → 再 fallback 內建 in-process reranker（v5.12 default-on）。
     reranker_config = body.reranker
     if not reranker_config:
         from app.core.runtime_models import resolve_reranker
         reranker_config = await resolve_reranker(session)
+    if not reranker_config and settings.RERANKER_DEFAULT_LOCAL:
+        reranker_config = {"type": "local", "model_name": settings.RERANKER_LOCAL_MODEL}
     if reranker_config:
         deduped = await rerank(
             query=body.query,

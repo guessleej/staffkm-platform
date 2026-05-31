@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     # 建議 ≈ sqrt(lists)（索引 lists=100 → 10）。每條向量查詢以 SET LOCAL 套用（pooling 安全）。
     IVFFLAT_PROBES: int = 10
 
+    # v5.12: 內建 in-process ONNX reranker（fastembed，無 torch / 無外部服務、模型已烤進 image）。
+    #   **預設關**（off-by-default）：實測 bge-reranker-base 載入吃 ~1.9GB RAM，不強迫每客戶承擔。
+    #   要啟用：RERANKER_DEFAULT_LOCAL=true + 把 knowledge 容器記憶體上限調 ≥3g（compose）。
+    #   模型 = bge-reranker-base（fastembed 唯一「多語含中文 + Apache-2.0 可商用」選項；
+    #   v2-m3 fastembed 不支援、jina-v2 多語 CC-BY-NC 不可商用）。要更強中文走外部 llama.cpp + v2-m3。
+    RERANKER_DEFAULT_LOCAL: bool = False
+    RERANKER_LOCAL_MODEL: str = "BAAI/bge-reranker-base"
+
     # 文件分塊設定
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 64

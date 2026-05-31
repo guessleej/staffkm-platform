@@ -24,7 +24,11 @@ async def rerank(
     reranker_type = (reranker_config.get("type") or "http").lower()
 
     try:
-        if reranker_type == "cohere":
+        if reranker_type == "local":
+            # v5.12: 內建 in-process ONNX cross-encoder（fastembed，無外部服務）
+            from app.core.local_reranker import rerank_local
+            return await rerank_local(query, documents, top_n)
+        elif reranker_type == "cohere":
             return await _rerank_cohere(query, documents, reranker_config, top_n)
         elif reranker_type == "ollama":
             return await _rerank_ollama(query, documents, reranker_config, top_n)

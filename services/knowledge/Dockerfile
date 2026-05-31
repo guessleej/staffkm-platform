@@ -19,6 +19,13 @@ COPY --chown=staffkm:staffkm services/knowledge/alembic.ini ./alembic.ini
 COPY --chown=staffkm:staffkm packages/python/staffkm-core/staffkm_core     ./staffkm_core
 COPY --chown=staffkm:staffkm packages/python/staffkm-tenant/staffkm_tenant ./staffkm_tenant
 
+# v5.12: 預先下載內建 reranker 模型到固定快取 → 離線可用、安裝即啟用。
+#   download 失敗不擋 build（runtime warmup 會補下載）；主模型失敗退較小的 bge-reranker-base。
+RUN mkdir -p /app/.fastembed_cache && \
+    ( python -c "from fastembed.rerank.cross_encoder import TextCrossEncoder; TextCrossEncoder(model_name='BAAI/bge-reranker-base', cache_dir='/app/.fastembed_cache')" \
+      || echo "reranker model bake deferred to runtime" ) && \
+    chown -R staffkm:staffkm /app/.fastembed_cache
+
 USER staffkm
 EXPOSE 8001
 

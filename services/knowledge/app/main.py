@@ -78,6 +78,15 @@ async def lifespan(app: FastAPI):
     init_db(settings.DB_URL)
     await run_alembic_upgrade()
     await _run_embedding_dimension_check()
+    # v5.12: 內建 reranker 安裝即啟用 → 啟動就 warmup 預載（避免第一次查詢慢）。失敗不阻斷。
+    if settings.RERANKER_DEFAULT_LOCAL:
+        try:
+            from app.core.local_reranker import warmup
+            import anyio
+            ok = await anyio.to_thread.run_sync(warmup)
+            log.info("local_reranker_warmup", loaded=ok)
+        except Exception as e:  # noqa: BLE001
+            log.warning("local_reranker_warmup_failed", error=str(e)[:200])
     log.info("knowledge_service_ready")
     yield
 
