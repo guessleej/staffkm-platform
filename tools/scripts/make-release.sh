@@ -60,9 +60,9 @@ find "$DEST" \( \
 
 # 4) 交付包頂層 README（指向部署文件）
 cat > "$DEST/README.md" <<EOF
-# staffKM — 企業 AI 知識管理平台（交付版 $VER）
+# staffKM — 企業 AI 知識管理平台（交付版 ${VER}）
 
-> 此為乾淨交付包（由 make-release.sh 產生，commit $COMMIT）。不含開發/測試/CI/內部文件。
+> 此為乾淨交付包（由 make-release.sh 產生，commit ${COMMIT}）。不含開發/測試/CI/內部文件。
 
 ## 快速部署
 1. 複製 \`.env.production.example\` → \`.env.production\`，填入所有必填值。
