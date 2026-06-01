@@ -42,7 +42,7 @@
               ref="kbPickerBtn"
               class="h-8 px-2 text-xs rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1"
             >
-              <span>{{ chatOverride.kb_ids.length ? `已選 ${chatOverride.kb_ids.length}` : '預設' }}</span>
+              <span class="truncate max-w-[160px]">{{ kbButtonLabel }}</span>
               <SIcon name="chevron-down" :size="12" />
             </button>
             <div v-if="kbPickerOpen" ref="kbPickerPanel" class="absolute top-full left-0 mt-1.5 z-50 w-72 bg-surface-raised rounded-lg border border-neutral-200 shadow-lg p-2 max-h-72 overflow-auto">
@@ -178,6 +178,18 @@ function toggleKb(id: string) {
   else chatOverride.kb_ids.push(id)
 }
 
+// v5.12: 按鈕直接顯示所選 KB 名稱（原本只顯示「已選 N」→ 看不出選了哪個、像沒生效）。
+//   未選 → 「預設」；選 1 個 → 該 KB 名；選多個 → 「名1 +N」。名稱只取仍存在的 KB。
+const kbButtonLabel = computed(() => {
+  const ids = chatOverride.kb_ids
+  if (!ids.length) return '預設'
+  const names = ids
+    .map((id) => availableKbs.value.find((k) => k.id === id)?.name)
+    .filter(Boolean) as string[]
+  if (!names.length) return `已選 ${ids.length}`   // 名稱還沒載到 → 退回計數
+  return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
+})
+
 async function loadOverrideOptions() {
   // 撈當前 workspace 可用 model 清單
   try {
@@ -236,6 +248,7 @@ async function onDelete(id: string) {
 }
 async function onLogout() {
   userMenuOpen.value = false
+  chatOverride.reset()   // 清掉持久化的 model/KB override → 同機換帳號不殘留前一人的選擇
   auth.logout()
   // v5.12: 整頁重載（非 SPA router.push）→ 清掉所有 pinia in-memory store，
   //   避免同機換帳號時殘留前一人的對話/專案/KB（與 401 攔截器的 location.href 一致）。
