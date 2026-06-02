@@ -36,14 +36,33 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 64
     MAX_FILE_SIZE_MB: int = 50
+    # v5.13: 音檔/影片通常遠大於文件 → 獨立放寬上限（檔案存 MinIO、ASR 在 worker 背景轉）
+    MAX_AUDIO_FILE_SIZE_MB: int = 500
 
     # v5.9.19: 加 .xls (xlrd) + .html
     # v5.9.22: 加圖片 OCR (.png/.jpg/.jpeg/.webp/.tiff/.bmp)
+    # v5.13: 加音檔 ASR (.mp3/.wav/.m4a/.flac/.ogg/.aac) + 字幕 (.srt/.vtt)
     ALLOWED_EXTENSIONS: set[str] = {
         ".pdf", ".docx", ".doc", ".txt", ".md", ".xlsx", ".xls", ".csv", ".html",
         ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp",
         ".odt", ".ods",   # v5.11.x: ODF（政府/教育公文常用 OpenDocument）
+        ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac",   # v5.13: 音檔 → 地端 ASR 逐字稿
+        ".srt", ".vtt",   # v5.13: 字幕檔 → 直接吃文字（零 ASR 成本）
     }
+    # v5.13: 音檔/字幕副檔名（給上傳端點判大小上限 + ASR 可用性預檢）
+    AUDIO_EXTENSIONS: set[str] = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac"}
+    SUBTITLE_EXTENSIONS: set[str] = {".srt", ".vtt"}
+
+    # v5.13: 地端 ASR（語音轉文字）— faster-whisper，音檔進知識庫用。
+    #   **地端優先**（資料不出境，符合公文場景）。模型在 worker 推論、VAD 內建切段、回時間碼。
+    #   ⚠ medium(int8) 載入吃 ~2GB → 啟用需把 knowledge-worker 記憶體上限調 **≥4g**（compose）。
+    #   首次轉錄會下載模型（~1.5GB，需網路一次）；快取在 /app/.whisper_cache。
+    #   低 RAM / 求快可改 ASR_MODEL=small（中文品質略降）；要更準改 large-v3（需 ≥6g）。
+    ASR_MODEL: str = "medium"
+    ASR_DEVICE: str = "cpu"          # 無 GPU 時 cpu；有 GPU 改 cuda
+    ASR_COMPUTE_TYPE: str = "int8"   # cpu 用 int8 省記憶體；GPU 可 float16
+    ASR_LANGUAGE: str = "zh"         # 預設中文；空字串 = 自動偵測
+    ASR_BEAM_SIZE: int = 5
 
     # v5.9.23: OCR 引擎切換
     #   "tesseract" (預設) — 地端 Tesseract LSTM，離線零費用
@@ -55,6 +74,12 @@ class Settings(BaseSettings):
     VISION_OCR_API_KEY: str = ""   # 地端 Ollama 不需要；cloud (Kimi/OpenAI) 才填
     # Vision OCR 失敗 → 是否自動 fallback 回 Tesseract
     VISION_OCR_FALLBACK_TESSERACT: bool = True
+
+    # v5.13 Phase 1: 圖片「看圖說話」— 除了 OCR 抽字，再用同一個 vision LLM 做語意描述
+    #   （人物/動作/場景/物件/圖表/流程圖），兩段合併進 KB → 純圖像/圖表也檢索得到。
+    #   每張圖都跑（OCR + 描述）。視覺描述失敗 → 自動退回只用 OCR（不會壞）。
+    #   用的模型 = VISION_OCR_MODEL（地端 llama3.2-vision）；無專用 Omni 模型。
+    IMAGE_DESCRIBE_ENABLED: bool = True
 
     # ── RFC-014 GraphRAG 加法層（MVP v5.11.0）─────────────────────
     # 實體抽取 LLM：預設用地端 Ollama 既有的 gemma4:e4b（閒置中，零新下載/零雲端成本/

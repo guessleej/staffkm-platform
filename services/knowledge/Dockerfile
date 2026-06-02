@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 poppler-utils tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-chi-sim curl \
     antiword \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r staffkm && useradd -r -g staffkm staffkm
 

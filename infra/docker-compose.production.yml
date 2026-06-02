@@ -79,7 +79,9 @@ services:
   chat:       { restart: always, deploy: { resources: { limits: { memory: 512m } } } }
   integration: { restart: always, deploy: { resources: { limits: { memory: 256m } } } }
   ui:         { restart: always, deploy: { resources: { limits: { memory: 128m } } } }
-  knowledge-worker: { restart: always, deploy: { resources: { limits: { memory: 1g } } } }
+  # v5.13: 音檔進 KB 的地端 ASR（faster-whisper medium 載入 ~2GB）→ 上限給 4g headroom（上限非保留，
+  #   平時 idle ~300MB）。不用音檔 ASR 可設 KNOWLEDGE_WORKER_MEM_LIMIT=1g 收斂。
+  knowledge-worker: { restart: always, deploy: { resources: { limits: { memory: ${KNOWLEDGE_WORKER_MEM_LIMIT:-4g} } } } }
   embedder:   { restart: always }    # Ollama 自己有 mem 管理
 
   # ─── monitoring 預設啟動 ───

@@ -31,6 +31,16 @@ class DocumentProcessor:
         ".webp": "_load_image",
         ".tiff": "_load_image",
         ".bmp":  "_load_image",
+        # v5.13: 音檔 → 地端 ASR 逐字稿（帶時間碼）
+        ".mp3":  "_load_audio",
+        ".wav":  "_load_audio",
+        ".m4a":  "_load_audio",
+        ".flac": "_load_audio",
+        ".ogg":  "_load_audio",
+        ".aac":  "_load_audio",
+        # v5.13: 字幕檔 → 直接吃文字（零 ASR 成本）
+        ".srt":  "_load_srt",
+        ".vtt":  "_load_vtt",
     }
 
     # v5.9.22: OCR 語言 (繁中 + 簡中 + 英文)
@@ -132,6 +142,22 @@ class DocumentProcessor:
             return ".tiff"
         if head.startswith(b"BM"):                     # BMP
             return ".bmp"
+        # v5.13: 音檔 magic bytes
+        if head[:3] == b"ID3" or head[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"):  # MP3
+            return ".mp3"
+        if head[:4] == b"RIFF" and ext == ".wav":      # WAV（RIFF…WAVE；WAVE 在 offset 8、以副檔名區分）
+            return ".wav"
+        if head[4:8] == b"ftyp":                        # MP4/M4A/MOV 容器
+            return ".m4a"
+        if head[:4] == b"fLaC":                         # FLAC
+            return ".flac"
+        if head[:4] == b"OggS":                         # OGG
+            return ".ogg"
+        # v5.13: 字幕 — VTT 有 WEBVTT 開頭；SRT 無 magic，靠副檔名
+        if head.startswith(b"WEBVTT") or (head.startswith(b"\xef\xbb\xbfWEBV")):
+            return ".vtt"
+        if ext in (".srt", ".vtt", ".aac"):
+            return ext
         # DOCX/XLSX 等 Office Open XML：PK ZIP 容器
         if head.startswith(b"PK\x03\x04") or head.startswith(b"PK\x05\x06"):
             # 同樣是 PK ZIP；ODF 與 OOXML 都在此，需以副檔名區分
@@ -199,12 +225,37 @@ class DocumentProcessor:
         return "\n\n".join(pages)
 
     def _load_image(self, file: BinaryIO) -> str:
-        """v5.9.22/v5.9.23: 圖片 OCR（引擎依設定：tesseract / vision）。"""
+        """v5.13 Phase 1: 圖片 = OCR 抽字（tesseract/vision）＋ 看圖說話（vision LLM 語意描述），
+        兩段合併。視覺描述失敗 → 自動退回只用 OCR（不會壞）。純圖像/圖表也能進 KB 被檢索。
+        """
+        from app.config import settings
         data = file.read()
-        text = self._ocr_image_bytes(data)
-        if not text.strip():
-            raise ValueError("圖片 OCR 未辨識到任何文字（可能是純圖像 / 字太小 / 太模糊）。")
-        return text
+
+        # ① OCR 抽字（依 OCR_ENGINE：tesseract 預設 / vision；本身已含 fallback）
+        ocr_text = ""
+        try:
+            ocr_text = self._ocr_image_bytes(data).strip()
+        except Exception as e:  # noqa: BLE001
+            log.warning("image_ocr_failed", error=str(e)[:200])
+
+        # ② 看圖說話（同一個 vision LLM、描述 prompt）— 每張都跑；失敗不阻斷
+        desc = ""
+        if settings.IMAGE_DESCRIBE_ENABLED:
+            try:
+                desc = self._vision_describe(self._preprocess_for_ocr(data, "vision")).strip()
+            except Exception as e:  # noqa: BLE001
+                log.warning("image_describe_failed", error=str(e)[:200])
+
+        parts: list[str] = []
+        if ocr_text:
+            parts.append("【圖片文字】\n" + ocr_text)
+        if desc:
+            parts.append("【圖片內容描述】\n" + desc)
+        if not parts:
+            raise ValueError(
+                "圖片 OCR 未辨識到文字，視覺描述也無法取得（純圖像 / 太模糊，且 vision 模型不可用）。"
+            )
+        return "\n\n".join(parts)
 
     # ── OCR 前處理（引擎感知）────────────────────────────────────────
     def _preprocess_for_ocr(self, img_bytes: bytes, engine: str) -> bytes:
@@ -267,9 +318,9 @@ class DocumentProcessor:
             log.warning("tesseract_ocr_failed", error=str(e)[:200])
             return ""
 
-    def _ocr_vision(self, img_bytes: bytes) -> str:
-        """v5.9.23: Vision LLM OCR — 走 OpenAI-compat /chat/completions
-        (地端 Ollama vision model 預設；改 base_url/api_key 可接 cloud)。"""
+    def _vision_chat(self, img_bytes: bytes, prompt: str, *, temperature: float = 0.0) -> str:
+        """v5.13: 共用的 vision LLM 呼叫 — OpenAI-compat /chat/completions（地端 Ollama vision
+        model 預設；改 base_url/api_key 可接 cloud）。OCR 與「看圖說話」都走這條，只是 prompt 不同。"""
         import base64, httpx
         from app.config import settings
 
@@ -278,8 +329,7 @@ class DocumentProcessor:
         vision_model = self._vision_model_override or settings.VISION_OCR_MODEL
         vision_base = self._vision_base_url_override or settings.VISION_OCR_BASE_URL or ""
         vision_key = self._vision_api_key_override or settings.VISION_OCR_API_KEY
-        base = vision_base.rstrip("/")
-        url = f"{base}/chat/completions"
+        url = f"{vision_base.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
         if vision_key:
             headers["Authorization"] = f"Bearer {vision_key}"
@@ -288,15 +338,11 @@ class DocumentProcessor:
             "messages": [{
                 "role": "user",
                 "content": [
-                    {"type": "text", "text":
-                        "你是 OCR 引擎。請逐字提取這張圖片中的所有文字，"
-                        "原樣輸出（保留換行 / 表格結構 / 完整保留所有標點符號），"
-                        "不要漏字、不要翻譯、不要加任何說明、標題或評論。"
-                        "若圖片沒有文字就回空字串。"},
+                    {"type": "text", "text": prompt},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
                 ],
             }],
-            "temperature": 0,
+            "temperature": temperature,
             "stream": False,
         }
         with httpx.Client(timeout=120.0) as client:
@@ -305,6 +351,28 @@ class DocumentProcessor:
             raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
         data = resp.json()
         return (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+
+    def _ocr_vision(self, img_bytes: bytes) -> str:
+        """v5.9.23: Vision LLM OCR — 逐字提取圖片文字。"""
+        return self._vision_chat(
+            img_bytes,
+            "你是 OCR 引擎。請逐字提取這張圖片中的所有文字，"
+            "原樣輸出（保留換行 / 表格結構 / 完整保留所有標點符號），"
+            "不要漏字、不要翻譯、不要加任何說明、標題或評論。"
+            "若圖片沒有文字就回空字串。",
+            temperature=0.0,
+        )
+
+    def _vision_describe(self, img_bytes: bytes) -> str:
+        """v5.13 Phase 1: 看圖說話 — vision LLM 語意描述圖片內容（非逐字 OCR）。"""
+        return self._vision_chat(
+            img_bytes,
+            "請用繁體中文描述這張圖片的內容，讓沒看到圖的人也能理解。包含："
+            "①主題 ②人物/動作 ③場景/地點 ④重要物件 ⑤若有圖表/流程圖/示意圖，"
+            "說明它的結構、欄位、數據趨勢或流程步驟與意義。條列重點、客觀描述、不要臆測，"
+            "不要重複圖片中已能逐字辨識的純文字。",
+            temperature=0.2,
+        )
 
     def _load_docx(self, file: BinaryIO) -> str:
         from docx import Document
@@ -435,6 +503,66 @@ class DocumentProcessor:
 
     def _load_text(self, file: BinaryIO) -> str:
         return self._decode_bytes(file.read())
+
+    # ── v5.13: 音檔 / 字幕 ───────────────────────────────────────────
+    @staticmethod
+    def _fmt_ts(seconds: float) -> str:
+        """秒 → [hh:]mm:ss 時間碼。"""
+        s = int(seconds)
+        h, rem = divmod(s, 3600)
+        m, sec = divmod(rem, 60)
+        return f"{h:d}:{m:02d}:{sec:02d}" if h else f"{m:d}:{sec:02d}"
+
+    def _load_audio(self, file: BinaryIO) -> str:
+        """音檔 → 地端 ASR 逐字稿。每段前綴 [mm:ss] 時間碼 → 檢索命中可定位音檔時刻。
+
+        ASR 不可用（記憶體不足/載入失敗）會 raise，由 process_document 標 error 並回明確訊息。
+        """
+        from app.core.asr import transcribe
+        segments = transcribe(file.read())
+        if not segments:
+            return ""
+        lines = [f"[{self._fmt_ts(s['start'])}] {s['text']}" for s in segments]
+        return "\n".join(lines)
+
+    def _load_srt(self, file: BinaryIO) -> str:
+        return self._parse_subtitles(self._decode_bytes(file.read()))
+
+    def _load_vtt(self, file: BinaryIO) -> str:
+        return self._parse_subtitles(self._decode_bytes(file.read()))
+
+    @staticmethod
+    def _parse_subtitles(text: str) -> str:
+        """解析 SRT / WebVTT → 每段 [mm:ss] 文字。容忍兩種格式（時間分隔 , 或 .）。"""
+        import re
+        # 時間軸行：00:00:01,000 --> 00:00:04,000（SRT）或 00:00:01.000 --> ...（VTT）
+        ts_re = re.compile(
+            r"(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*\d{1,2}:\d{2}:\d{2}[.,]\d{3}"
+        )
+        lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        out: list[str] = []
+        i = 0
+        while i < len(lines):
+            m = ts_re.search(lines[i])
+            if not m:
+                i += 1
+                continue
+            h, mm, ss, _ms = (int(x) for x in m.groups())
+            total = h * 3600 + mm * 60 + ss
+            stamp = f"{h:d}:{mm:02d}:{ss:02d}" if h else f"{mm:d}:{ss:02d}"
+            # 收集時間軸之後、到下一個空行/時間軸前的文字行
+            i += 1
+            buf: list[str] = []
+            while i < len(lines) and lines[i].strip() and not ts_re.search(lines[i]):
+                cue = lines[i].strip()
+                # 跳過純數字的 SRT 序號行
+                if not cue.isdigit():
+                    cue = re.sub(r"<[^>]+>", "", cue)   # 去掉 VTT 內嵌標籤
+                    buf.append(cue)
+                i += 1
+            if buf:
+                out.append(f"[{stamp}] {' '.join(buf)}")
+        return "\n".join(out)
 
 
 class TextSplitter:

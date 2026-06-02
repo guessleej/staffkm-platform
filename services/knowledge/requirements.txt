@@ -24,6 +24,9 @@ pdf2image==1.17.0
 Pillow==11.0.0
 # v5.12: 內建 in-process ONNX reranker（cross-encoder，無 torch）。範圍鎖定、確認可建後改精確 pin。
 fastembed>=0.4.0,<0.7.0
+# v5.13: 地端 ASR（音檔/影片進 KB）— faster-whisper（CTranslate2，無 torch、資料不出境）。
+#   依賴 av(PyAV) 解碼 → 需系統 ffmpeg libs（Dockerfile apt 裝 ffmpeg）。範圍鎖定、確認可建後改精確 pin。
+faster-whisper>=1.0.0,<2.0.0
 structlog==24.4.0
 celery[redis]==5.4.0
 # Sprint 16: Web KB sync

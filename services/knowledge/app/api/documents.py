@@ -46,9 +46,15 @@ async def upload_document_api(
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"不支援的檔案格式：{ext}")
 
+    # v5.13: 音檔走地端 ASR（在 knowledge-worker 跑）。可用性以 worker 為準：記憶體不足時
+    #   worker 的 transcribe() 會 raise → process_document 把文件標 error 並存明確訊息，
+    #   不在此（API 容器）預檢記憶體（查的是錯的容器，worker 記憶體才是關鍵）。
     contents = await file.read()
-    if len(contents) > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"檔案超過 {settings.MAX_FILE_SIZE_MB}MB 限制")
+    # v5.13: 音檔通常遠大於文件 → 套較寬的上限
+    is_audio = ext in settings.AUDIO_EXTENSIONS
+    max_mb = settings.MAX_AUDIO_FILE_SIZE_MB if is_audio else settings.MAX_FILE_SIZE_MB
+    if len(contents) > max_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"檔案超過 {max_mb}MB 限制")
 
     doc = Document(
         workspace_id=ctx.workspace_id,

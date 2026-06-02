@@ -484,7 +484,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          # v5.13: 地端 ASR（音檔進 KB）的 faster-whisper medium 載入吃 ~2GB → 上限給 4g headroom。
+          #   這是「上限」非「保留」（保留仍 256m）：worker 平時 idle ~300MB，只有實際轉錄音檔才會用到。
+          #   不用音檔 ASR 的部署可設 KNOWLEDGE_WORKER_MEM_LIMIT=1g 收斂。
+          memory: ${KNOWLEDGE_WORKER_MEM_LIMIT:-4g}
           cpus: "1.0"
         reservations:
           memory: 256m

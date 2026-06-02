@@ -1111,8 +1111,13 @@ class WorkflowExecutor:
             return
 
         provider = config.get("provider", "openai")
-        api_key = config.get("api_key", "") or (settings.OPENAI_API_KEY if provider == "openai" else "")
-        model = config.get("model", "gpt-4o")
+        # v5.13: 不再寫死 gpt-4o → node 未指定時 fallback 系統預設 default.vision（admin/models 選的、
+        #   可指向地端 vision LLM）。皆無設定才退回 gpt-4o（雲端後備，向後相容）。
+        from app.core.base_agent import resolve_media_default
+        _d_model, _d_base, _d_key = await resolve_media_default("vision")
+        api_key = (config.get("api_key") or _d_key
+                   or (settings.OPENAI_API_KEY if provider == "openai" else ""))
+        model = config.get("model") or _d_model or "gpt-4o"
         system = config.get("system_prompt", "你是一個圖像分析助手。")
         prompt = self._render_template(config.get("prompt", "請詳細描述這張圖片的內容。"), context)
         max_tokens = int(config.get("max_tokens", 1024))
