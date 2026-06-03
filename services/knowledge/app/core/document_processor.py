@@ -318,9 +318,14 @@ class DocumentProcessor:
             log.warning("tesseract_ocr_failed", error=str(e)[:200])
             return ""
 
-    def _vision_chat(self, img_bytes: bytes, prompt: str, *, temperature: float = 0.0) -> str:
+    def _vision_chat(self, img_bytes: bytes, prompt: str, *, temperature: float = 0.0,
+                     max_tokens: int = 2048) -> str:
         """v5.13: 共用的 vision LLM 呼叫 — OpenAI-compat /chat/completions（地端 Ollama vision
-        model 預設；改 base_url/api_key 可接 cloud）。OCR 與「看圖說話」都走這條，只是 prompt 不同。"""
+        model 預設；改 base_url/api_key 可接 cloud）。OCR 與「看圖說話」都走這條，只是 prompt 不同。
+
+        **max_tokens 必設**：不設時 ollama 會一直生成（描述型 prompt 尤其），慢模型(如 glm-ocr bf16)
+        會破 timeout。OCR 用較大上限（整頁文字）、描述用較小（精簡）。
+        """
         import base64, httpx
         from app.config import settings
 
@@ -343,6 +348,7 @@ class DocumentProcessor:
                 ],
             }],
             "temperature": temperature,
+            "max_tokens": max_tokens,
             "stream": False,
         }
         with httpx.Client(timeout=120.0) as client:
@@ -361,17 +367,19 @@ class DocumentProcessor:
             "不要漏字、不要翻譯、不要加任何說明、標題或評論。"
             "若圖片沒有文字就回空字串。",
             temperature=0.0,
+            max_tokens=4096,        # 整頁 OCR 文字可能很長
         )
 
     def _vision_describe(self, img_bytes: bytes) -> str:
         """v5.13 Phase 1: 看圖說話 — vision LLM 語意描述圖片內容（非逐字 OCR）。"""
+        from app.config import settings
         return self._vision_chat(
             img_bytes,
-            "請用繁體中文描述這張圖片的內容，讓沒看到圖的人也能理解。包含："
-            "①主題 ②人物/動作 ③場景/地點 ④重要物件 ⑤若有圖表/流程圖/示意圖，"
-            "說明它的結構、欄位、數據趨勢或流程步驟與意義。條列重點、客觀描述、不要臆測，"
-            "不要重複圖片中已能逐字辨識的純文字。",
+            "用繁體中文簡要描述這張圖片，讓沒看到圖的人也能理解。"
+            "說明：主題、人物/動作、場景、重要物件；若有圖表/流程圖則說明其結構與意義。"
+            "條列 3~6 點、客觀、不臆測、不重複圖中已可逐字辨識的純文字。",
             temperature=0.2,
+            max_tokens=settings.IMAGE_DESCRIBE_MAX_TOKENS,   # 上限避免慢模型一直生成破 timeout
         )
 
     def _load_docx(self, file: BinaryIO) -> str:

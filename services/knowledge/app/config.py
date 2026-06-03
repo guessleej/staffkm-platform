@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     #   每張圖都跑（OCR + 描述）。視覺描述失敗 → 自動退回只用 OCR（不會壞）。
     #   用的模型 = VISION_OCR_MODEL（地端 llama3.2-vision）；無專用 Omni 模型。
     IMAGE_DESCRIBE_ENABLED: bool = True
+    #   描述生成上限：不設 max_tokens 時 ollama 會一直生成 → 慢模型(glm-ocr bf16)破 timeout。
+    #   512 足夠精簡描述；慢模型可再調小。
+    IMAGE_DESCRIBE_MAX_TOKENS: int = 512
 
     # ── RFC-014 GraphRAG 加法層（MVP v5.11.0）─────────────────────
     # 實體抽取 LLM：預設用地端 Ollama 既有的 gemma4:e4b（閒置中，零新下載/零雲端成本/
