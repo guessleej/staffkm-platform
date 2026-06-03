@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     VISION_OCR_API_KEY: str = ""   # 地端 Ollama 不需要；cloud (Kimi/OpenAI) 才填
     # Vision OCR 失敗 → 是否自動 fallback 回 Tesseract
     VISION_OCR_FALLBACK_TESSERACT: bool = True
+    # v5.13: 地端 vision 走 ollama 原生 /api/chat + think:False。**思考型多模態模型（如 gemma4:e4b）
+    #   經 OpenAI-compat 關不掉 thinking → token 花光回空**，必須走原生。雲端 vision 設 false 走 OpenAI-compat。
+    VISION_USE_OLLAMA_NATIVE: bool = True
 
     # v5.13 Phase 1: 圖片「看圖說話」— 除了 OCR 抽字，再用同一個 vision LLM 做語意描述
     #   （人物/動作/場景/物件/圖表/流程圖），兩段合併進 KB → 純圖像/圖表也檢索得到。

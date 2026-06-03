@@ -320,11 +320,12 @@ class DocumentProcessor:
 
     def _vision_chat(self, img_bytes: bytes, prompt: str, *, temperature: float = 0.0,
                      max_tokens: int = 2048) -> str:
-        """v5.13: 共用的 vision LLM 呼叫 — OpenAI-compat /chat/completions（地端 Ollama vision
-        model 預設；改 base_url/api_key 可接 cloud）。OCR 與「看圖說話」都走這條，只是 prompt 不同。
+        """v5.13: 共用的 vision LLM 呼叫。OCR 與「看圖說話」都走這條，只是 prompt 不同。
 
-        **max_tokens 必設**：不設時 ollama 會一直生成（描述型 prompt 尤其），慢模型(如 glm-ocr bf16)
-        會破 timeout。OCR 用較大上限（整頁文字）、描述用較小（精簡）。
+        - 地端 ollama（預設）→ **原生 /api/chat + think:False**：thinking 型模型（如 gemma4:e4b）
+          經 OpenAI-compat 無法關思考、會把 token 花光回空 → 必須走原生 API 帶 think:False。
+        - 雲端 vision（VISION_USE_OLLAMA_NATIVE=false）→ OpenAI-compat /chat/completions。
+        - **max_tokens 必設**：不設時一直生成，慢模型(glm-ocr bf16)破 timeout。
         """
         import base64, httpx
         from app.config import settings
@@ -334,10 +335,31 @@ class DocumentProcessor:
         vision_model = self._vision_model_override or settings.VISION_OCR_MODEL
         vision_base = self._vision_base_url_override or settings.VISION_OCR_BASE_URL or ""
         vision_key = self._vision_api_key_override or settings.VISION_OCR_API_KEY
-        url = f"{vision_base.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
         if vision_key:
             headers["Authorization"] = f"Bearer {vision_key}"
+
+        if settings.VISION_USE_OLLAMA_NATIVE:
+            # ollama 原生：base 去掉尾端 /v1 → /api/chat；images 傳純 base64（無 data: 前綴）
+            base = vision_base.rstrip("/")
+            if base.endswith("/v1"):
+                base = base[:-3].rstrip("/")
+            url = f"{base}/api/chat"
+            payload = {
+                "model": vision_model,
+                "messages": [{"role": "user", "content": prompt, "images": [b64]}],
+                "stream": False,
+                "think": False,   # 關 thinking：否則 gemma4 等思考型把 token 花光回空
+                "options": {"num_predict": max_tokens, "temperature": temperature},
+            }
+            with httpx.Client(timeout=120.0) as client:
+                resp = client.post(url, json=payload, headers=headers)
+            if resp.status_code != 200:
+                raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+            return (resp.json().get("message") or {}).get("content", "") or ""
+
+        # 雲端 OpenAI-compat
+        url = f"{vision_base.rstrip('/')}/chat/completions"
         payload = {
             "model": vision_model,
             "messages": [{
