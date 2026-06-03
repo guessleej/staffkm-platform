@@ -101,6 +101,10 @@ class ApplicationAgent:
         if isinstance(config, str):
             config = json.loads(config)
         self.config: dict[str, Any] = config or {}
+        # v5.13: 客服安全護欄嚴格模式 — per-application config 優先，否則全域預設
+        self.guardrail_strict: bool = bool(
+            self.config.get("guardrail_strict", settings.GUARDRAIL_STRICT_MODE)
+        )
 
         # LLM 設定（預設使用全域 settings）
         # v5.9.28: 改用 LLM_* 系統 LLM (RFC-005) — 之前只讀 OPENAI_API_KEY 沒 base_url
@@ -555,19 +559,28 @@ class ApplicationAgent:
     # ── RAG Prompt 建構 ──────────────────────────────────────────────────────
 
     def _build_rag_prompt(self, context_docs: list[dict], query: str) -> str:
+        # v5.13 L2：結構化包裹使用者輸入，鎖進 data 區、防注入覆寫 system（安全、不影響正常答）
+        from app.core import guardrails
+        q = guardrails.wrap_user_input(query) if settings.GUARDRAIL_WRAP_INPUT else query
         if not context_docs:
-            return query
+            # 嚴格模式不會走到這（無命中已在 stream 端罐頭拒答）；非嚴格維持原行為
+            return q
         context_text = "\n\n".join(
             f"【來源：{d['doc_name']}】\n{d['content']}" for d in context_docs
         )
+        # 嚴格模式收緊「找不到就明說、不要補一般性建議」
+        ask = ("請**僅**根據上述參考資料回答以下問題；若資料中沒有明確答案，"
+               "直接說「找不到相關資料」，不要編造或用一般常識補足："
+               if self.guardrail_strict
+               else "請根據上述參考資料回答以下問題（若資料中無明確答案，請說明並提供一般性建議）：")
         return f"""以下是與問題相關的參考資料：
 
 {context_text}
 
 ---
-請根據上述參考資料回答以下問題（若資料中無明確答案，請說明並提供一般性建議）：
+{ask}
 
-{query}"""
+{q}"""
 
     # ── 共用：溫度 / system prompt ──────────────────────────────────────────
 
@@ -581,8 +594,14 @@ class ApplicationAgent:
     def _composed_system_prompt(self) -> str:
         # D-2：把 skill prompts 接在 system_prompt 前面（用 marker 分段）
         if self._skill_prompts:
-            return "\n\n".join(self._skill_prompts) + "\n\n" + self.system_prompt
-        return self.system_prompt
+            base = "\n\n".join(self._skill_prompts) + "\n\n" + self.system_prompt
+        else:
+            base = self.system_prompt
+        # v5.13 L3：嚴格客服模式 → 接上安全規則（最高優先、使用者無法覆寫）
+        if self.guardrail_strict:
+            from app.core import guardrails
+            return guardrails.harden_system_prompt(base)
+        return base
 
     # ── 串流回應（結構化事件）────────────────────────────────────────────────
 
@@ -678,6 +697,17 @@ class ApplicationAgent:
     async def _stream_simple(self, ctx: AgentContext) -> AsyncIterator[dict]:
         user_query = ctx.messages[-1]["content"] if ctx.messages else ""
 
+        # v5.13 L2：prompt-injection / 越獄偵測。命中一律記 log；嚴格模式直接罐頭拒答（不檢索、不呼叫 LLM）
+        from app.core import guardrails
+        hit = guardrails.detect_injection(user_query)
+        if hit:
+            log.warning("guardrail_injection_detected", app_id=self.app_id,
+                        strict=self.guardrail_strict, pattern=hit)
+            if self.guardrail_strict:
+                yield {"type": "token", "data": settings.GUARDRAIL_BLOCKED_MESSAGE}
+                ctx.citations = []
+                return
+
         # 問題優化：多輪時改寫成 standalone 檢索 query（回答仍針對原問題）
         search_query = await self._maybe_rewrite_query(ctx, user_query)
 
@@ -690,6 +720,12 @@ class ApplicationAgent:
             roles=ctx.roles,
         )
         ctx.citations = citations
+
+        # v5.13 L3：嚴格模式接地閘 — 有綁 KB 但檢索 0 命中（皆低於相似度門檻）→ 罐頭拒答，不讓 LLM 幻覺
+        if self.guardrail_strict and ctx.kb_ids and not citations:
+            log.info("guardrail_no_grounding_refused", app_id=self.app_id, query=user_query[:60])
+            yield {"type": "token", "data": settings.GUARDRAIL_NO_ANSWER_MESSAGE}
+            return
 
         rag_user_message = self._build_rag_prompt(citations, user_query)
         messages = [

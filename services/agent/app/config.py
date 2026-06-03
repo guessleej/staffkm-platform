@@ -24,6 +24,20 @@ class Settings(BaseSettings):
     #   思考型多模態模型（gemma4:e4b）經 OpenAI-compat 關不掉 thinking → 回空。雲端 vision 設 false。
     VISION_USE_OLLAMA_NATIVE: bool = True
 
+    # v5.13: 客服機器人安全護欄（L2 輸入防護 + L3 RAG 接地拒答）。
+    #   - WRAP_INPUT（預設開）：把使用者輸入結構化包裹進 data 區，防注入覆寫 system（安全、不影響正常答）。
+    #   - STRICT_MODE（全域預設關）：嚴格客服模式 = RAG 無命中即罐頭拒答 + system prompt 硬化 + 偵測到
+    #     注入即拒答。可由 application.config={"guardrail_strict":true} 單一應用開（不需改全域）。
+    GUARDRAIL_WRAP_INPUT:  bool = True
+    GUARDRAIL_STRICT_MODE: bool = False
+    GUARDRAIL_NO_ANSWER_MESSAGE: str = (
+        "很抱歉，我在目前的知識庫中找不到與您問題直接相關的資料。"
+        "建議您換個關鍵字描述，或聯繫真人客服協助。"
+    )
+    GUARDRAIL_BLOCKED_MESSAGE: str = (
+        "很抱歉，我只能協助與本服務知識庫相關的問題，無法執行此要求。"
+    )
+
     # ── 雲端 LLM（選用，預設空）────────────────────────────────
     OPENAI_API_KEY:    str = ""
     ANTHROPIC_API_KEY: str = ""
