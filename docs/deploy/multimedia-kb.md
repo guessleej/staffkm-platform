@@ -35,18 +35,27 @@
 
 ## 3. 視覺模型（VLM）設定 — 「看圖說話」要指到一個 vision 模型
 
-`embedder` 容器只有 embedding 模型、**無 vision**。把 `VISION_OCR_*` 指向有 vision 模型的 endpoint：
+`embedder` 容器只有 embedding 模型、**無 vision**。把 `VISION_OCR_*` 指向有 vision 模型的 endpoint。
+**推薦直接用 `gemma4:e4b`**（Google Gemma 4 E4B，多模態、繁中佳、零下載 —— 本來就是系統 LLM）：
 
 ```bash
-# .env — 指向主機 ollama 的 vision 模型（範例：glm-ocr）
+# .env — 指向主機 ollama 的 gemma4:e4b（多模態）
 VISION_OCR_BASE_URL=http://host.docker.internal:11434/v1
-VISION_OCR_MODEL=glm-ocr:bf16
+VISION_OCR_MODEL=gemma4:e4b
+VISION_USE_OLLAMA_NATIVE=true   # 地端思考型模型必須走原生 API 關 thinking（見下）
 ```
 
-- `glm-ocr` 偏 OCR，描述能力一般但可用。要更好的「看圖說話」建議拉通用 VLM
-  （`ollama pull qwen2.5-vl` / `minicpm-v` / `llama3.2-vision`），再把 `VISION_OCR_MODEL` 換過去。
+### ⚠ 思考型多模態模型必須走 ollama 原生 API
+`gemma4:e4b` 是**思考型**：經 OpenAI-compat `/v1/chat/completions` **關不掉 thinking** → token
+全花在思考、`content` 回空。本系統 `VISION_USE_OLLAMA_NATIVE=true`（預設）時改走 ollama 原生
+`/api/chat` 帶 `think:False`，才會正常輸出描述。**雲端 vision**（OpenAI 等）設 `false` 走 OpenAI-compat。
+
+### 其他模型
+- `qwen2.5-vl` / `minicpm-v`：也很好，但要 `ollama pull`（gemma4 已有、免下載）。
+- `glm-ocr:bf16`：**OCR 取向、做描述會死循環吐重複字，不建議當「看圖說話」**（可當純 OCR 引擎）。
 - 也可在 `/admin/models` 設 `default.vision`（runtime 解析、免改 env）。
-- workflow 的「圖像理解」節點同樣吃 `default.vision`（v5.13 起不再寫死 gpt-4o）。
+- workflow 的「圖像理解」節點吃 `default.vision`（v5.13 起不再寫死 gpt-4o）；注意該節點走 OpenAI-compat，
+  用 gemma4 等思考型會回空 —— 該節點接思考型模型為待辦（KB ingest 已走原生、不受影響）。
 
 ---
 
