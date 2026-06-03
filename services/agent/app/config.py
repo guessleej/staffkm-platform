@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE:  float = 0.7
     LLM_MAX_TOKENS:   int   = 2048
 
+    # v5.13: workflow 圖像理解節點 — 地端 vision 走 ollama 原生 /api/chat + think:False。
+    #   思考型多模態模型（gemma4:e4b）經 OpenAI-compat 關不掉 thinking → 回空。雲端 vision 設 false。
+    VISION_USE_OLLAMA_NATIVE: bool = True
+
     # ── 雲端 LLM（選用，預設空）────────────────────────────────
     OPENAI_API_KEY:    str = ""
     ANTHROPIC_API_KEY: str = ""

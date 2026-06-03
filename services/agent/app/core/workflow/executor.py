@@ -1101,6 +1101,71 @@ class WorkflowExecutor:
             log.error("mcp_tool_failed", tool=tool_name, error=str(e), **self._audit_fields(context))
             context[output_var] = f"MCP 呼叫失敗：{e}"
 
+    async def _vision_understand_stream(
+        self, *, use_native: bool, base_url: str | None, api_key: str, model: str,
+        system: str, prompt: str, image_input: str, input_type: str,
+        temperature: float, max_tokens: int,
+    ) -> AsyncIterator[str]:
+        """v5.13: 圖像理解串流 — 地端走 ollama 原生 /api/chat + think:False（思考型模型必須），
+        雲端走 OpenAI-compat。yield 文字 delta。"""
+        if use_native and base_url:
+            # ollama 原生 images 要 base64（不吃 URL）；url 型先下載
+            if input_type == "base64":
+                b64 = image_input
+            else:
+                async with httpx.AsyncClient(timeout=60.0) as c:
+                    ir = await c.get(image_input)
+                    ir.raise_for_status()
+                    b64 = base64.b64encode(ir.content).decode("ascii")
+            base = base_url.rstrip("/")
+            if base.endswith("/v1"):
+                base = base[:-3].rstrip("/")
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt, "images": [b64]},
+                ],
+                "stream": True,
+                "think": False,
+                "options": {"num_predict": max_tokens, "temperature": temperature},
+            }
+            async with httpx.AsyncClient(timeout=180.0) as c:
+                async with c.stream("POST", f"{base}/api/chat", json=payload, headers=headers) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except Exception:  # noqa: BLE001
+                            continue
+                        delta = (obj.get("message") or {}).get("content", "")
+                        if delta:
+                            yield delta
+            return
+
+        # 雲端 OpenAI-compat
+        image_url = image_input if input_type == "url" else f"data:image/jpeg;base64,{image_input}"
+        provider = OpenAICompatProvider(api_key=api_key, base_url=base_url or None)
+        req = ChatRequest(
+            model=model, stream=True, temperature=temperature, max_tokens=max_tokens,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "text", "text": prompt},
+                ]},
+            ],
+        )
+        async for delta in provider.chat_stream(req):
+            if delta:
+                yield delta
+
     async def _exec_image_understand(self, config: dict, context: dict) -> AsyncIterator[str]:
         """圖像理解：使用 Vision 模型分析圖片，串流 token 並將完整回應存入 context。"""
         input_var = config.get("input_variable", "image_url")
@@ -1123,32 +1188,25 @@ class WorkflowExecutor:
         max_tokens = int(config.get("max_tokens", 1024))
         temperature = float(config.get("temperature", 0.1))
 
-        image_url = (
-            image_input if input_type == "url"
-            else f"data:image/jpeg;base64,{image_input}"
-        )
-
-        # v3.3：vision 走 openai_compat provider + metering（text portion 計費）
-        base_url = (config.get("base_url") or "").rstrip("/") or None
-        provider = OpenAICompatProvider(api_key=api_key, base_url=base_url)
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": image_url}},
-                {"type": "text", "text": prompt},
-            ]},
-        ]
-        req = ChatRequest(
-            model=model, messages=messages, stream=True,
-            temperature=temperature, max_tokens=max_tokens,
-        )
-        prompt_tokens_est = self._estimate_tokens_messages(messages)
+        # v5.13: 思考型多模態模型（gemma4:e4b）經 OpenAI-compat 關不掉 thinking → 回空 content。
+        #   地端（base_url 指向 ollama）+ VISION_USE_OLLAMA_NATIVE → 走原生 /api/chat 帶 think:False；
+        #   雲端 vision（base_url=None 走 gpt-4o）維持 OpenAI-compat。
+        base_url = (config.get("base_url") or _d_base or "").rstrip("/") or None
+        use_native = bool(settings.VISION_USE_OLLAMA_NATIVE and base_url)
+        prompt_tokens_est = self._estimate_tokens_text(f"{system}\n{prompt}")
         full_response = ""
+
+        def _stream():
+            return self._vision_understand_stream(
+                use_native=use_native, base_url=base_url, api_key=api_key, model=model,
+                system=system, prompt=prompt, image_input=image_input, input_type=input_type,
+                temperature=temperature, max_tokens=max_tokens,
+            )
 
         sess_factory = _db._session_factory
         if sess_factory is None or not self.workspace_id:
             try:
-                async for delta in provider.chat_stream(req):
+                async for delta in _stream():
                     if delta:
                         full_response += delta
                         yield delta
@@ -1171,7 +1229,7 @@ class WorkflowExecutor:
                     conversation_id=self.conversation_id,
                 ) as meter:
                     try:
-                        async for delta in provider.chat_stream(req):
+                        async for delta in _stream():
                             if delta:
                                 full_response += delta
                                 yield delta
