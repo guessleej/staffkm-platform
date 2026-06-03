@@ -54,8 +54,9 @@ VISION_USE_OLLAMA_NATIVE=true   # 地端思考型模型必須走原生 API 關 t
 - `qwen2.5-vl` / `minicpm-v`：也很好，但要 `ollama pull`（gemma4 已有、免下載）。
 - `glm-ocr:bf16`：**OCR 取向、做描述會死循環吐重複字，不建議當「看圖說話」**（可當純 OCR 引擎）。
 - 也可在 `/admin/models` 設 `default.vision`（runtime 解析、免改 env）。
-- workflow 的「圖像理解」節點吃 `default.vision`（v5.13 起不再寫死 gpt-4o）；注意該節點走 OpenAI-compat，
-  用 gemma4 等思考型會回空 —— 該節點接思考型模型為待辦（KB ingest 已走原生、不受影響）。
+- workflow 的「圖像理解」節點吃 `default.vision`（v5.13 起不再寫死 gpt-4o），且**同樣支援思考型模型**：
+  地端(base_url 指 ollama)+ agent `VISION_USE_OLLAMA_NATIVE=true` → 走原生串流 `/api/chat` + `think:False`
+  （URL 型圖片會先下載轉 base64）；雲端 vision 走 OpenAI-compat。gemma4 在此節點也已實測可正常串流描述。
 
 ---
 
