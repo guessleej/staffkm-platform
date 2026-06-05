@@ -71,3 +71,59 @@ _SAFETY_RULES = (
 
 def harden_system_prompt(system: str) -> str:
     return (system or "") + _SAFETY_RULES
+
+
+# ── L4：地端 PII 遮罩（regex，零雲端、快）。台灣/公文場景常見敏感樣式。──
+#   ⚠ 不可用 \b：Python \w 把 CJK 當文字字元 →「是A123」之間無 word boundary，會漏。
+#   一律用「ASCII-only 邊界」negative lookbehind/ahead（CJK 字自然成為邊界）。
+_TW_ID = re.compile(r"(?<![A-Za-z0-9])[A-Za-z][12]\d{8}(?![A-Za-z0-9])")     # 身分證字號 A123456789
+_EMAIL = re.compile(r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_MOBILE = re.compile(r"(?<!\d)09\d{2}[-\s]?\d{3}[-\s]?\d{3}(?!\d)")          # 手機 09xx-xxx-xxx
+_CREDIT = re.compile(r"(?<!\d)(?:\d[-\s]?){13,16}(?!\d)")                    # 卡號 13-16 碼（含分隔）
+
+
+def _mask_email(m: "re.Match") -> str:
+    s = m.group(0)
+    name, _, dom = s.partition("@")
+    return (name[0] if name else "") + "***@" + dom
+
+
+def mask_pii(text: str) -> str:
+    """遮罩身分證字號 / Email / 手機 / 卡號。順序：ID→Email→手機→卡號（避免互咬）。"""
+    if not text:
+        return text
+    text = _TW_ID.sub(lambda m: m.group(0)[:2] + "****" + m.group(0)[-2:], text)
+    text = _EMAIL.sub(_mask_email, text)
+    text = _MOBILE.sub(lambda m: "09" + "*" * 5 + re.sub(r"\D", "", m.group(0))[-3:], text)
+    text = _CREDIT.sub("【卡號已遮罩】", text)
+    return text
+
+
+class PiiStreamMasker:
+    """串流安全的 PII 遮罩器：PII（身分證/email/手機/卡號）字元集是 ASCII，CJK 字 / 中文標點
+    是天然安全邊界 → 保留「尾端連續 ASCII/PII 字元 run」不輸出（可能是正在形成的 PII），
+    其餘遮罩後即時吐出。避免逐 token 遮罩漏掉跨 token 的 PII。"""
+
+    # PII 可能出現的字元（其餘字元 = 安全邊界）
+    _HOLD = set("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ@._+- ")
+    _MAX_HOLD = 256   # 純 ASCII 長輸出時的保底，避免無限緩衝
+
+    def __init__(self) -> None:
+        self._buf = ""
+
+    def feed(self, chunk: str) -> str:
+        self._buf += chunk or ""
+        i = len(self._buf) - 1
+        while i >= 0 and self._buf[i] in self._HOLD:
+            i -= 1
+        if i < 0:                       # 整段都是 ASCII/PII 字元 → 還不能安全輸出
+            if len(self._buf) > self._MAX_HOLD:
+                out, self._buf = mask_pii(self._buf), ""
+                return out
+            return ""
+        emit, self._buf = self._buf[: i + 1], self._buf[i + 1 :]
+        return mask_pii(emit)
+
+    def flush(self) -> str:
+        out, self._buf = mask_pii(self._buf), ""
+        return out

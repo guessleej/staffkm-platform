@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     #     注入即拒答。可由 application.config={"guardrail_strict":true} 單一應用開（不需改全域）。
     GUARDRAIL_WRAP_INPUT:  bool = True
     GUARDRAIL_STRICT_MODE: bool = False
+    # L4 輸出 PII 地端遮罩（身分證字號/Email/手機/卡號）。嚴格模式自動開；也可全域強制開。
+    #   可由 application.config={"guardrail_pii_mask": true/false} 單一應用覆寫。
+    GUARDRAIL_PII_MASK:    bool = False
     GUARDRAIL_NO_ANSWER_MESSAGE: str = (
         "很抱歉，我在目前的知識庫中找不到與您問題直接相關的資料。"
         "建議您換個關鍵字描述，或聯繫真人客服協助。"

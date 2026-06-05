@@ -621,13 +621,31 @@ class ApplicationAgent:
         # function_calling 需走 OpenAI-compat self._llm 路徑（Anthropic adapter
         # 的 tool-call 較複雜，TODO 走 fallback）。provider adapter 不支援時退 simple。
         use_fc = self._agent_mode == "function_calling" and self._provider is None
-        if use_fc:
-            async for ev in self._stream_function_calling(ctx):
+        inner = self._stream_function_calling(ctx) if use_fc else self._stream_simple(ctx)
+
+        # v5.13 L4：輸出 PII 地端遮罩（嚴格模式自動開 / 全域 GUARDRAIL_PII_MASK / per-app config 覆寫）。
+        pii_on = bool(self.config.get(
+            "guardrail_pii_mask", self.guardrail_strict or settings.GUARDRAIL_PII_MASK))
+        if not pii_on:
+            async for ev in inner:
                 yield ev
             return
 
-        async for ev in self._stream_simple(ctx):
-            yield ev
+        from app.core.guardrails import PiiStreamMasker
+        masker = PiiStreamMasker()
+        async for ev in inner:
+            if ev.get("type") == "token":
+                out = masker.feed(ev.get("data", ""))
+                if out:
+                    yield {"type": "token", "data": out}
+            else:
+                tail = masker.flush()   # 非 token 事件前先 flush，保序
+                if tail:
+                    yield {"type": "token", "data": tail}
+                yield ev
+        tail = masker.flush()
+        if tail:
+            yield {"type": "token", "data": tail}
 
     async def stream_response(self, ctx: AgentContext) -> AsyncIterator[str]:
         """向後相容：只 yield token 字串（scenario chat / 無 metering 路徑用）。
