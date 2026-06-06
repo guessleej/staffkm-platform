@@ -21,24 +21,24 @@ importers:
         specifier: ^1.49.0
         version: 1.60.0
       typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
+        specifier: ~5.8.0
+        version: 5.8.3
 
   apps/marketing:
     dependencies:
       vue:
         specifier: ^3.5.13
-        version: 3.5.34(typescript@5.9.3)
+        version: 3.5.34(typescript@5.8.3)
       vue-router:
         specifier: ^4.5.0
-        version: 4.6.4(vue@3.5.34(typescript@5.9.3))
+        version: 4.6.4(vue@3.5.34(typescript@5.8.3))
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.19
       '@vitejs/plugin-vue':
         specifier: ^5.2.1
-        version: 5.2.4(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.9.3))
+        version: 5.2.4(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.8.3))
       autoprefixer:
         specifier: ^10.4.20
         version: 10.5.0(postcss@8.5.14)
@@ -49,14 +49,14 @@ importers:
         specifier: ^3.4.17
         version: 3.4.19
       typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
+        specifier: ~5.8.0
+        version: 5.8.3
       vite:
         specifier: ^6.0.5
         version: 6.4.2(@types/node@22.19.19)(jiti@1.21.7)
       vue-tsc:
         specifier: ^2.2.0
-        version: 2.2.12(typescript@5.9.3)
+        version: 2.2.12(typescript@5.8.3)
 
   apps/web:
     dependencies:
@@ -140,8 +140,8 @@ importers:
         specifier: ^20.0.0
         version: 20.19.41
       typescript:
-        specifier: ^5.5.0
-        version: 5.9.3
+        specifier: ~5.8.0
+        version: 5.8.3
 
   packages/ts/ui-kit:
     dependencies:
@@ -157,25 +157,25 @@ importers:
         version: 8.6.18(storybook@8.6.18)
       '@storybook/vue3':
         specifier: ^8.4.0
-        version: 8.6.18(storybook@8.6.18)(vue@3.5.34(typescript@5.9.3))
+        version: 8.6.18(storybook@8.6.18)(vue@3.5.34(typescript@5.8.3))
       '@storybook/vue3-vite':
         specifier: ^8.4.0
-        version: 8.6.18(storybook@8.6.18)(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.9.3))
+        version: 8.6.18(storybook@8.6.18)(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.8.3))
       '@vitejs/plugin-vue':
         specifier: ^5.2.1
-        version: 5.2.4(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.9.3))
+        version: 5.2.4(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.8.3))
       storybook:
         specifier: ^8.4.0
         version: 8.6.18
       typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
+        specifier: ~5.8.0
+        version: 5.8.3
       vite:
         specifier: ^6.0.0
         version: 6.4.2(@types/node@22.19.19)(jiti@1.21.7)
       vue:
         specifier: ^3.5.13
-        version: 3.5.34(typescript@5.9.3)
+        version: 3.5.34(typescript@5.8.3)
 
   tools/e2e:
     devDependencies:
@@ -2901,21 +2901,21 @@ snapshots:
     dependencies:
       storybook: 8.6.18
 
-  '@storybook/vue3-vite@8.6.18(storybook@8.6.18)(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.9.3))':
+  '@storybook/vue3-vite@8.6.18(storybook@8.6.18)(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.8.3))':
     dependencies:
       '@storybook/builder-vite': 8.6.18(storybook@8.6.18)(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))
-      '@storybook/vue3': 8.6.18(storybook@8.6.18)(vue@3.5.34(typescript@5.9.3))
+      '@storybook/vue3': 8.6.18(storybook@8.6.18)(vue@3.5.34(typescript@5.8.3))
       find-package-json: 1.2.0
       magic-string: 0.30.21
       storybook: 8.6.18
       typescript: 5.8.3
       vite: 6.4.2(@types/node@22.19.19)(jiti@1.21.7)
       vue-component-meta: 2.2.12(typescript@5.8.3)
-      vue-docgen-api: 4.79.2(vue@3.5.34(typescript@5.9.3))
+      vue-docgen-api: 4.79.2(vue@3.5.34(typescript@5.8.3))
     transitivePeerDependencies:
       - vue
 
-  '@storybook/vue3@8.6.18(storybook@8.6.18)(vue@3.5.34(typescript@5.9.3))':
+  '@storybook/vue3@8.6.18(storybook@8.6.18)(vue@3.5.34(typescript@5.8.3))':
     dependencies:
       '@storybook/components': 8.6.18(storybook@8.6.18)
       '@storybook/global': 5.0.0
@@ -2926,7 +2926,7 @@ snapshots:
       storybook: 8.6.18
       ts-dedent: 2.2.0
       type-fest: 2.19.0
-      vue: 3.5.34(typescript@5.9.3)
+      vue: 3.5.34(typescript@5.8.3)
       vue-component-type-helpers: 3.3.3
 
   '@types/estree@1.0.8': {}
@@ -2984,11 +2984,6 @@ snapshots:
     dependencies:
       vite: 6.4.2(@types/node@22.19.19)(jiti@1.21.7)
       vue: 3.5.34(typescript@5.8.3)
-
-  '@vitejs/plugin-vue@5.2.4(vite@6.4.2(@types/node@22.19.19)(jiti@1.21.7))(vue@3.5.34(typescript@5.9.3))':
-    dependencies:
-      vite: 6.4.2(@types/node@22.19.19)(jiti@1.21.7)
-      vue: 3.5.34(typescript@5.9.3)
 
   '@volar/language-core@2.4.15':
     dependencies:
@@ -3069,19 +3064,6 @@ snapshots:
       path-browserify: 1.0.1
     optionalDependencies:
       typescript: 5.8.3
-
-  '@vue/language-core@2.2.12(typescript@5.9.3)':
-    dependencies:
-      '@volar/language-core': 2.4.15
-      '@vue/compiler-dom': 3.5.34
-      '@vue/compiler-vue2': 2.7.16
-      '@vue/shared': 3.5.34
-      alien-signals: 1.0.13
-      minimatch: 9.0.9
-      muggle-string: 0.4.1
-      path-browserify: 1.0.1
-    optionalDependencies:
-      typescript: 5.9.3
 
   '@vue/reactivity@3.5.34':
     dependencies:
@@ -4132,7 +4114,8 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.3: {}
+  typescript@5.9.3:
+    optional: true
 
   undici-types@6.21.0: {}
 
@@ -4284,7 +4267,7 @@ snapshots:
     dependencies:
       vue: 3.5.34(typescript@5.8.3)
 
-  vue-docgen-api@4.79.2(vue@3.5.34(typescript@5.9.3)):
+  vue-docgen-api@4.79.2(vue@3.5.34(typescript@5.8.3)):
     dependencies:
       '@babel/parser': 7.29.3
       '@babel/types': 7.29.0
@@ -4297,8 +4280,8 @@ snapshots:
       pug: 3.0.4
       recast: 0.23.11
       ts-map: 1.0.3
-      vue: 3.5.34(typescript@5.9.3)
-      vue-inbrowser-compiler-independent-utils: 4.71.1(vue@3.5.34(typescript@5.9.3))
+      vue: 3.5.34(typescript@5.8.3)
+      vue-inbrowser-compiler-independent-utils: 4.71.1(vue@3.5.34(typescript@5.8.3))
 
   vue-i18n@10.0.8(vue@3.5.34(typescript@5.8.3)):
     dependencies:
@@ -4307,31 +4290,20 @@ snapshots:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.34(typescript@5.8.3)
 
-  vue-inbrowser-compiler-independent-utils@4.71.1(vue@3.5.34(typescript@5.9.3)):
+  vue-inbrowser-compiler-independent-utils@4.71.1(vue@3.5.34(typescript@5.8.3)):
     dependencies:
-      vue: 3.5.34(typescript@5.9.3)
+      vue: 3.5.34(typescript@5.8.3)
 
   vue-router@4.6.4(vue@3.5.34(typescript@5.8.3)):
     dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.34(typescript@5.8.3)
 
-  vue-router@4.6.4(vue@3.5.34(typescript@5.9.3)):
-    dependencies:
-      '@vue/devtools-api': 6.6.4
-      vue: 3.5.34(typescript@5.9.3)
-
   vue-tsc@2.2.12(typescript@5.8.3):
     dependencies:
       '@volar/typescript': 2.4.15
       '@vue/language-core': 2.2.12(typescript@5.8.3)
       typescript: 5.8.3
-
-  vue-tsc@2.2.12(typescript@5.9.3):
-    dependencies:
-      '@volar/typescript': 2.4.15
-      '@vue/language-core': 2.2.12(typescript@5.9.3)
-      typescript: 5.9.3
 
   vue@3.5.34(typescript@5.8.3):
     dependencies:
