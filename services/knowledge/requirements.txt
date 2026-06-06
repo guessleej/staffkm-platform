@@ -43,3 +43,5 @@ opentelemetry-instrumentation-fastapi==0.49b2
 opentelemetry-instrumentation-httpx==0.49b2
 opentelemetry-instrumentation-asyncpg==0.49b2
 opentelemetry-instrumentation-logging==0.49b2
+# v5.13: Milvus 向量後端（VECTOR_BACKEND=milvus，高維 embedding 4096 + HNSW 真索引）
+pymilvus>=2.4.0,<2.6.0

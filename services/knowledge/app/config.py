@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int = 1024
     OPENAI_API_KEY: str = ""
 
+    # v5.13: 向量後端切換。pgvector（預設、≤2000 維、ivfflat）/ milvus（高維如 4096 + HNSW 真索引）。
+    #   milvus 模式：向量存 Milvus、段落原文/FTS 仍在 Postgres，hybrid 在 app 端 RRF 融合。
+    VECTOR_BACKEND: str = "pgvector"
+    MILVUS_URI: str = "http://staffkm-milvus:19530"
+    MILVUS_TOKEN: str = ""
+    MILVUS_COLLECTION: str = "staffkm_paragraphs"
+
     # ivfflat 近似向量搜尋掃描的倒排清單數（pgvector 預設 1 → 召回極差且對 embedding 微擾敏感）。
     # 建議 ≈ sqrt(lists)（索引 lists=100 → 10）。每條向量查詢以 SET LOCAL 套用（pooling 安全）。
     IVFFLAT_PROBES: int = 10
