@@ -146,8 +146,17 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                 await set_progress(70, "正在寫入段落與向量…")
 
                 # 冪等清理：先刪除舊段落（retry 場景）
+                # v5.13: milvus 模式先撈舊段落 id → 刪 PG 後清 Milvus 向量（避免重處理殘留）
+                from app.core import milvus_store
+                _old_pids: list = []
+                if milvus_store.is_enabled():
+                    _r = await session.execute(
+                        text_sql("SELECT id FROM paragraphs WHERE document_id = :d"), {"d": str(doc.id)}
+                    )
+                    _old_pids = [str(x[0]) for x in _r.fetchall()]
                 await session.execute(delete(Paragraph).where(Paragraph.document_id == doc.id))
                 await session.commit()
+                await milvus_store.safe_delete_by_paragraphs(_old_pids)
 
                 # 寫入段落與向量（每 50 筆批次提交）
                 # workspace_id 從 document 繼承（RFC-001 Stage 2）

@@ -2,6 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -149,7 +150,18 @@ async def delete_document_api(
         except Exception:
             pass
 
+    # v5.13: milvus 模式先撈段落 id（CASCADE 刪 PG 後查不到），刪 PG 後再清 Milvus 向量
+    from app.core import milvus_store
+    para_ids: list = []
+    if milvus_store.is_enabled():
+        rows = await session.execute(
+            text("SELECT id FROM paragraphs WHERE document_id = :d"), {"d": str(doc_id)}
+        )
+        para_ids = [str(r[0]) for r in rows.fetchall()]
+
     await session.delete(doc)
+    await session.commit()
+    await milvus_store.safe_delete_by_paragraphs(para_ids)
     return ApiResponse(message="文件已刪除")
 
 

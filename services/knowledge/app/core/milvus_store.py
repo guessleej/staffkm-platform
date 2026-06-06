@@ -63,6 +63,37 @@ async def ensure_collection() -> None:
     await asyncio.to_thread(_ensure_collection_sync)
 
 
+def _collection_dim_sync() -> int | None:
+    """回 Milvus collection 目前的向量維度（不存在回 None）。"""
+    c = _get_client()
+    if not c.has_collection(settings.MILVUS_COLLECTION):
+        return None
+    desc = c.describe_collection(settings.MILVUS_COLLECTION)
+    for f in desc.get("fields", []):
+        if f.get("name") == "embedding":
+            return int(f.get("params", {}).get("dim") or 0) or None
+    return None
+
+
+async def collection_dim() -> int | None:
+    return await asyncio.to_thread(_collection_dim_sync)
+
+
+async def recreate_collection() -> None:
+    """換 embedding 維度時呼叫：drop 舊 collection → 依 EMBEDDING_DIMENSION 重建（空）。"""
+    global _collection_ready
+
+    def _do():
+        global _collection_ready
+        c = _get_client()
+        if c.has_collection(settings.MILVUS_COLLECTION):
+            c.drop_collection(settings.MILVUS_COLLECTION)
+        _collection_ready = False
+        _ensure_collection_sync()
+    await asyncio.to_thread(_do)
+    log.info("milvus_collection_recreated", dim=settings.EMBEDDING_DIMENSION)
+
+
 async def upsert(paragraph_id, kb_id, embedding: list[float]) -> None:
     def _do():
         _ensure_collection_sync()
@@ -81,10 +112,45 @@ async def delete_by_paragraph(paragraph_id) -> None:
     await asyncio.to_thread(_do)
 
 
+async def delete_by_paragraphs(paragraph_ids: list) -> None:
+    """批次刪除（文件刪除/重處理時清舊向量）。空清單 no-op。"""
+    ids = [str(p) for p in paragraph_ids if p]
+    if not ids:
+        return
+
+    def _do():
+        # milvus filter 用 IN 清單；分批避免單筆 expr 過長
+        c = _get_client()
+        for i in range(0, len(ids), 256):
+            chunk = ids[i:i + 256]
+            expr = "paragraph_id in [" + ", ".join(f'"{x}"' for x in chunk) + "]"
+            c.delete(settings.MILVUS_COLLECTION, filter=expr)
+    await asyncio.to_thread(_do)
+
+
 async def delete_by_kb(kb_id) -> None:
     def _do():
         _get_client().delete(settings.MILVUS_COLLECTION, filter=f'kb_id == "{kb_id}"')
     await asyncio.to_thread(_do)
+
+
+async def safe_delete_by_kb(kb_id) -> None:
+    """milvus 模式才刪、失敗只記 log（清理不該擋主流程；殘留向量不影響正確性）。"""
+    if not is_enabled():
+        return
+    try:
+        await delete_by_kb(kb_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("milvus_delete_kb_failed", kb_id=str(kb_id), error=str(e))
+
+
+async def safe_delete_by_paragraphs(paragraph_ids: list) -> None:
+    if not is_enabled():
+        return
+    try:
+        await delete_by_paragraphs(paragraph_ids)
+    except Exception as e:  # noqa: BLE001
+        log.warning("milvus_delete_paras_failed", n=len(paragraph_ids or []), error=str(e))
 
 
 async def search(kb_id, query_embedding: list[float], top_k: int) -> list[tuple[str, float]]:

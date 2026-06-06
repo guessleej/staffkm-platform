@@ -25,6 +25,17 @@ log = structlog.get_logger()
 async def _ensure_embedding_dimension(engine):
     """偵測並對齊 paragraph_embeddings.embedding 的維度，需與 settings.EMBEDDING_DIMENSION 一致。
     若有資料則跳過（避免破壞），請手動處理；若無資料則自動重建欄位與索引。"""
+    # v5.13: milvus 模式 → 向量在 Milvus，pgvector paragraph_embeddings 欄不使用。
+    #   不對齊 pgvector 維度（避免無謂 ALTER）；改確保 Milvus collection 就緒。
+    from app.core import milvus_store
+    if milvus_store.is_enabled():
+        try:
+            await milvus_store.ensure_collection()
+            log.info("milvus_collection_ready", dim=settings.EMBEDDING_DIMENSION)
+        except Exception as e:  # noqa: BLE001
+            log.warning("milvus_collection_init_failed", error=str(e))
+        return
+
     async with engine.begin() as conn:
         # 查目前維度（atttypmod 對 vector 是 dim+4，所以實際維度是 atttypmod）
         result = await conn.execute(text(

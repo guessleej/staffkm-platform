@@ -179,6 +179,9 @@ async def delete_knowledge_base(
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
+    # v5.13: milvus 模式清掉此 KB 的向量（pgvector 走 CASCADE，Milvus 需顯式刪）
+    from app.core import milvus_store
+    await milvus_store.safe_delete_by_kb(kb_id)
     return ApiResponse(message="知識庫已刪除")
 
 

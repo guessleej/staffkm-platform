@@ -57,9 +57,14 @@ async def _current_column_dim(session) -> int:
 
 async def reindex_embeddings(session, model: str, api_key: str, base_url: str | None) -> dict:
     """全庫重嵌（必要時遷移維度）。回 {status, total, done, dim, migrated}。"""
+    from app.core import milvus_store
+    _milvus = milvus_store.is_enabled()
+
     started = datetime.datetime.utcnow().isoformat()
     target_dim = await probe_dim(model, api_key, base_url)
-    cur_dim = await _current_column_dim(session)
+    # milvus 模式：現有維度看 Milvus collection（非 pgvector 欄）
+    cur_dim = (await milvus_store.collection_dim()) or target_dim if _milvus \
+        else await _current_column_dim(session)
     total = (await session.execute(text("SELECT count(*) FROM paragraphs WHERE is_active"))).scalar() or 0
     await _set_setting(session, PROGRESS_KEY, {
         "status": "running", "model": model, "target_dim": target_dim, "cur_dim": cur_dim,
@@ -69,17 +74,25 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
 
     migrated = False
     if target_dim != cur_dim:
-        # 維度遷移：兩個共用 vector 欄一起 ALTER（kb_entities 也用 vector，否則圖錨定壞）
-        for stmt in (
-            "DROP INDEX IF EXISTS idx_para_embed_vector",
-            "DROP INDEX IF EXISTS ix_kb_entities_vec",
-            f"ALTER TABLE paragraph_embeddings ALTER COLUMN embedding TYPE vector({target_dim}) USING NULL::vector({target_dim})",
-            f"ALTER TABLE kb_entities ALTER COLUMN embedding TYPE vector({target_dim}) USING NULL::vector({target_dim})",
-        ):
-            await session.execute(text(stmt))
-        await session.commit()
-        migrated = True
-        log.info("reindex_migrated_columns", target_dim=target_dim)
+        if _milvus:
+            # milvus 模式：維度變更 → 重建 Milvus collection（drop+建空）。pgvector 欄不動。
+            # EMBEDDING_DIMENSION 在 runtime 由 active.dim 解析；這裡先暫設讓建表用對維度。
+            settings.EMBEDDING_DIMENSION = target_dim
+            await milvus_store.recreate_collection()
+            migrated = True
+            log.info("reindex_milvus_recreated", target_dim=target_dim)
+        else:
+            # 維度遷移：兩個共用 vector 欄一起 ALTER（kb_entities 也用 vector，否則圖錨定壞）
+            for stmt in (
+                "DROP INDEX IF EXISTS idx_para_embed_vector",
+                "DROP INDEX IF EXISTS ix_kb_entities_vec",
+                f"ALTER TABLE paragraph_embeddings ALTER COLUMN embedding TYPE vector({target_dim}) USING NULL::vector({target_dim})",
+                f"ALTER TABLE kb_entities ALTER COLUMN embedding TYPE vector({target_dim}) USING NULL::vector({target_dim})",
+            ):
+                await session.execute(text(stmt))
+            await session.commit()
+            migrated = True
+            log.info("reindex_migrated_columns", target_dim=target_dim)
 
     # 重嵌前先把 active 切到目標模型 → runtime query/ingest 與「已遷移的欄位維度」一致，
     # 重嵌期間頂多回空結果（向量尚未填），不會 1024-query vs 768-column 的硬維度錯誤。
@@ -117,7 +130,13 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
         })
 
     # 2) 重嵌 kb_entities（圖錨定向量需同維度）
-    ent_rows = (await session.execute(text("SELECT id, name, aliases FROM kb_entities"))).fetchall()
+    #    v5.13: milvus 模式跳過 — GraphRAG 實體向量仍存 pgvector（vector(≤2000)），高維 embedding
+    #    下無法寫入；圖錨定向量改 Milvus 為後續 Phase（graph 是加法層、可暫缺，hybrid 不受影響）。
+    ent_rows = [] if _milvus else (
+        await session.execute(text("SELECT id, name, aliases FROM kb_entities"))
+    ).fetchall()
+    if _milvus:
+        log.warning("reindex_milvus_skip_kb_entities", note="graph entity vectors not yet on milvus")
     for i in range(0, len(ent_rows), _BATCH):
         batch = ent_rows[i:i + _BATCH]
         texts = []
@@ -132,9 +151,10 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
             )
         await session.commit()
 
-    # 3) 維度有變 → 重建 ivfflat index（v5.13: 維度 > 2000 pgvector 無法建 → 跳過、走暴力檢索）
+    # 3) 維度有變 → 重建 ivfflat index（v5.13: milvus 模式 HNSW 在 collection 上、不碰 pgvector；
+    #    pgvector 模式維度 > 2000 無法建 → 跳過、走暴力檢索）
     from app.core.vectorstore import ann_index_supported
-    if migrated and ann_index_supported():
+    if migrated and not _milvus and ann_index_supported():
         for stmt in (
             "CREATE INDEX IF NOT EXISTS idx_para_embed_vector ON paragraph_embeddings "
             "USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)",
@@ -143,7 +163,7 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
         ):
             await session.execute(text(stmt))
         await session.commit()
-    elif migrated:
+    elif migrated and not _milvus:
         log.warning("reindex_dim_over_2000_no_ann_index", dim=settings.EMBEDDING_DIMENSION)
 
     # 4) 完成（active 已於重嵌前切換 → 此處只更新進度狀態）
