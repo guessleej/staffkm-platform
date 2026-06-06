@@ -127,6 +127,15 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                         "char_start": c.char_start,
                         "char_end": c.char_end,
                     })
+                # v5.13 #3 Contextual Retrieval：每塊補「全文脈絡」前綴再嵌（預設關；超限/失敗無前綴）。
+                #   接在 heading_path 前綴之前 → 嵌入文字 = 脈絡 + 標題路徑 + 原塊。
+                from app.core.contextualize import contextualize_chunks
+                ctxs = await contextualize_chunks(text, [c.content for c in raw_chunks])
+                if any(ctxs):
+                    chunks = [f"{cx}\n{ch}" if cx else ch for cx, ch in zip(ctxs, chunks)]
+                    for m, cx in zip(chunk_meta, ctxs):
+                        if cx:
+                            m["context"] = cx
                 log.info(
                     "document_chunked",
                     doc_id=doc_id, chunks=len(chunks),

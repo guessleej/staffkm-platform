@@ -152,8 +152,9 @@ class SearchRequest(BaseModel):
     reranker: dict | None = Field(default=None, description="Reranker 設定 {type, api_key, base_url, model_name}")
     rerank_top_n: int = Field(default=5, ge=1, le=20, description="Reranker 重排後取前 N 筆")
     retrieval_top_k: int = Field(default=20, ge=1, le=50, description="有 Reranker 時先取更多候選，再重排")
-    # P2 上下文窗口召回：命中段落額外帶回同文件前後 N 段（0=關閉）
-    context_window: int = Field(default=0, ge=0, le=5, description="每個命中段落額外帶回同文件前後 N 段的內容")
+    # P2 上下文窗口召回（small-to-big）：命中段落額外帶回同文件前後 N 段（0=關閉）。
+    #   v5.13 **預設 1**：小塊精準命中、回傳時帶回鄰段給 LLM 更完整上下文（答案品質↑、成本極低）。
+    context_window: int = Field(default=1, ge=0, le=5, description="每個命中段落額外帶回同文件前後 N 段的內容")
     # P3 tag 過濾：限定命中段落所屬文件需符合 tags（any=任一/all=全部）
     tags: list[str] = Field(default_factory=list, description="文件標籤過濾；空=不過濾")
     tag_match_mode: Literal["any", "all"] = Field(default="any", description="any=符合任一標籤；all=需符合全部")

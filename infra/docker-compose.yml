@@ -528,9 +528,9 @@ services:
     deploy:
       resources:
         limits:
-          # v5.12: 內建 reranker 預設關 → 1g 足夠。⚠ 啟用 reranker（RERANKER_DEFAULT_LOCAL=true）
-          #   需把此值調 ≥3g（bge-reranker-base 載入吃 ~1.9GB），否則 OOM。
-          memory: 1g
+          # v5.13: 內建 reranker 改預設開（RERANKER_DEFAULT_LOCAL=true）→ bge-reranker-base 載入吃
+          #   ~1.9GB → 預設 3g。低資源部署可 RERANKER_DEFAULT_LOCAL=false + KNOWLEDGE_MEM_LIMIT=1g。
+          memory: ${KNOWLEDGE_MEM_LIMIT:-3g}
           cpus: "1.0"
         reservations:
           memory: 256m

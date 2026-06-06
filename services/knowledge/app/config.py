@@ -32,11 +32,12 @@ class Settings(BaseSettings):
     IVFFLAT_PROBES: int = 10
 
     # v5.12: 內建 in-process ONNX reranker（fastembed，無 torch / 無外部服務、模型已烤進 image）。
-    #   **預設關**（off-by-default）：實測 bge-reranker-base 載入吃 ~1.9GB RAM，不強迫每客戶承擔。
-    #   要啟用：RERANKER_DEFAULT_LOCAL=true + 把 knowledge 容器記憶體上限調 ≥3g（compose）。
+    #   v5.13 **改預設開**（專業檢索品質優先；記憶體換品質）：bge-reranker-base 載入吃 ~1.9GB RAM，
+    #   故 compose 把 knowledge 容器上限預設調 3g（KNOWLEDGE_MEM_LIMIT）。低資源部署可
+    #   RERANKER_DEFAULT_LOCAL=false + KNOWLEDGE_MEM_LIMIT=1g 關掉收斂。
     #   模型 = bge-reranker-base（fastembed 唯一「多語含中文 + Apache-2.0 可商用」選項；
     #   v2-m3 fastembed 不支援、jina-v2 多語 CC-BY-NC 不可商用）。要更強中文走外部 llama.cpp + v2-m3。
-    RERANKER_DEFAULT_LOCAL: bool = False
+    RERANKER_DEFAULT_LOCAL: bool = True
     RERANKER_LOCAL_MODEL: str = "BAAI/bge-reranker-base"
 
     # 文件分塊設定
@@ -103,6 +104,15 @@ class Settings(BaseSettings):
     QUERY_EXPAND_MODEL: str = "gemma4:e4b"
     QUERY_EXPAND_BASE_URL: str = "http://embedder:11434/v1"
     QUERY_EXPAND_API_KEY: str = "dummy"
+
+    # ── v5.13 Contextual Retrieval（每塊補全文脈絡前綴再嵌，Anthropic 法）──
+    # 召回品質佳但成本高（每塊 1 次 LLM）→ 預設關 + 文件大小/塊數護欄。
+    # LLM 端點複用 QUERY_EXPAND_BASE_URL/API_KEY（地端）；模型可獨立指定。
+    CONTEXTUAL_ENABLED: bool = False
+    CONTEXTUAL_MODEL: str = ""              # 空 → 用 QUERY_EXPAND_MODEL
+    CONTEXTUAL_MAX_DOC_CHARS: int = 50000   # 文件超過 → 整份跳過（避免每塊送超長 prompt）
+    CONTEXTUAL_MAX_CHUNKS: int = 200        # 塊數超過 → 整份跳過（避免成本爆炸）
+    CONTEXTUAL_CONCURRENCY: int = 4         # 併發上限
 
     # ── RFC-014 GraphRAG 加法層（MVP v5.11.0）─────────────────────
     # 實體抽取 LLM：預設用地端 Ollama 既有的 gemma4:e4b（閒置中，零新下載/零雲端成本/
