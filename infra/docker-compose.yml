@@ -501,6 +501,20 @@ services:
       MINIO_BUCKET: staffkm-docs
       MINIO_SECURE: "false"
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://embedder:11434/v1}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      # v5.13 向量後端 + 檢索智能（multi-query / contextual / rerank）。預設值＝既有行為。
+      VECTOR_BACKEND: ${VECTOR_BACKEND:-pgvector}
+      MILVUS_URI: ${MILVUS_URI:-http://staffkm-milvus:19530}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      MILVUS_COLLECTION: ${MILVUS_COLLECTION:-staffkm_paragraphs}
+      RERANKER_DEFAULT_LOCAL: ${RERANKER_DEFAULT_LOCAL:-true}
+      QUERY_EXPAND_ENABLED: ${QUERY_EXPAND_ENABLED:-false}
+      QUERY_EXPAND_MODEL: ${QUERY_EXPAND_MODEL:-gemma4:e4b}
+      QUERY_EXPAND_BASE_URL: ${QUERY_EXPAND_BASE_URL:-http://embedder:11434/v1}
+      QUERY_EXPAND_API_KEY: ${QUERY_EXPAND_API_KEY:-dummy}
+      CONTEXTUAL_ENABLED: ${CONTEXTUAL_ENABLED:-false}
+      CONTEXTUAL_MODEL: ${CONTEXTUAL_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CHUNK_SIZE: ${CHUNK_SIZE:-512}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-64}
@@ -560,6 +574,20 @@ services:
       MINIO_BUCKET: staffkm-docs
       MINIO_SECURE: "false"
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://embedder:11434/v1}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      # v5.13 向量後端 + 檢索智能（worker 入庫也需）。預設值＝既有行為。
+      VECTOR_BACKEND: ${VECTOR_BACKEND:-pgvector}
+      MILVUS_URI: ${MILVUS_URI:-http://staffkm-milvus:19530}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      MILVUS_COLLECTION: ${MILVUS_COLLECTION:-staffkm_paragraphs}
+      RERANKER_DEFAULT_LOCAL: ${RERANKER_DEFAULT_LOCAL:-true}
+      QUERY_EXPAND_ENABLED: ${QUERY_EXPAND_ENABLED:-false}
+      QUERY_EXPAND_MODEL: ${QUERY_EXPAND_MODEL:-gemma4:e4b}
+      QUERY_EXPAND_BASE_URL: ${QUERY_EXPAND_BASE_URL:-http://embedder:11434/v1}
+      QUERY_EXPAND_API_KEY: ${QUERY_EXPAND_API_KEY:-dummy}
+      CONTEXTUAL_ENABLED: ${CONTEXTUAL_ENABLED:-false}
+      CONTEXTUAL_MODEL: ${CONTEXTUAL_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       # v5.9.23: OCR 引擎 (worker 也要解析檔案)
       OCR_ENGINE: ${OCR_ENGINE:-tesseract}
