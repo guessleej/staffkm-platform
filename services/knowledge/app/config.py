@@ -94,6 +94,16 @@ class Settings(BaseSettings):
     #   512 足夠精簡描述；慢模型可再調小。
     IMAGE_DESCRIBE_MAX_TOKENS: int = 512
 
+    # ── v5.13 查詢改寫 / 多查詢（multi-query）────────────────────
+    # query 用詞常與文件不同 → LLM 改寫成數個等價變體各自檢索 → RRF 融合，提升召回。
+    # 預設關（品質換成本：多 1 次 LLM + N 次 embedding）；要開設 QUERY_EXPAND_ENABLED=true。
+    # 模型預設用地端 GRAPH_EXTRACT 同一顆（gemma4/TAIDE，零雲端成本）。
+    QUERY_EXPAND_ENABLED: bool = False
+    QUERY_EXPAND_N: int = 3
+    QUERY_EXPAND_MODEL: str = "gemma4:e4b"
+    QUERY_EXPAND_BASE_URL: str = "http://embedder:11434/v1"
+    QUERY_EXPAND_API_KEY: str = "dummy"
+
     # ── RFC-014 GraphRAG 加法層（MVP v5.11.0）─────────────────────
     # 實體抽取 LLM：預設用地端 Ollama 既有的 gemma4:e4b（閒置中，零新下載/零雲端成本/
     # 無 Kimi content-filter）。要更高品質才切雲端（換 base_url + api_key + model）。

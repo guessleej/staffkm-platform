@@ -9,6 +9,39 @@ from __future__ import annotations
 _GRAPH_RRF_WEIGHT = 1.0
 
 
+def fuse_multi_query(
+    result_lists: list[list[dict]],
+    top_k: int,
+    rrf_k: int = 60,
+) -> list[dict]:
+    """v5.13 多查詢融合：把同一 KB 下「多個改寫查詢」各自的命中清單以 RRF 合併。
+
+    - 每個段落最終分數 = Σ 1/(rrf_k + 該段在各清單的名次)；多查詢都命中者分數疊加（共識）。
+    - 回傳的 row 是「命中該段、vector_score 最高那筆」的 copy，score 換成融合 RRF 值。
+    - 單一清單（未展開）等價於照原排名輸出（呼叫端在 1 查詢時應自行短路省去開銷）。
+    """
+    agg: dict[str, dict] = {}  # pid -> {"row": best_row, "rrf": float}
+    for results in result_lists:
+        ranked = sorted(results, key=lambda x: float(x.get("score") or 0.0), reverse=True)
+        for rank, r in enumerate(ranked, start=1):
+            pid = str(r["id"])
+            contrib = 1.0 / (rrf_k + rank)
+            e = agg.get(pid)
+            if e is None:
+                agg[pid] = {"row": r, "rrf": contrib}
+            else:
+                e["rrf"] += contrib
+                if float(r.get("vector_score") or 0.0) > float(e["row"].get("vector_score") or 0.0):
+                    e["row"] = r
+    merged: list[dict] = []
+    for e in agg.values():
+        row = dict(e["row"])
+        row["score"] = e["rrf"]
+        merged.append(row)
+    merged.sort(key=lambda x: x["score"], reverse=True)
+    return merged[:top_k]
+
+
 def _fuse_graph_results(
     all_results: list[dict],
     g_rows: list[dict],

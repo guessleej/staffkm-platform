@@ -157,6 +157,8 @@ class SearchRequest(BaseModel):
     # P3 tag 過濾：限定命中段落所屬文件需符合 tags（any=任一/all=全部）
     tags: list[str] = Field(default_factory=list, description="文件標籤過濾；空=不過濾")
     tag_match_mode: Literal["any", "all"] = Field(default="any", description="any=符合任一標籤；all=需符合全部")
+    # v5.13 多查詢：LLM 改寫成多個等價查詢各自檢索 → RRF 融合（None=用系統預設 QUERY_EXPAND_ENABLED）
+    multi_query: bool | None = Field(default=None, description="查詢改寫/多查詢融合；None=系統預設")
 
 
 class Citation(BaseModel):
@@ -186,10 +188,18 @@ async def search(
         return ApiResponse(data=SearchResponse(citations=[], total=0, search_mode=body.search_mode))
 
     # 純 FTS 模式不需要向量化
+    # v5.13 多查詢：非 fts 模式且啟用時，LLM 把 query 改寫成多個等價變體，各自嵌入後分別檢索再 RRF 融合
     query_embedding: list[float] = []
+    query_variants: list[str] = [body.query]
+    variant_embeddings: list[list[float]] = []
     if body.search_mode != "fts":
         embedder = await get_active_embedder(session)
-        query_embedding = await embedder.embed_text(body.query)
+        _do_multi = settings.QUERY_EXPAND_ENABLED if body.multi_query is None else body.multi_query
+        if _do_multi:
+            from app.core.query_transform import expand_query
+            query_variants = await expand_query(body.query)
+        variant_embeddings = await embedder.embed_batch(query_variants)
+        query_embedding = variant_embeddings[0]  # 原查詢向量（graph 錨定/單查詢都用它）
 
     # v5.12: 內建 reranker 預設啟用時也要多撈候選給它重排（不只 body.reranker 才撈）
     _will_rerank = bool(body.reranker) or settings.RERANKER_DEFAULT_LOCAL
@@ -205,17 +215,25 @@ async def search(
         fetch_k = max(fetch_k, 50)
 
     async def _search_kb(s: AsyncSession, kb_id) -> list[dict]:
-        return await hybrid_search(
-            session=s,
-            kb_id=kb_id,
-            query_embedding=query_embedding,
-            query_text=body.query,
-            top_k=fetch_k,
-            similarity_threshold=body.similarity_threshold,
-            vector_weight=body.vector_weight,
-            search_mode=body.search_mode,
-            rrf_k=body.rrf_k,
-        )
+        # 單查詢（未展開）：直接走原路徑，零額外開銷、行為與既有一致
+        if len(query_variants) <= 1:
+            return await hybrid_search(
+                session=s, kb_id=kb_id,
+                query_embedding=query_embedding, query_text=body.query,
+                top_k=fetch_k, similarity_threshold=body.similarity_threshold,
+                vector_weight=body.vector_weight, search_mode=body.search_mode, rrf_k=body.rrf_k,
+            )
+        # 多查詢：每個變體各自檢索 → RRF 融合（fuse_multi_query 純邏輯、可單測）
+        from app.core.fusion import fuse_multi_query
+        lists = []
+        for qt, qe in zip(query_variants, variant_embeddings):
+            lists.append(await hybrid_search(
+                session=s, kb_id=kb_id,
+                query_embedding=qe, query_text=qt,
+                top_k=fetch_k, similarity_threshold=body.similarity_threshold,
+                vector_weight=body.vector_weight, search_mode=body.search_mode, rrf_k=body.rrf_k,
+            ))
+        return fuse_multi_query(lists, fetch_k, body.rrf_k)
 
     all_results: list[dict] = []
     if len(allowed_kb_ids) <= 1 or _db._session_factory is None:
