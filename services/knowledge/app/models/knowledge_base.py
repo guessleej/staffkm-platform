@@ -134,5 +134,7 @@ class Paragraph(Base, UUIDPrimaryKeyMixin, AuditMixin):
     qa_pairs: Mapped[list] = mapped_column(JSONB, default=list)
     # 預計算的 tsvector，供 FTS 使用（CJK 分字後以 simple 字典索引）
     search_vector: Mapped[Optional[Any]] = mapped_column(TSVECTOR, nullable=True)
+    # v5.13 #1 small-to-big：指向 paragraph_parents.id；檢索命中此 child → 回傳整個父塊內容
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     document: Mapped["Document"] = relationship(back_populates="paragraphs")

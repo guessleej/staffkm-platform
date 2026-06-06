@@ -965,8 +965,31 @@ CREATE TABLE public.paragraphs (
     updated_by character varying(64),
     search_vector tsvector,
     workspace_id uuid,
-    qa_pairs jsonb DEFAULT '[]'::jsonb NOT NULL
+    qa_pairs jsonb DEFAULT '[]'::jsonb NOT NULL,
+    parent_id uuid
 );
+
+
+--
+-- Name: paragraph_parents; Type: TABLE; Schema: public; Owner: -
+-- v5.13 #1 small-to-big：父塊（不嵌入、不進檢索）；child.parent_id 指回。檢索命中 child → 回傳 parent 內容。
+--
+
+CREATE TABLE public.paragraph_parents (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    document_id uuid NOT NULL,
+    knowledge_base_id uuid NOT NULL,
+    workspace_id uuid,
+    content text NOT NULL,
+    order_index integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.paragraph_parents
+    ADD CONSTRAINT paragraph_parents_pkey PRIMARY KEY (id);
+CREATE INDEX idx_paragraph_parents_doc ON public.paragraph_parents(document_id);
+CREATE INDEX idx_paragraphs_parent ON public.paragraphs(parent_id);
+-- FK paragraph_parents.document_id → documents(id) 放在檔尾 FK 區段（此處 documents PK 尚未建）
 
 
 --
@@ -3937,6 +3960,15 @@ ALTER TABLE ONLY public.paragraph_embeddings
 
 ALTER TABLE ONLY public.paragraphs
     ADD CONSTRAINT paragraphs_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.documents(id) ON DELETE CASCADE;
+
+
+--
+-- Name: paragraph_parents paragraph_parents_document_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- v5.13 #1 small-to-big：父塊隨文件刪除一併 CASCADE（KB 刪 → documents → paragraph_parents）
+--
+
+ALTER TABLE ONLY public.paragraph_parents
+    ADD CONSTRAINT paragraph_parents_document_fk FOREIGN KEY (document_id) REFERENCES public.documents(id) ON DELETE CASCADE;
 
 
 --

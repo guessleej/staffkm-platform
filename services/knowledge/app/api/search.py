@@ -100,6 +100,36 @@ async def _expand_context(
     return hits
 
 
+async def _expand_to_parents(session: AsyncSession, hits: list[dict]) -> list[dict]:
+    """v5.13 #1 small-to-big：命中的小塊(child)→ 回傳其父塊(parent section)內容，並去重。
+
+    在 rerank/top_k 之後執行（不影響排名）。同一父塊的多個 child 命中只保留排名最前者、置換成
+    父塊內容、標 _parent_expanded（後續 context_window 不再對它開窗）。child 無 parent_id（既有
+    資料 / 關閉時入庫）→ 原樣保留，行為與舊版一致。
+    """
+    pids = {str(h["parent_id"]) for h in hits if h.get("parent_id")}
+    if not pids:
+        return hits
+    rows = await session.execute(
+        text("SELECT id, content FROM paragraph_parents WHERE id = ANY(:ids)"),
+        {"ids": [uuid.UUID(p) for p in pids]},
+    )
+    pmap = {str(r["id"]): r["content"] for r in rows.mappings().all()}
+    out: list[dict] = []
+    seen: set[str] = set()
+    for h in hits:
+        pid = str(h["parent_id"]) if h.get("parent_id") else None
+        if pid and pid in pmap:
+            if pid in seen:
+                continue  # 同一父塊只回一次（去重，避免重複內容塞爆 context）
+            seen.add(pid)
+            h = dict(h)
+            h["content"] = pmap[pid]
+            h["_parent_expanded"] = True
+        out.append(h)
+    return out
+
+
 # RFC-014：graph 召回融合（RRF 第三路）抽到 app.core.fusion（純邏輯、可輕量 CI 單測）
 from app.core.fusion import _fuse_graph_results  # noqa: E402
 
@@ -124,7 +154,7 @@ async def _score_paragraphs_by_ids(
     rows = await session.execute(
         text("""
             SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
-                   p.document_id, p.order_index,
+                   p.document_id, p.order_index, p.parent_id,
                    (1 - (pe.embedding <=> CAST(:emb AS vector))) AS score,
                    (1 - (pe.embedding <=> CAST(:emb AS vector))) AS vector_score
             FROM paragraphs p
@@ -299,9 +329,14 @@ async def search(
     else:
         final_results = deduped[: body.top_k]
 
-    # P2 上下文窗口：對最終命中段落帶回同文件相鄰段落（rerank 後執行，不影響排名）
+    # v5.13 #1 small-to-big：命中小塊 → 回傳整個父塊（去重）。預設開；無 parent_id 的命中原樣保留。
+    if settings.SMALL_TO_BIG_ENABLED:
+        final_results = await _expand_to_parents(session, final_results)
+    # P2 上下文窗口：只對「未被父塊取代」的命中開窗（父塊已涵蓋完整上下文，避免重複）
     if body.context_window > 0:
-        final_results = await _expand_context(session, final_results, body.context_window)
+        todo = [h for h in final_results if not h.get("_parent_expanded")]
+        if todo:
+            await _expand_context(session, todo, body.context_window)
 
     citations = [
         Citation(

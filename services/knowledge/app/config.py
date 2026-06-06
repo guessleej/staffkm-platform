@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # 文件分塊設定
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 64
+    # v5.13 #1 真 small-to-big（父子塊）：小塊(child)嵌入檢索、回傳整個父塊(parent section)給 LLM。
+    #   父塊存獨立表 paragraph_parents（不嵌入、不進檢索）；child.parent_id 指回。檢索命中 child →
+    #   置換成 parent 內容並去重。預設開（品質佳、成本極低：入庫多寫父表、檢索多一次 JOIN）。
+    #   只對「啟用後新入庫」的文件生效；既有文件 parent_id 為空 → 維持原行為（鄰段窗）。
+    SMALL_TO_BIG_ENABLED: bool = True
+    PARENT_CHUNK_SIZE: int = 2048   # 父塊字元上限（累積連續 child 到此值即切一個父塊）
     MAX_FILE_SIZE_MB: int = 50
     # v5.13: 音檔/影片通常遠大於文件 → 獨立放寬上限（檔案存 MinIO、ASR 在 worker 背景轉）
     MAX_AUDIO_FILE_SIZE_MB: int = 500

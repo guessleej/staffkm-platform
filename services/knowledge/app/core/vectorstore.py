@@ -154,7 +154,7 @@ async def hybrid_search(
         result = await session.execute(
             text("""
                 SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
-                       p.document_id, p.order_index,
+                       p.document_id, p.order_index, p.parent_id,
                        (1 - (pe.embedding <=> CAST(:emb AS vector))) AS score,
                        (1 - (pe.embedding <=> CAST(:emb AS vector))) AS vector_score
                 FROM paragraph_embeddings pe
@@ -178,7 +178,7 @@ async def hybrid_search(
         result = await session.execute(
             text("""
                 SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
-                       p.document_id, p.order_index,
+                       p.document_id, p.order_index, p.parent_id,
                        ts_rank_cd(p.search_vector,
                                   websearch_to_tsquery('simple', :fts_query)) AS score,
                        0.0::float AS vector_score
@@ -311,7 +311,7 @@ async def _fetch_paragraphs(
     result = await session.execute(
         text("""
             SELECT p.id, p.content, p.title, p.meta, d.name AS doc_name,
-                   p.document_id, p.order_index
+                   p.document_id, p.order_index, p.parent_id
             FROM paragraphs p
             JOIN documents d ON d.id = p.document_id
             WHERE p.id = ANY(:ids) AND p.is_active = true

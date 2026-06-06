@@ -164,8 +164,38 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                     )
                     _old_pids = [str(x[0]) for x in _r.fetchall()]
                 await session.execute(delete(Paragraph).where(Paragraph.document_id == doc.id))
+                # v5.13 #1：重處理也清舊父塊（FK CASCADE 只在刪文件時生效，重嵌不刪文件）
+                await session.execute(
+                    text_sql("DELETE FROM paragraph_parents WHERE document_id = :d"), {"d": str(doc.id)}
+                )
                 await session.commit()
                 await milvus_store.safe_delete_by_paragraphs(_old_pids)
+
+                # v5.13 #1 small-to-big：分組 child → parent，先寫 paragraph_parents 取得 child→parent_id 映射。
+                #   parent 內容用「原始 child 文字」串接（給 LLM 讀的完整段落，不含 embedding 前綴）。
+                child_parent_id: dict[int, str] = {}
+                if settings.SMALL_TO_BIG_ENABLED and raw_chunks:
+                    from app.core.chunking.parents import group_into_parents
+                    groups = group_into_parents(
+                        [c.content for c in raw_chunks], settings.PARENT_CHUNK_SIZE
+                    )
+                    for pidx, members in enumerate(groups):
+                        parent_text = "\n".join(raw_chunks[i].content for i in members)
+                        prow = await session.execute(
+                            text_sql("""
+                                INSERT INTO paragraph_parents
+                                    (document_id, knowledge_base_id, workspace_id, content, order_index)
+                                VALUES (:d, :kb, :ws, :c, :oi)
+                                RETURNING id
+                            """),
+                            {"d": str(doc.id), "kb": str(doc.knowledge_base_id),
+                             "ws": str(doc.workspace_id) if doc.workspace_id else None,
+                             "c": parent_text, "oi": pidx},
+                        )
+                        ppid = str(prow.scalar())
+                        for i in members:
+                            child_parent_id[i] = ppid
+                    await session.commit()
 
                 # 寫入段落與向量（每 50 筆批次提交）
                 # workspace_id 從 document 繼承（RFC-001 Stage 2）
@@ -177,6 +207,8 @@ async def _async_process(doc_id: str, minio_key: str, filename: str, *, inline: 
                         content=chunk,
                         order_index=idx,
                         char_count=len(chunk),
+                        meta=chunk_meta[idx] if idx < len(chunk_meta) else {},  # v5.13 持久化 heading_path/chunk_type/context
+                        parent_id=child_parent_id.get(idx),                      # v5.13 #1 small-to-big
                     )
                     session.add(para)
                     await session.flush()

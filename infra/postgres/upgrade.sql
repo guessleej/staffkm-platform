@@ -28,3 +28,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_credit_ledger_reference
 
 -- （刻意不含）long_term_memories.embedding 1536→1024 維度變更：屬破壞性 ALTER TYPE，且該欄
 --   目前休眠（走 FTS、無資料）。全新部署由 init.sql 給 1024；既有部署維持原樣，不在此每次重跑。
+
+-- v5.13 #1 small-to-big：父子塊。paragraphs.parent_id + 獨立 paragraph_parents 表（不嵌入、不檢索）。
+ALTER TABLE public.paragraphs
+    ADD COLUMN IF NOT EXISTS parent_id uuid;
+CREATE TABLE IF NOT EXISTS public.paragraph_parents (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    document_id uuid NOT NULL,
+    knowledge_base_id uuid NOT NULL,
+    workspace_id uuid,
+    content text NOT NULL,
+    order_index integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+DO $$ BEGIN
+    ALTER TABLE ONLY public.paragraph_parents ADD CONSTRAINT paragraph_parents_pkey PRIMARY KEY (id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY public.paragraph_parents ADD CONSTRAINT paragraph_parents_document_fk
+        FOREIGN KEY (document_id) REFERENCES public.documents(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS idx_paragraph_parents_doc ON public.paragraph_parents(document_id);
+CREATE INDEX IF NOT EXISTS idx_paragraphs_parent ON public.paragraphs(parent_id);
