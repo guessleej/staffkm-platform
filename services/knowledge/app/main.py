@@ -53,10 +53,15 @@ async def _ensure_embedding_dimension(engine):
             f"ALTER TABLE paragraph_embeddings "
             f"ALTER COLUMN embedding TYPE vector({target_dim})"
         ))
-        await conn.execute(text(
-            "CREATE INDEX idx_para_embed_vector ON paragraph_embeddings "
-            "USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"
-        ))
+        # v5.13: 維度 > 2000（如 Qwen3-Embedding 4096）pgvector 無法建 ivfflat → 跳過、走暴力檢索
+        from app.core.vectorstore import ann_index_supported
+        if ann_index_supported():
+            await conn.execute(text(
+                "CREATE INDEX idx_para_embed_vector ON paragraph_embeddings "
+                "USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"
+            ))
+        else:
+            log.warning("embedding_dim_over_2000_no_ann_index", dim=target_dim)
         log.info("embedding_dimension_rebuilt", dim=target_dim)
 
 

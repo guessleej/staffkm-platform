@@ -13,21 +13,35 @@ _CJK_RE = re.compile(
     r"([一-鿿㐀-䶿豈-﫿぀-ゟ゠-ヿ])"
 )
 
-CREATE_VECTOR_TABLE = """
+# v5.13: pgvector 的 ivfflat/hnsw 索引維度上限 = 2000。超過（如 Qwen3-Embedding 4096）只能
+#   暴力精確檢索（不建 ANN 索引），語意正確、僅大語料較慢。所有建索引 DDL 一律過此守衛。
+ANN_INDEX_MAX_DIM = 2000
+
+
+def ann_index_supported() -> bool:
+    """目前 EMBEDDING_DIMENSION 是否可建 pgvector ANN 索引（≤2000）。"""
+    return settings.EMBEDDING_DIMENSION <= ANN_INDEX_MAX_DIM
+
+
+_PARA_ANN_INDEX = (
+    "CREATE INDEX IF NOT EXISTS idx_para_embed_vector ON paragraph_embeddings\n"
+    "    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);"
+    if ann_index_supported()
+    else "-- 維度 > 2000：pgvector 無法建 ivfflat/hnsw → 改暴力精確檢索（不建向量索引）"
+)
+
+CREATE_VECTOR_TABLE = f"""
 CREATE TABLE IF NOT EXISTS paragraph_embeddings (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     paragraph_id UUID NOT NULL REFERENCES paragraphs(id) ON DELETE CASCADE,
     kb_id        UUID NOT NULL,
-    embedding    vector({dim}),
+    embedding    vector({settings.EMBEDDING_DIMENSION}),
     created_at   TIMESTAMPTZ DEFAULT now(),
     CONSTRAINT uniq_para_embed UNIQUE (paragraph_id)
 );
 CREATE INDEX IF NOT EXISTS idx_para_embed_kb     ON paragraph_embeddings(kb_id);
-CREATE INDEX IF NOT EXISTS idx_para_embed_vector ON paragraph_embeddings
-    USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-""".format(
-    dim=settings.EMBEDDING_DIMENSION
-)
+{_PARA_ANN_INDEX}
+"""
 
 
 async def set_ivfflat_probes(session: AsyncSession) -> None:

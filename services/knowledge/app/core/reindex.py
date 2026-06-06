@@ -132,8 +132,9 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
             )
         await session.commit()
 
-    # 3) 維度有變 → 重建 ivfflat index
-    if migrated:
+    # 3) 維度有變 → 重建 ivfflat index（v5.13: 維度 > 2000 pgvector 無法建 → 跳過、走暴力檢索）
+    from app.core.vectorstore import ann_index_supported
+    if migrated and ann_index_supported():
         for stmt in (
             "CREATE INDEX IF NOT EXISTS idx_para_embed_vector ON paragraph_embeddings "
             "USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)",
@@ -142,6 +143,8 @@ async def reindex_embeddings(session, model: str, api_key: str, base_url: str | 
         ):
             await session.execute(text(stmt))
         await session.commit()
+    elif migrated:
+        log.warning("reindex_dim_over_2000_no_ann_index", dim=settings.EMBEDDING_DIMENSION)
 
     # 4) 完成（active 已於重嵌前切換 → 此處只更新進度狀態）
     await _set_setting(session, PROGRESS_KEY, {
