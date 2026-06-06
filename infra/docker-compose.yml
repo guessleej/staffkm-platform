@@ -178,6 +178,108 @@ services:
     logging: *default-logging
 
   # ══════════════════════════════════════════════════════════════
+  #  Milvus 向量資料庫（v5.13，VECTOR_BACKEND=milvus 時啟用，profile=milvus）
+  #  專屬隔離：自帶 etcd + minio（官方 standalone 拓樸，known-good），不與 staffKM
+  #  既有 minio 共用 bucket/憑證 → 客戶開箱即用、可出貨。高維 embedding（如 4096）
+  #  pgvector 無法建索引，Milvus 原生 HNSW/IVF 真索引。三件套只在 backend 內網（不對外開埠）。
+  #  啟用：.env 設 VECTOR_BACKEND=milvus 並 `docker compose --profile milvus up -d`
+  # ══════════════════════════════════════════════════════════════
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.16
+    container_name: staffkm-milvus-etcd
+    profiles: ["milvus"]
+    restart: unless-stopped
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+      - TZ=UTC
+    command: etcd -advertise-client-urls=http://milvus-etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    volumes:
+      - milvus_etcd_data:/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # Milvus 專屬 MinIO（與 staffKM 業務 minio 隔離；憑證用 Milvus 預設 minioadmin，僅內網）
+  milvus-minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: staffkm-milvus-minio
+    profiles: ["milvus"]
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      TZ: UTC
+    command: minio server /minio_data --console-address ":9001"
+    volumes:
+      - milvus_minio_data:/minio_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+        reservations:
+          memory: 128m
+    logging: *default-logging
+    networks:
+      - backend
+
+  milvus:
+    image: milvusdb/milvus:v2.4.15
+    container_name: staffkm-milvus
+    profiles: ["milvus"]
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+      TZ: UTC
+    volumes:
+      - milvus_data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9091/healthz || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 90s
+    depends_on:
+      milvus-etcd:
+        condition: service_healthy
+      milvus-minio:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: ${MILVUS_MEM_LIMIT:-2g}
+          cpus: "1.5"
+        reservations:
+          memory: 512m
+    logging: *default-logging
+    networks:
+      - backend
+
+  # ══════════════════════════════════════════════════════════════
   #  Ollama — 內網 AI 引擎（地端優先策略，RFC-005）
   #  跑兩個模型：
   #    - snowflake-arctic-embed2  (embedding, ~1.2 GB) — 非中國/Apache-2.0/多語含繁中
@@ -1006,6 +1108,15 @@ volumes:
   redis_data:
     driver: local
   minio_data:
+    driver: local
+    labels:
+      staffkm.backup: "daily"
+  # v5.13: Milvus 向量庫三件套（profile=milvus）
+  milvus_etcd_data:
+    driver: local
+  milvus_minio_data:
+    driver: local
+  milvus_data:
     driver: local
     labels:
       staffkm.backup: "daily"
