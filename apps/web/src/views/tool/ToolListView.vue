@@ -34,6 +34,50 @@
     </div>
 
     <div class="flex-1 overflow-auto px-6 pb-6">
+      <!-- 教學：如何自己做一個工具（可收合）-->
+      <div class="mb-4 bg-surface-raised border border-bd rounded-xl overflow-hidden">
+        <button
+          @click="showHelp = !showHelp"
+          class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
+        >
+          <span class="text-sm font-semibold text-fg flex items-center gap-2">🛠️ 如何自己做一個工具？</span>
+          <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
+        </button>
+        <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
+          <p class="pt-3">
+            工具（Tool）是給 <strong class="text-fg">AI 代理人 / Application</strong> 呼叫的「能力」——
+            讓 AI 不只會聊天，還能查外部 API、跑指令、接系統，需要時自動呼叫。
+          </p>
+          <div>
+            <p class="font-medium text-fg mb-1">兩種做法</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li><strong class="text-fg">自己建</strong>（右上「建立工具」）：選類型 → 填設定。</li>
+              <li><strong class="text-fg">AI 生成程式碼</strong>（右上）：用白話描述要做什麼 + 輸入/輸出欄位，AI 幫你寫好 Python。</li>
+            </ol>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">四種類型</p>
+            <ul class="space-y-1">
+              <li>🌐 <strong class="text-fg">HTTP API</strong> — 打外部 REST API（查匯率、天氣、發通知…）</li>
+              <li>🔌 <strong class="text-fg">MCP</strong> — 接 MCP server 提供的工具</li>
+              <li>⌨️ <strong class="text-fg">Shell 指令</strong> — 執行系統指令</li>
+              <li>🐍 <strong class="text-fg">自訂 Python</strong> — 自己寫一段 Python 函式</li>
+            </ul>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">範例</p>
+            <p class="text-xs">
+              想要「查今日美金匯率」→ 選 <strong class="text-fg">HTTP API</strong>、填匯率 API 網址即可；
+              或按 <strong class="text-fg">AI 生成程式碼</strong>、輸入「把輸入的文字算出字數」→ AI 自動產生 Python。
+            </p>
+          </div>
+          <p class="text-xs text-fg-tertiary">
+            💡 小提示：工具建好後，到 <strong class="text-fg">Application / 代理人</strong> 把它掛上，
+            AI 對話中需要時就會自動呼叫。
+          </p>
+        </div>
+      </div>
+
       <p v-if="loading" class="text-sm text-fg-tertiary">載入中…</p>
       <EmptyState
         v-else-if="!items.length"
@@ -288,6 +332,7 @@ const toast = useToast()
 const allItems = ref<ToolEntity[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
+const showHelp = ref(true)   // 教學卡：預設展開、可收合
 const draft = reactive({ name: '', description: '', kind: 'http', application_id: '' })
 const activeFolderId = ref<string | null>(null)
 const applications = ref<Array<{ id: string; name: string }>>([])
