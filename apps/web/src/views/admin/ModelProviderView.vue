@@ -217,7 +217,7 @@
     </div>
 
     <!-- Provider dialog (新增 / 編輯) -->
-    <div v-if="showProviderDialog" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="showProviderDialog = false">
+    <div v-if="showProviderDialog" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
       <div class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-md">
         <div class="px-6 py-4 border-b border-bd">
           <h3 class="text-base font-semibold text-fg">{{ editingProvider ? '編輯供應商' : '新增供應商' }}</h3>
@@ -265,7 +265,7 @@
     </div>
 
     <!-- Model dialog -->
-    <div v-if="showModelDialog" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="showModelDialog = false">
+    <div v-if="showModelDialog" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
       <div class="bg-surface-raised rounded-2xl shadow-2xl w-full max-w-md">
         <div class="px-6 py-4 border-b border-bd">
           <h3 class="text-base font-semibold text-fg">新增模型 — {{ currentProvider?.name }}</h3>
