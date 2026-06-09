@@ -17,6 +17,47 @@
     </div>
 
     <div class="flex-1 overflow-auto px-6 pb-6">
+      <!-- 教學：如何自己做一個 Skill（可收合）-->
+      <div class="mb-4 bg-surface-raised border border-bd rounded-xl overflow-hidden">
+        <button
+          @click="showHelp = !showHelp"
+          class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
+        >
+          <span class="text-sm font-semibold text-fg flex items-center gap-2">📘 如何自己做一個 Skill？</span>
+          <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
+        </button>
+        <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
+          <p class="pt-3">
+            Skill 是<strong class="text-fg">可重用的 prompt 範本</strong>：寫一次，就能在多個 Application
+            或對話流程裡重複呼叫，不用每次重打提示詞。
+          </p>
+          <div>
+            <p class="font-medium text-fg mb-1">三步驟</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li>點右上角 <strong class="text-fg">建立 Skill</strong>。</li>
+              <li>填三欄：<strong class="text-fg">名稱</strong>（識別用）、<strong class="text-fg">說明</strong>（這個 skill 做什麼）、<strong class="text-fg">Prompt template</strong>（實際的提示詞）。</li>
+              <li>在 Prompt template 用 <code v-pre class="px-1 py-0.5 bg-neutral-100 rounded text-brand-700 font-mono text-xs">{{變數}}</code> 當佔位 → 呼叫時帶入不同值，同一個 Skill 就能套用到不同情境。</li>
+            </ol>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">範例</p>
+            <pre v-pre class="px-3 py-2 bg-neutral-50 rounded-lg font-mono text-[12px] text-neutral-700 whitespace-pre-wrap border border-neutral-200">名稱：公文摘要
+說明：把冗長公文濃縮成重點
+Prompt template：
+請把以下公文摘要成 3 點重點，並標出主旨與辦理期限：
+
+{{內容}}</pre>
+            <p class="text-xs text-fg-tertiary mt-1.5">
+              呼叫時把實際公文內容塞進 <code v-pre class="px-1 bg-neutral-100 rounded text-brand-700 font-mono">{{內容}}</code>，就會自動套出摘要。
+            </p>
+          </div>
+          <p class="text-xs text-fg-tertiary">
+            💡 小提示：變數用<strong class="text-fg">雙大括號</strong> <code v-pre class="px-1 bg-neutral-100 rounded font-mono">{{ }}</code>、命名取清楚；
+            建好的 Skill 之後可在 <strong class="text-fg">Application 流程節點</strong>裡選用。
+          </p>
+        </div>
+      </div>
+
       <p v-if="loading" class="text-sm text-fg-tertiary">載入中…</p>
       <EmptyState
         v-else-if="!items.length"
@@ -93,6 +134,7 @@ const toast = useToast()
 const items = ref<SkillEntity[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
+const showHelp = ref(true)   // 教學卡：預設展開、可收合
 const draft = reactive({ name: '', description: '', prompt_template: '' })
 
 async function load() {
