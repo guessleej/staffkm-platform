@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 flex flex-col overflow-hidden bg-surface-base">
+  <div class="h-full flex flex-col overflow-hidden bg-surface-base">
     <!-- 頁首 -->
     <div class="px-6 py-5 flex-shrink-0">
       <div class="card-hero">
