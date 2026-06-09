@@ -152,7 +152,7 @@
         Sprint 19.x：改用 watch $route.path 觸發 scroll-top + 一次性 fade-in，
         無 transition mode 不會 race，純視覺反饋。
       -->
-      <div :class="['page-fade-wrap', pageFadeKey]">
+      <div :class="['page-fade-wrap', pageFadeKey, 'h-full']">
         <router-view />
       </div>
     </main>
