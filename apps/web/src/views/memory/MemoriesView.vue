@@ -43,6 +43,43 @@
     </div>
 
     <div class="flex-1 overflow-y-auto p-6">
+      <!-- 教學：如何給 AI 加一條長期記憶（可收合）-->
+      <div class="mb-4 bg-surface-raised border border-bd rounded-xl overflow-hidden">
+        <button
+          @click="showHelp = !showHelp"
+          class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
+        >
+          <span class="text-sm font-semibold text-fg flex items-center gap-2"><SIcon name="bookmark" :size="16" class="text-brand-600" /> 如何給 AI 加一條長期記憶？</span>
+          <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
+        </button>
+        <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
+          <p class="pt-3">
+            長期記憶讓 AI 助理<strong class="text-fg">記住重要事實</strong>，下次對話自動帶上——
+            不用每次重講背景（如「我們公司用注音不用拼音」「報帳上限 2000 元」）。
+          </p>
+          <div>
+            <p class="font-medium text-fg mb-1">三層範圍（scope）</p>
+            <ul class="space-y-1">
+              <li class="flex items-start gap-2"><SIcon name="user" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">user</strong> — 只屬你個人，跨所有對話帶</span></li>
+              <li class="flex items-start gap-2"><SIcon name="cpu" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">app</strong> — 綁某個應用，只在該應用生效</span></li>
+              <li class="flex items-start gap-2"><SIcon name="users" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">team</strong> — 整個團隊共用</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">三步驟</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li>點右上 <strong class="text-fg">新增記憶</strong>。</li>
+              <li>選<strong class="text-fg">範圍</strong>、寫下要記住的事實（一句話最好）。</li>
+              <li>儲存 → AI 之後相關對話會自動帶這條記憶。</li>
+            </ol>
+          </div>
+          <p class="text-xs text-fg-tertiary flex items-start gap-1.5">
+            <SIcon name="lightbulb" :size="13" class="mt-0.5 shrink-0 text-amber-500" />
+            <span>小提示：記簡短、具體的事實效果最好；上方可用範圍篩選與搜尋找既有記憶。</span>
+          </p>
+        </div>
+      </div>
+
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="28" />
       </div>
@@ -160,6 +197,7 @@ import EmptyState from '../../components/common/EmptyState.vue'
 
 const items = ref<Memory[]>([])
 const loading = ref(true)
+const showHelp = ref(true)   // 教學卡：預設展開、可收合
 const filterScope = ref<MemoryScope | undefined>(undefined)
 const searchQ = ref('')
 

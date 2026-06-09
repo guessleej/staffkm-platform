@@ -103,6 +103,10 @@ const ICONS: Record<string, string> = {
   'code':           '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
   'plug':           '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/>',
   'lightbulb':      '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6h6.2c.1-.6.4-1.2.9-1.6A7 7 0 0 0 12 2z"/>',
+  'clock':          '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'zap':            '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  'bookmark':       '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  'users':          '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
 }
 
 const path = computed(() => ICONS[props.name] ?? ICONS['alert-circle'])

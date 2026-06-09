@@ -22,6 +22,46 @@
     </div>
 
     <div class="flex-1 overflow-y-auto px-6 pb-6">
+      <!-- 教學：如何排一個觸發（可收合）-->
+      <div class="mb-4 bg-surface-raised border border-bd rounded-xl overflow-hidden">
+        <button
+          @click="showHelp = !showHelp"
+          class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
+        >
+          <span class="text-sm font-semibold text-fg flex items-center gap-2"><SIcon name="clock" :size="16" class="text-brand-600" /> 如何排一個觸發？</span>
+          <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
+        </button>
+        <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
+          <p class="pt-3">
+            Trigger 讓<strong class="text-fg">應用自動執行</strong>——定時跑、或被外部事件呼叫，不用每次手動點，每次執行都寫紀錄。
+          </p>
+          <p class="flex items-start gap-1.5 text-xs bg-brand-50/60 text-brand-800 px-3 py-2 rounded-lg">
+            <SIcon name="info" :size="14" class="mt-0.5 shrink-0" />
+            <span>前提：要先到「<strong>應用</strong>」建立至少一個應用，Trigger 才有東西可排。</span>
+          </p>
+          <div>
+            <p class="font-medium text-fg mb-1">三種觸發方式</p>
+            <ul class="space-y-1">
+              <li class="flex items-start gap-2"><SIcon name="refresh" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">Interval</strong> — 每隔固定時間跑一次（如每 30 分鐘）</span></li>
+              <li class="flex items-start gap-2"><SIcon name="clock" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">Cron</strong> — 用 cron 表達式排精確時間（如每天 09:00）</span></li>
+              <li class="flex items-start gap-2"><SIcon name="zap" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">Webhook</strong> — 給你一個網址，外部系統打它就觸發</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">三步驟</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li>點右上 <strong class="text-fg">新增 Trigger</strong>。</li>
+              <li>選<strong class="text-fg">應用</strong> + <strong class="text-fg">觸發方式</strong>，填參數（間隔／cron 表達式）。</li>
+              <li>啟用 → 之後自動執行；在卡片可看執行狀態、暫停或刪除。</li>
+            </ol>
+          </div>
+          <p class="text-xs text-fg-tertiary flex items-start gap-1.5">
+            <SIcon name="lightbulb" :size="13" class="mt-0.5 shrink-0 text-amber-500" />
+            <span>小提示：cron 不熟可先用 Interval；Webhook 建立後會給端點 URL，貼給外部系統呼叫即可。</span>
+          </p>
+        </div>
+      </div>
+
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="28" />
       </div>
@@ -280,6 +320,7 @@ import { applicationApi, type Application } from '../../api/application'
 import EmptyState from '../../components/common/EmptyState.vue'
 
 const loading = ref(true)
+const showHelp = ref(true)   // 教學卡：預設展開、可收合
 const triggers = ref<Trigger[]>([])
 const apps = ref<Application[]>([])
 
