@@ -40,7 +40,7 @@
           @click="showHelp = !showHelp"
           class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
         >
-          <span class="text-sm font-semibold text-fg flex items-center gap-2">🛠️ 如何自己做一個工具？</span>
+          <span class="text-sm font-semibold text-fg flex items-center gap-2"><SIcon name="tool" :size="16" class="text-brand-600" /> 如何自己做一個工具？</span>
           <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
         </button>
         <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
@@ -57,11 +57,11 @@
           </div>
           <div>
             <p class="font-medium text-fg mb-1">四種類型</p>
-            <ul class="space-y-1">
-              <li>🌐 <strong class="text-fg">HTTP API</strong> — 打外部 REST API（查匯率、天氣、發通知…）</li>
-              <li>🔌 <strong class="text-fg">MCP</strong> — 接 MCP server 提供的工具</li>
-              <li>⌨️ <strong class="text-fg">Shell 指令</strong> — 執行系統指令</li>
-              <li>🐍 <strong class="text-fg">自訂 Python</strong> — 自己寫一段 Python 函式</li>
+            <ul class="space-y-1.5">
+              <li class="flex items-start gap-2"><SIcon name="globe" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">HTTP API</strong> — 打外部 REST API（查匯率、天氣、發通知…）</span></li>
+              <li class="flex items-start gap-2"><SIcon name="plug" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">MCP</strong> — 接 MCP server 提供的工具</span></li>
+              <li class="flex items-start gap-2"><SIcon name="terminal" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">Shell 指令</strong> — 執行系統指令</span></li>
+              <li class="flex items-start gap-2"><SIcon name="code" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">自訂 Python</strong> — 自己寫一段 Python 函式</span></li>
             </ul>
           </div>
           <div>
@@ -71,9 +71,9 @@
               或按 <strong class="text-fg">AI 生成程式碼</strong>、輸入「把輸入的文字算出字數」→ AI 自動產生 Python。
             </p>
           </div>
-          <p class="text-xs text-fg-tertiary">
-            💡 小提示：工具建好後，到 <strong class="text-fg">Application / 代理人</strong> 把它掛上，
-            AI 對話中需要時就會自動呼叫。
+          <p class="text-xs text-fg-tertiary flex items-start gap-1.5">
+            <SIcon name="lightbulb" :size="13" class="mt-0.5 shrink-0 text-amber-500" />
+            <span>小提示：工具建好後，到 <strong class="text-fg">Application / 代理人</strong> 把它掛上，AI 對話中需要時就會自動呼叫。</span>
           </p>
         </div>
       </div>

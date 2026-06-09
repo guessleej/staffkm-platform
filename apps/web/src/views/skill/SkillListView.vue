@@ -23,7 +23,7 @@
           @click="showHelp = !showHelp"
           class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
         >
-          <span class="text-sm font-semibold text-fg flex items-center gap-2">📘 如何自己做一個 Skill？</span>
+          <span class="text-sm font-semibold text-fg flex items-center gap-2"><SIcon name="book-open" :size="16" class="text-brand-600" /> 如何自己做一個 Skill？</span>
           <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
         </button>
         <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
@@ -51,9 +51,9 @@ Prompt template：
               呼叫時把實際公文內容塞進 <code v-pre class="px-1 bg-neutral-100 rounded text-brand-700 font-mono">{{內容}}</code>，就會自動套出摘要。
             </p>
           </div>
-          <p class="text-xs text-fg-tertiary">
-            💡 小提示：變數用<strong class="text-fg">雙大括號</strong> <code v-pre class="px-1 bg-neutral-100 rounded font-mono">{{ }}</code>、命名取清楚；
-            建好的 Skill 之後可在 <strong class="text-fg">Application 流程節點</strong>裡選用。
+          <p class="text-xs text-fg-tertiary flex items-start gap-1.5">
+            <SIcon name="lightbulb" :size="13" class="mt-0.5 shrink-0 text-amber-500" />
+            <span>小提示：變數用<strong class="text-fg">雙大括號</strong> <code v-pre class="px-1 bg-neutral-100 rounded font-mono">{{ }}</code>、命名取清楚；建好的 Skill 之後可在 <strong class="text-fg">Application 流程節點</strong>裡選用。</span>
           </p>
         </div>
       </div>
@@ -108,7 +108,10 @@ Prompt template：
             <div>
               <label class="block text-xs text-neutral-500 mb-1">Prompt template</label>
               <textarea v-model="draft.prompt_template" rows="4" class="w-full px-3 py-2 text-sm font-mono rounded-md border border-neutral-200 resize-none focus:outline-none focus:ring-1 focus:ring-brand-400" placeholder="例：請扮演 {{role}}，回答關於 {{topic}} 的問題。" />
-              <p v-pre class="text-[11px] text-fg-tertiary mt-1">💡 用 {{變數}} 當佔位，呼叫時帶入不同值（例：{{內容}}、{{role}}）。</p>
+              <p class="text-[11px] text-fg-tertiary mt-1 flex items-start gap-1">
+                <SIcon name="lightbulb" :size="12" class="mt-0.5 shrink-0 text-amber-500" />
+                <span v-pre>用 {{變數}} 當佔位，呼叫時帶入不同值（例：{{內容}}、{{role}}）。</span>
+              </p>
             </div>
           </div>
           <div class="px-5 py-3 border-t border-neutral-100 bg-neutral-50 flex justify-end gap-2">
@@ -124,6 +127,7 @@ Prompt template：
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { skillApi, type SkillEntity } from '../../api/extras'
+import { SIcon } from '@staffkm/ui-kit'
 import { IconPlus } from '../../components/icons'
 import EmptyState from '../../components/common/EmptyState.vue'
 import { useDialog } from '../../composables/useDialog'
