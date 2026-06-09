@@ -57,7 +57,7 @@ async def list_workspace_quotas(
                 WHERE m.workspace_id = w.id
                   AND m.created_at >= date_trunc('month', now())
             ), 0)::NUMERIC(12,6) AS cost_used
-        FROM workspaces w
+        FROM workspace w
         LEFT JOIN workspace_quotas q ON q.workspace_id = w.id
         ORDER BY w.name
     """))
