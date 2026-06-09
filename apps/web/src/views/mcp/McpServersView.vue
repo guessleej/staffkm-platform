@@ -20,6 +20,52 @@
     </div>
 
     <div class="flex-1 overflow-y-auto px-6 pb-6">
+      <!-- 教學：如何接一個 MCP Server（可收合）-->
+      <div class="mb-4 bg-surface-raised border border-bd rounded-xl overflow-hidden">
+        <button
+          @click="showHelp = !showHelp"
+          class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
+        >
+          <span class="text-sm font-semibold text-fg flex items-center gap-2"><SIcon name="plug" :size="16" class="text-brand-600" /> 如何接一個 MCP Server？</span>
+          <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
+        </button>
+        <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
+          <p class="pt-3">
+            MCP（Model Context Protocol）是讓 AI 連到外部工具/資料的標準。接上一個 MCP Server，
+            就能把它提供的工具<strong class="text-fg">整批自動匯入</strong>給你的 AI 用。
+          </p>
+          <p class="flex items-start gap-1.5 text-xs bg-brand-50/60 text-brand-800 px-3 py-2 rounded-lg">
+            <SIcon name="info" :size="14" class="mt-0.5 shrink-0" />
+            <span>跟「<strong>工具</strong>」頁的差別：工具頁是<strong>自己做一個</strong>工具；MCP 是<strong>接別人現成的一整組</strong>工具。</span>
+          </p>
+          <div>
+            <p class="font-medium text-fg mb-1">三步驟</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li>點右上 <strong class="text-fg">新增 Server</strong>。</li>
+              <li>填：<strong class="text-fg">名稱</strong>、<strong class="text-fg">Transport</strong>（http 或 sse）、<strong class="text-fg">URL</strong>（MCP server 網址，照對方文件填）。</li>
+              <li>新增後按卡片上的 <strong class="text-fg">重整</strong> → 自動匯入它的工具；再到 Application/代理人 掛上使用。</li>
+            </ol>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">Transport 怎麼選</p>
+            <ul class="space-y-1">
+              <li class="flex items-start gap-2"><SIcon name="globe" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">http</strong> — Streamable HTTP（多數新版 MCP server）</span></li>
+              <li class="flex items-start gap-2"><SIcon name="refresh" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">sse</strong> — Server-Sent Events（舊版/串流型）</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">範例</p>
+            <pre v-pre class="px-3 py-2 bg-neutral-50 rounded-lg font-mono text-[12px] text-neutral-700 whitespace-pre-wrap border border-neutral-200">名稱：GitHub MCP
+Transport：http
+URL：https://mcp.example.com/mcp</pre>
+          </div>
+          <p class="text-xs text-fg-tertiary flex items-start gap-1.5">
+            <SIcon name="lightbulb" :size="13" class="mt-0.5 shrink-0 text-amber-500" />
+            <span>小提示：連線失敗會在卡片顯示紅色錯誤，先確認 URL 正確、server 在線。匯入的工具也會出現在「工具」清單裡。</span>
+          </p>
+        </div>
+      </div>
+
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="28" />
       </div>
@@ -249,6 +295,7 @@ import EmptyState from '../../components/common/EmptyState.vue'
 
 const servers = ref<McpServer[]>([])
 const loading = ref(true)
+const showHelp = ref(true)   // 教學卡：預設展開、可收合
 const busyIds = ref(new Set<string>())
 
 const showDialog = ref(false)
