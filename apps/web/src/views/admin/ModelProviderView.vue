@@ -8,9 +8,9 @@
       </div>
     </div>
 
-    <div class="flex-1 overflow-hidden flex">
+    <div class="flex-1 overflow-hidden flex min-h-0">
       <!-- 主區（左 + 中）-->
-      <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      <div class="flex-1 min-w-0 min-h-0 overflow-y-auto p-6 space-y-6">
         <!-- 1. 設定預設模型 -->
         <section class="bg-surface-raised border border-bd rounded-2xl p-6">
           <h2 class="text-base font-semibold text-fg mb-1">設定預設模型</h2>
@@ -148,7 +148,7 @@
       </div>
 
       <!-- 右側 catalog（v5.12：寬螢幕加寬 + 卡片 2 欄，避免 31 個 provider 拖成一長條）-->
-      <aside class="w-[340px] xl:w-[600px] flex-shrink-0 border-l border-bd bg-surface-raised flex flex-col">
+      <aside class="w-[340px] xl:w-[600px] flex-shrink-0 border-l border-bd bg-surface-raised flex flex-col min-h-0">
         <div class="p-4 border-b border-bd flex-shrink-0">
           <h2 class="text-sm font-semibold text-fg mb-2">可用供應商</h2>
           <div class="relative">
