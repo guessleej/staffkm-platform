@@ -42,7 +42,7 @@
           <div>
             <p class="font-medium text-fg mb-1">支援類型</p>
             <ul class="space-y-1">
-              <li class="flex items-start gap-2"><SIcon name="database" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">資料庫</strong> — PostgreSQL / MySQL / MongoDB</span></li>
+              <li class="flex items-start gap-2"><SIcon name="database" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">資料庫</strong> — PostgreSQL / MySQL / SQL Server / MongoDB</span></li>
               <li class="flex items-start gap-2"><SIcon name="globe" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">API</strong> — REST API / GraphQL</span></li>
               <li class="flex items-start gap-2"><SIcon name="folder" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">物件儲存</strong> — S3</span></li>
             </ul>
@@ -132,6 +132,7 @@
               <select v-model="draft.kind" class="form-input">
                 <option value="postgres">PostgreSQL</option>
                 <option value="mysql">MySQL</option>
+                <option value="mssql">SQL Server</option>
                 <option value="mongo">MongoDB</option>
                 <option value="rest">REST API</option>
                 <option value="graphql">GraphQL</option>

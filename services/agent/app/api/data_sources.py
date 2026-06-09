@@ -1,6 +1,6 @@
 """Data Sources API — DB / API 連接器（RFC-006 新 backlog）。
 
-kind: postgres / mysql / mongo / rest / graphql / s3 ...
+kind: postgres / mysql / mssql / mongo / rest / graphql / s3 ...
 config: 依 kind 不同；postgres 例：{"host": "...", "port": 5432, "database": "...", "user": "..."}
 
 注意：本檔只負責 metadata CRUD；實際同步 / 查詢由外部 worker（之後再加）。
