@@ -17,6 +17,43 @@
     </div>
 
     <div class="flex-1 overflow-auto px-6 pb-6">
+      <!-- 教學：如何建立一個資料來源（可收合）-->
+      <div class="mb-4 bg-surface-raised border border-bd rounded-xl overflow-hidden">
+        <button
+          @click="showHelp = !showHelp"
+          class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-neutral-50 transition"
+        >
+          <span class="text-sm font-semibold text-fg flex items-center gap-2"><SIcon name="database" :size="16" class="text-brand-600" /> 如何建立一個資料來源？</span>
+          <span class="text-xs text-fg-tertiary">{{ showHelp ? '收合 ▲' : '展開 ▼' }}</span>
+        </button>
+        <div v-if="showHelp" class="px-5 pb-5 text-sm text-fg-secondary space-y-3 border-t border-bd">
+          <p class="pt-3">
+            資料來源（Data Source）把<strong class="text-fg">外部資料庫 / API / 物件儲存</strong>接進來，
+            讓 Application 能讀「知識庫文件以外」的即時資料（如訂單庫、報表 API）。
+          </p>
+          <div>
+            <p class="font-medium text-fg mb-1">三步驟</p>
+            <ol class="list-decimal list-inside space-y-1">
+              <li>點右上 <strong class="text-fg">建立資料來源</strong>。</li>
+              <li>選<strong class="text-fg">類型</strong>、填<strong class="text-fg">名稱</strong>與<strong class="text-fg">說明</strong>，按建立。</li>
+              <li>建立後再設定<strong class="text-fg">連線參數</strong>（host / port / 帳密），然後在 Application 的資料節點選用。</li>
+            </ol>
+          </div>
+          <div>
+            <p class="font-medium text-fg mb-1">支援類型</p>
+            <ul class="space-y-1">
+              <li class="flex items-start gap-2"><SIcon name="database" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">資料庫</strong> — PostgreSQL / MySQL / MongoDB</span></li>
+              <li class="flex items-start gap-2"><SIcon name="globe" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">API</strong> — REST API / GraphQL</span></li>
+              <li class="flex items-start gap-2"><SIcon name="folder" :size="14" class="mt-0.5 shrink-0 text-brand-500" /><span><strong class="text-fg">物件儲存</strong> — S3</span></li>
+            </ul>
+          </div>
+          <p class="text-xs text-fg-tertiary flex items-start gap-1.5">
+            <SIcon name="lightbulb" :size="13" class="mt-0.5 shrink-0 text-amber-500" />
+            <span>小提示：帳密等敏感連線參數在建立後另行設定、加密保存；建好可在 Application 流程裡當資料輸入。</span>
+          </p>
+        </div>
+      </div>
+
       <p v-if="loading" class="text-sm text-fg-tertiary">載入中…</p>
       <EmptyState
         v-else-if="!items.length"
@@ -122,12 +159,14 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { dataSourceApi, type DataSourceEntity, type DataSourceTestResult } from '../../api/extras'
+import { SIcon } from '@staffkm/ui-kit'
 import { IconPlus } from '../../components/icons'
 import EmptyState from '../../components/common/EmptyState.vue'
 
 const items = ref<DataSourceEntity[]>([])
 const loading = ref(true)
 const showCreate = ref(false)
+const showHelp = ref(true)   // 教學卡：預設展開、可收合
 const draft = reactive({ name: '', description: '', kind: 'postgres' })
 
 async function load() {
