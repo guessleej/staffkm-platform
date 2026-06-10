@@ -194,6 +194,10 @@
                 :to="`/knowledge/${kb.id}/hit-test`"
                 class="flex-1 text-center text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 py-1.5 rounded-md transition-colors"
               >檢索測試</router-link>
+              <router-link
+                :to="`/knowledge/${kb.id}/wiki`"
+                class="flex-1 text-center text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-md transition-colors"
+              >Wiki</router-link>
               <!-- v5.11.x：GraphRAG 知識圖譜 -->
               <button
                 @click.stop="openGraph(kb)"

@@ -56,6 +56,19 @@ export const knowledgeApi = {
     const { data } = await http.get(`/knowledge/tasks/${taskId}`)
     return data.data
   },
+  // v5.13 LLM Wiki
+  async generateWiki(kbId: string) {
+    const { data } = await http.post(`/knowledge/bases/${kbId}/wiki/generate`)
+    return data.data
+  },
+  async getWiki(kbId: string) {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/wiki`)
+    return data.data as { status: any; pages: Array<{ id: string; title: string; document_id: string | null; is_index: boolean }> }
+  },
+  async getWikiPage(kbId: string, pageId: string) {
+    const { data } = await http.get(`/knowledge/bases/${kbId}/wiki/pages/${pageId}`)
+    return data.data as { id: string; title: string; content: string; is_index: boolean }
+  },
   async hitTest(kbId: string, query: string, topK = 10) {
     const { data } = await http.post('/knowledge/hit-test', {
       query, kb_id: kbId, top_k: topK, similarity_threshold: 0.3,

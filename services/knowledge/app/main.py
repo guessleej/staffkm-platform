@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
 from app.utils.migrate import run_alembic_upgrade
-from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync, embedding_admin
+from app.api import documents, knowledge_bases, paragraphs, search, hit_test, tasks, folders, kb_grants, inline_write, web_sync, embedding_admin, wiki
 from staffkm_core.utils import database as _db
 from staffkm_core.utils.database import init_db
 from staffkm_core.observability import setup_otel, instrument_fastapi
@@ -172,6 +172,7 @@ app.include_router(tasks.router,           prefix=f"{_PREFIX}/tasks",      tags=
 app.include_router(kb_grants.router,       prefix=f"{_PREFIX}/bases",      tags=["KB 資源授權（Round 10-4）"])
 app.include_router(inline_write.router,    prefix=f"{_PREFIX}/documents",  tags=["Workflow KB inline-write（RFC-013）"])
 app.include_router(web_sync.router,        prefix=f"{_PREFIX}/bases",      tags=["Web KB 同步（Sprint 16）"])
+app.include_router(wiki.router,            prefix=f"{_PREFIX}/bases",      tags=["LLM Wiki（v5.13）"])
 
 
 @app.get("/health")

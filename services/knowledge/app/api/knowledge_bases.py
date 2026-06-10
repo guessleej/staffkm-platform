@@ -178,6 +178,11 @@ async def delete_knowledge_base(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
+    # v5.13: kb_wiki_pages 無 FK CASCADE（避 init.sql 排序雷）→ 顯式清；wiki 狀態也清
+    await session.execute(text("DELETE FROM kb_wiki_pages WHERE knowledge_base_id = :kb"),
+                          {"kb": str(kb_id)})
+    await session.execute(text("DELETE FROM system_settings WHERE key = :k"),
+                          {"k": f"wiki.{kb_id}"})
     await session.commit()
     # v5.13: milvus 模式清掉此 KB 的向量（pgvector 走 CASCADE，Milvus 需顯式刪）
     from app.core import milvus_store

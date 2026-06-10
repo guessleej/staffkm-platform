@@ -94,6 +94,12 @@ const router = createRouter({
           meta: { title: '命中測試' },
         },
         {
+          path: 'knowledge/:kbId/wiki',
+          name: 'knowledge-wiki',
+          component: () => import('../views/knowledge/WikiView.vue'),
+          meta: { title: 'LLM Wiki' },
+        },
+        {
           path: 'applications',
           name: 'applications',
           component: () => import('../views/application/ApplicationListView.vue'),

@@ -21,6 +21,7 @@ celery_app.conf.update(
         "app.tasks.web_sync.*":         {"queue": "knowledge"},
         "app.tasks.build_graph.*":      {"queue": "knowledge"},
         "app.tasks.reindex_embeddings.*": {"queue": "knowledge"},  # 否則進 default queue、worker(-Q knowledge)收不到
+        "app.tasks.wiki_gen.*":         {"queue": "knowledge"},    # v5.13 LLM Wiki 生成
     },
     worker_prefetch_multiplier=1,
     task_acks_late=True,

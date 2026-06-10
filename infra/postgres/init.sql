@@ -676,6 +676,28 @@ CREATE TABLE public.kb_communities (
 
 
 --
+-- Name: kb_wiki_pages; Type: TABLE; Schema: public; Owner: -
+-- v5.13 LLM Wiki：用 LLM 把知識庫文件整理成可瀏覽的百科頁面（document_id NULL = 總覽/首頁）。
+--
+
+CREATE TABLE public.kb_wiki_pages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    knowledge_base_id uuid NOT NULL,
+    document_id uuid,
+    workspace_id uuid,
+    title character varying(256) NOT NULL,
+    content text NOT NULL,
+    order_index integer DEFAULT 0 NOT NULL,
+    is_index boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.kb_wiki_pages
+    ADD CONSTRAINT kb_wiki_pages_pkey PRIMARY KEY (id);
+CREATE INDEX idx_kb_wiki_pages_kb ON public.kb_wiki_pages(knowledge_base_id, order_index);
+
+
+--
 -- Name: kb_entities; Type: TABLE; Schema: public; Owner: -
 --
 

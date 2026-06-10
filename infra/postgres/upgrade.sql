@@ -50,3 +50,20 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS idx_paragraph_parents_doc ON public.paragraph_parents(document_id);
 CREATE INDEX IF NOT EXISTS idx_paragraphs_parent ON public.paragraphs(parent_id);
+
+-- v5.13 LLM Wiki：kb_wiki_pages（用 LLM 把知識庫整理成可瀏覽百科）
+CREATE TABLE IF NOT EXISTS public.kb_wiki_pages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    knowledge_base_id uuid NOT NULL,
+    document_id uuid,
+    workspace_id uuid,
+    title character varying(256) NOT NULL,
+    content text NOT NULL,
+    order_index integer DEFAULT 0 NOT NULL,
+    is_index boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+DO $$ BEGIN
+    ALTER TABLE ONLY public.kb_wiki_pages ADD CONSTRAINT kb_wiki_pages_pkey PRIMARY KEY (id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS idx_kb_wiki_pages_kb ON public.kb_wiki_pages(knowledge_base_id, order_index);

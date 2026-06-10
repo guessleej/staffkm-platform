@@ -111,6 +111,14 @@ class Settings(BaseSettings):
     QUERY_EXPAND_BASE_URL: str = "http://embedder:11434/v1"
     QUERY_EXPAND_API_KEY: str = "dummy"
 
+    # ── v5.13 LLM Wiki（用 LLM 把知識庫整理成可瀏覽百科）─────────────
+    # LLM 端點預設沿用 QUERY_EXPAND（地端 TAIDE/gemma4）；可獨立指定。
+    WIKI_MODEL: str = ""          # 空 → 用 QUERY_EXPAND_MODEL
+    WIKI_BASE_URL: str = ""       # 空 → 用 QUERY_EXPAND_BASE_URL
+    WIKI_API_KEY: str = ""        # 空 → 用 QUERY_EXPAND_API_KEY
+    WIKI_MAX_DOCS: int = 50       # 一次最多整理幾份文件（成本/時間護欄）
+    WIKI_DOC_CHARS: int = 12000   # 每份文件餵給 LLM 的字元上限
+
     # ── v5.13 Contextual Retrieval（每塊補全文脈絡前綴再嵌，Anthropic 法）──
     # 召回品質佳但成本高（每塊 1 次 LLM）→ 預設關 + 文件大小/塊數護欄。
     # LLM 端點複用 QUERY_EXPAND_BASE_URL/API_KEY（地端）；模型可獨立指定。
