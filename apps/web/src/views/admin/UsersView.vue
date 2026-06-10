@@ -35,6 +35,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="使用者管理">
+        <p>邀請成員、指派<strong class='text-fg'>角色</strong>（owner／admin／editor／viewer）、停用帳號。</p><p>角色決定能看／能改什麼；停用後該帳號<strong class='text-fg'>無法登入但資料保留</strong>，可隨時恢復。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

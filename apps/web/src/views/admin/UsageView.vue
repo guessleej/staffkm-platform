@@ -16,6 +16,9 @@
 
 </div>
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      <AdminHelp title="Token 用量">
+        <p>看各 workspace／模型的 <strong class='text-fg'>token 消耗與花費</strong>趨勢，抓「誰在燒 token」、估成本。</p><p>數字來自每次 LLM 呼叫的計帳紀錄，可依時間／模型篩選。</p>
+      </AdminHelp>
       <!-- 月度總覽卡（v2 SStatCard + SProgress）-->
       <section v-if="summary" aria-labelledby="usage-overview-h" class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <h2 id="usage-overview-h" class="sr-only">當月用量總覽</h2>

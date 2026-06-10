@@ -17,6 +17,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="Workspace 配額">
+        <p>設每個 workspace 每月 <strong class='text-fg'>token／花費上限</strong>（cap）。空白＝不限。</p><p>屬<strong class='text-fg'>軟上限</strong>：超過會擋下新請求，但 in-flight 的可能小幅超發，事後對帳。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

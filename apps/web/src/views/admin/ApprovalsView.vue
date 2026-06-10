@@ -32,6 +32,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="人工核可">
+        <p>卡在「人工核可」節點、<strong class='text-fg'>等你批准／退回</strong>的 workflow。</p><p>批准後從中斷處繼續跑；退回則終止該次執行。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

@@ -13,6 +13,9 @@
       </select>
     </div>
 
+    <AdminHelp title="執行紀錄">
+      <p>workflow 每次執行的<strong class="text-fg">步驟、輸入輸出、成敗與耗時</strong>，用來除錯與追蹤。</p>
+    </AdminHelp>
     <div class="flex-1 grid grid-cols-12 gap-4 overflow-hidden">
       <!-- 左：runs -->
       <aside class="col-span-4 overflow-y-auto border border-bd rounded p-2 space-y-2">

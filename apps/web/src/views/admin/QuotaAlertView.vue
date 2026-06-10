@@ -25,6 +25,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="配額告警">
+        <p>用量達<strong class='text-fg'>閾值</strong>（如 80%）時自動發 <strong class='text-fg'>webhook／Slack／email</strong> 通知，不用等爆額才發現。</p><p>可分別對 workspace 或 user 設規則。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

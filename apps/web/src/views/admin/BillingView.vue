@@ -51,6 +51,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="用戶報表">
+        <p>每月用量彙整，可<strong class='text-fg'>匯出 CSV</strong> 對帳／請款。</p>
+      </AdminHelp>
       <div v-if="loading && !items.length" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

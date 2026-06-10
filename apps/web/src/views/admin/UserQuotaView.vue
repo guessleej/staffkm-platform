@@ -17,6 +17,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="使用者配額">
+        <p>設<strong class='text-fg'>個別使用者</strong>的月用量上限，比 workspace 配額更細，避免單一帳號吃掉整個額度。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

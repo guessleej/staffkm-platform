@@ -20,6 +20,9 @@
     <!-- 表格 -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="Worker 心跳">
+        <p>背景 worker（排程／重送／回收）是否還活著、<strong class='text-fg'>最後心跳時間</strong>。</p><p>用來確認背景任務沒卡死——心跳停了代表該 worker 異常。</p>
+      </AdminHelp>
       <div v-if="loading && !items.length" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

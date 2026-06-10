@@ -19,6 +19,9 @@
 
 </div>
     <div class="flex-1 overflow-y-auto p-6 space-y-8">
+      <AdminHelp title="Multi-Region">
+        <p>active-active <strong class='text-fg'>多區域</strong> scaffolding（預設關閉）；雙寫衝突解析與 region 路由的基礎設施。</p>
+      </AdminHelp>
       <!-- ── Regions registry ─────────────────────────────────────── -->
       <section>
         <div class="flex items-center justify-between mb-3">

@@ -33,6 +33,9 @@
 
     <!-- 內容 -->
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="慢查詢分析">
+        <p>超過門檻的 <strong class='text-fg'>SQL 與其執行計畫</strong>，找資料庫效能瓶頸。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

@@ -42,6 +42,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="Audit Log（操作稽核）">
+        <p>誰在何時做了什麼（建立／刪除／改設定）的<strong class='text-fg'>不可竄改操作紀錄</strong>，供稽核與追責。</p><p>可依操作者／動作／對象篩選。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

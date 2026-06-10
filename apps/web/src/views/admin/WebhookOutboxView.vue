@@ -32,6 +32,9 @@
     <!-- table -->
 </div>
     <div class="flex-1 overflow-y-auto p-6">
+      <AdminHelp title="Webhook Outbox">
+        <p>對外 webhook 的<strong class='text-fg'>投遞狀態</strong>。失敗會自動指數退避重送，多次失敗進 <strong class='text-fg'>DLQ</strong>。</p><p>可在此手動重送或檢查失敗原因。</p>
+      </AdminHelp>
       <div v-if="loading" class="flex justify-center py-20">
         <SSpinner :size="24" />
       </div>

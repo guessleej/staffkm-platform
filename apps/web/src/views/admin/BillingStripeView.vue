@@ -16,6 +16,9 @@
 
 </div>
     <div class="flex-1 overflow-auto px-6 py-6 space-y-6">
+      <AdminHelp title="Stripe Billing">
+        <p>接 Stripe 的<strong class="text-fg">訂閱方案、加值額度、發票</strong>管理。需先設定 Stripe 金鑰。</p>
+      </AdminHelp>
       <!-- 當前方案卡片 -->
       <section class="bg-surface-raised border border-neutral-200 rounded-xl p-5">
         <h2 class="text-sm font-medium text-fg mb-3">目前方案</h2>

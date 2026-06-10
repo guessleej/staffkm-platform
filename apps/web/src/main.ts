@@ -18,7 +18,10 @@ window.addEventListener('vite:preloadError', () => {
   window.location.reload()
 })
 
+import AdminHelp from './components/common/AdminHelp.vue'
+
 const app = createApp(App)
+app.component('AdminHelp', AdminHelp)   // 全域：admin 頁說明卡，各頁免 import
 app.use(createPinia())
 app.use(router)
 app.use(i18n)
