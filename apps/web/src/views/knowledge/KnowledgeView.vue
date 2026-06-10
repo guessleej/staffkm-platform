@@ -378,6 +378,18 @@
             </div>
 
             <!-- 切片策略（RFC-006）─────────────────────────────────── -->
+            <AdminHelp title="切片策略怎麼選？（影響檢索準度）">
+              <p>切片＝把文件切成可被檢索的小段。<strong class="text-fg">切得好＝找得回</strong>，是 RAG 準度的關鍵。</p>
+              <ul class="space-y-1">
+                <li><strong class="text-fg">自動</strong>（推薦）— 依內容自動判斷下面三者，不確定就選這個。</li>
+                <li><strong class="text-fg">遞迴字符</strong> — 散文／公文／報告。CJK 感知，段→句→字逐級回退、不切在半句中間。</li>
+                <li><strong class="text-fg">Markdown</strong> — 有 # 標題／程式碼／表格的結構化文件，保留標題階層脈絡。</li>
+                <li><strong class="text-fg">Q&A 對</strong> — FAQ／客服問答，依 Q:/A: 成對切。</li>
+              </ul>
+              <p><strong class="text-fg">每段字數</strong>（預設 512）：太大→檢索不精準、太小→缺上下文，一般 300–800。
+                 <strong class="text-fg">overlap</strong>（預設 64）：相鄰段重疊區，會<strong class="text-fg">對齊到完整句子</strong>（非半句）避免切斷語意。</p>
+              <p class="text-fg-tertiary">台灣公文：中文會自動逐字分詞做全文檢索、Big5／CP950 編碼自動處理、掃描 PDF/圖片自動 OCR。</p>
+            </AdminHelp>
             <div>
               <label class="block text-xs font-semibold text-neutral-600 mb-1.5">
                 切片策略
