@@ -40,3 +40,5 @@ class User(Base, UUIDPrimaryKeyMixin, AuditMixin):
     )
     # v5.12：首次登入強制改密 — 出廠預設 admin 帳號設 true（init.sql），改密後清除。
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # v5.13 #2：記住上次使用的 workspace（跨裝置/來源）。前端切 workspace 時寫回。
+    last_workspace_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

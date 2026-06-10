@@ -10,6 +10,7 @@ interface UserInfo {
   roles: string[]
   department: string | null
   must_change_password?: boolean
+  last_workspace_id?: string | null
 }
 
 export const useAuthStore = defineStore('auth', () => {

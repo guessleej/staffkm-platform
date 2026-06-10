@@ -67,3 +67,7 @@ DO $$ BEGIN
     ALTER TABLE ONLY public.kb_wiki_pages ADD CONSTRAINT kb_wiki_pages_pkey PRIMARY KEY (id);
 EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
 CREATE INDEX IF NOT EXISTS idx_kb_wiki_pages_kb ON public.kb_wiki_pages(knowledge_base_id, order_index);
+
+-- v5.13 #2：記住使用者上次使用的 workspace（跨裝置/來源，取代僅 localStorage）
+ALTER TABLE public.users
+    ADD COLUMN IF NOT EXISTS last_workspace_id uuid;

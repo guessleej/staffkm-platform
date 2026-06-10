@@ -1286,7 +1286,8 @@ CREATE TABLE public.users (
     verify_token_exp timestamp with time zone,
     reset_token character varying(128),
     reset_token_exp timestamp with time zone,
-    allowed_login_methods character varying[]
+    allowed_login_methods character varying[],
+    last_workspace_id uuid
 );
 
 

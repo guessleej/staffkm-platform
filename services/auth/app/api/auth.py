@@ -253,7 +253,38 @@ async def me(request: Request, session: AsyncSession = Depends(get_session)):
         "allowed_login_methods": user.allowed_login_methods,
         # v5.12：首登強制改密 — 前端登入後若 true 強制導向改密
         "must_change_password": bool(getattr(user, "must_change_password", False)),
+        # v5.13 #2：上次使用的 workspace（前端 load() 無 localStorage 時用它當預設）
+        "last_workspace_id": str(user.last_workspace_id) if getattr(user, "last_workspace_id", None) else None,
     })
+
+
+class LastWorkspaceRequest(BaseModel):
+    workspace_id: str
+
+
+@router.put("/me/last-workspace", response_model=ApiResponse, summary="記住上次使用的 workspace")
+async def set_last_workspace(
+    body: LastWorkspaceRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    # v5.13 #2：前端切 workspace 時寫回，跨裝置/來源記住偏好。
+    # 不嚴格驗證 workspace_id 歸屬（純使用者偏好；前端 load() 會對照清單，無效就退預設）。
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未驗證")
+    import uuid as _uuid
+    try:
+        ws_uuid = _uuid.UUID(body.workspace_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=422, detail="workspace_id 格式錯誤")
+    from app.models.user import User
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="使用者不存在")
+    user.last_workspace_id = ws_uuid
+    await session.commit()
+    return ApiResponse(message="已記住")
 
 
 class ChangeMyPasswordRequest(BaseModel):
