@@ -100,6 +100,7 @@ import { ref, nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { SIcon } from '@staffkm/ui-kit'
 import MarkdownMessage from '../../components/chat/MarkdownMessage.vue'
+import { uuid } from '../../utils/uuid'
 
 const route = useRoute()
 const appId = route.params.appId as string
@@ -149,8 +150,8 @@ async function sendMessage(text?: string) {
   if (!content || streaming.value) return
   input.value = ''
 
-  messages.value.push({ id: crypto.randomUUID(), role: 'user', content })
-  const aMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: '', streaming: true }
+  messages.value.push({ id: uuid(), role: 'user', content })
+  const aMsg: Message = { id: uuid(), role: 'assistant', content: '', streaming: true }
   messages.value.push(aMsg)
   streaming.value = true
   scrollBottom()

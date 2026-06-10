@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { http } from '../api/index'
+import { uuid } from '../utils/uuid'
 
 export interface ToolCall {
   /** function name / tool name */
@@ -150,7 +151,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   function addUserMessage(content: string): Message {
     const msg: Message = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       role: 'user',
       content,
       citations: [],
@@ -162,7 +163,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   function startAssistantMessage(): Message {
     const msg: Message = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       role: 'assistant',
       content: '',
       citations: [],
