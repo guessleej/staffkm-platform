@@ -977,7 +977,7 @@ services:
     # 若 upstream IP 過時導致 502，healthcheck 會失敗 → autoheal 自動 restart nginx
     # （restart 等同重新 DNS 解析 upstream IP，等於修好 502）。
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- --timeout=3 http://127.0.0.1/login | head -c 50 | grep -qi 'staffkm\\|<!doctype' || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate --timeout=3 https://127.0.0.1/login | head -c 50 | grep -qi 'staffkm\\|<!doctype' || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
