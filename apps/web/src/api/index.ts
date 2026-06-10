@@ -7,7 +7,7 @@ export const http = axios.create({
   timeout: 60_000,
 })
 
-http.interceptors.request.use((config) => {
+http.interceptors.request.use(async (config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
 
@@ -16,7 +16,18 @@ http.interceptors.request.use((config) => {
   // 不再走 LegacyURLBridge（v3.1 起預設 410）。
   // try/catch 包是因為 login 前 Pinia 未 init 會炸。
   try {
-    const ws = useWorkspaceStore().currentId
+    const store = useWorkspaceStore()
+    // v5.13 race 修：currentId 來自 localStorage（每個來源獨立）。剛登入 / 換到新來源
+    // （如 http→https）時 localStorage 空 → currentId 還沒就緒，子層 onMounted 的
+    // workspace-scoped 請求（如 /agents）會搶在 workspace.load() 之前送 → 缺
+    // X-Workspace-ID → gateway 退 legacy → 後端 404。故：除 auth/workspaces/public
+    // 外，currentId 未就緒就先 await ensureReady()（/workspaces 本身不能 await，否則 deadlock）。
+    const path = config.url || ''
+    const skipWs = /^\/?(auth|workspaces|public)(\/|$)/.test(path)
+    if (token && !skipWs && !store.currentId) {
+      await store.ensureReady()
+    }
+    const ws = store.currentId
     if (ws) {
       config.headers = config.headers || {}
       config.headers['X-Workspace-ID'] = ws

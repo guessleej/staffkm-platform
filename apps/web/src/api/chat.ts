@@ -63,7 +63,9 @@ export async function streamChat(
   }
   try {
     const { useWorkspaceStore } = await import('../stores/workspace')
-    const wsId = useWorkspaceStore().currentId
+    const store = useWorkspaceStore()
+    if (!store.currentId) await store.ensureReady()   // v5.13 race 修：workspace 就緒才送
+    const wsId = store.currentId
     if (wsId) headers['X-Workspace-ID'] = wsId
   } catch { /* store 未 init */ }
   const resp = await fetch(`/api/v1/chat/conversations/${convId}/messages/stream`, {
@@ -154,7 +156,9 @@ export async function streamPreviewChat(
   }
   try {
     const { useWorkspaceStore } = await import('../stores/workspace')
-    const wsId = useWorkspaceStore().currentId
+    const store = useWorkspaceStore()
+    if (!store.currentId) await store.ensureReady()   // v5.13 race 修：workspace 就緒才送
+    const wsId = store.currentId
     if (wsId) headers['X-Workspace-ID'] = wsId
   } catch { /* store 未 init */ }
   const resp = await fetch('/api/v1/applications/preview/chat', {

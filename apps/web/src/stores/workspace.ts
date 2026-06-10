@@ -50,6 +50,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  // race 修：確保 workspace 已解析（currentId 選好）才回。並發呼叫共用同一個 load。
+  // 用途：axios 攔截器在送 workspace-scoped 請求前，若 currentId 還沒就緒（剛登入 /
+  // 換來源 localStorage 空），先 await 這個 → 避免缺 X-Workspace-ID → gateway 退 legacy → 404。
+  let _readyPromise: Promise<void> | null = null
+  function ensureReady(): Promise<void> {
+    if (currentId.value) return Promise.resolve()
+    if (!_readyPromise) {
+      _readyPromise = load().finally(() => { _readyPromise = null })
+    }
+    return _readyPromise
+  }
+
   function switchTo(id: string) {
     currentId.value = id
     localStorage.setItem(STORAGE_KEY, id)
@@ -81,6 +93,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     canManage,
     loading,
     load,
+    ensureReady,
     switchTo,
     createAndSwitch,
     refresh,
