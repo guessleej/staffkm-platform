@@ -17,12 +17,25 @@ from staffkm_tenant import TenantContext, require_member, require_writer
 router = APIRouter()
 
 
+async def _assert_kb_in_workspace(session: AsyncSession, kb_id: uuid.UUID, ctx: TenantContext) -> None:
+    """租戶隔離守衛：確認此 kb 屬於 ctx.workspace_id，否則 404。
+    （kb_wiki_pages 查詢也帶 workspace_id 二次防護；防跨 workspace 讀/生成別人的 wiki。）"""
+    owns = (await session.execute(
+        text("SELECT 1 FROM knowledge_bases WHERE id = CAST(:k AS uuid) "
+             "AND workspace_id = CAST(:ws AS uuid)"),
+        {"k": str(kb_id), "ws": str(ctx.workspace_id)},
+    )).scalar()
+    if not owns:
+        raise HTTPException(status_code=404, detail="知識庫不存在或不屬於此工作區")
+
+
 @router.post("/{kb_id}/wiki/generate", response_model=ApiResponse, summary="排程生成 LLM Wiki")
 async def generate_wiki(
     kb_id: uuid.UUID,
     ctx: TenantContext = Depends(require_writer),
     session: AsyncSession = Depends(get_session),
 ):
+    await _assert_kb_in_workspace(session, kb_id, ctx)
     # 已在跑就不重複排程
     row = (await session.execute(
         text("SELECT value FROM system_settings WHERE key = :k"),
@@ -42,15 +55,17 @@ async def get_wiki(
     ctx: TenantContext = Depends(require_member),
     session: AsyncSession = Depends(get_session),
 ):
+    await _assert_kb_in_workspace(session, kb_id, ctx)
     status_row = (await session.execute(
         text("SELECT value FROM system_settings WHERE key = :k"),
         {"k": f"wiki.{kb_id}"},
     )).scalar()
     pages = (await session.execute(
         text("""SELECT id, title, document_id, order_index, is_index
-                FROM kb_wiki_pages WHERE knowledge_base_id = CAST(:k AS uuid)
+                FROM kb_wiki_pages
+                WHERE knowledge_base_id = CAST(:k AS uuid) AND workspace_id = CAST(:ws AS uuid)
                 ORDER BY is_index DESC, order_index"""),
-        {"k": str(kb_id)},
+        {"k": str(kb_id), "ws": str(ctx.workspace_id)},
     )).mappings().all()
     return ApiResponse(data={
         "status": status_row or {"status": "none"},
@@ -72,8 +87,9 @@ async def get_wiki_page(
 ):
     row = (await session.execute(
         text("""SELECT id, title, content, document_id, is_index FROM kb_wiki_pages
-                WHERE id = CAST(:p AS uuid) AND knowledge_base_id = CAST(:k AS uuid)"""),
-        {"p": str(page_id), "k": str(kb_id)},
+                WHERE id = CAST(:p AS uuid) AND knowledge_base_id = CAST(:k AS uuid)
+                AND workspace_id = CAST(:ws AS uuid)"""),
+        {"p": str(page_id), "k": str(kb_id), "ws": str(ctx.workspace_id)},
     )).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Wiki 頁面不存在")
