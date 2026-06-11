@@ -1,4 +1,8 @@
 <template>
+  <!-- v5.13: Teleport 到 body —— 否則祖先（page-fade-wrap 動畫）的 transform 會成為
+       fixed 的 containing block，把這條 bottom-6 工具列定位到捲動內容底部、跑出畫面外
+       （batch 全選了卻看不到刪除列即此雷）。掛到 body 下 → fixed 永遠以視窗為基準。 -->
+  <Teleport to="body">
   <transition
     enter-active-class="transition duration-150 ease-out"
     enter-from-class="opacity-0 translate-y-2"
@@ -34,6 +38,7 @@
       </button>
     </div>
   </transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
