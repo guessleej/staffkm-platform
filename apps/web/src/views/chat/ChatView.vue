@@ -332,10 +332,11 @@ async function maybePollForReply(id: string) {
 async function selectFromRoute() {
   stopReplyPoll()
   const id = route.query.conv as string
-  // v5.12: 切到「不同」對話 → 重置臨時 model/KB 覆寫（避免幽靈黏著到別的對話）+ 關掉上一個
-  //   對話的引用面板（避免幽靈殘留）。同對話（reload/返回）不重置，保留使用者設定。
+  // v5.13: 切到「不同」對話 → 關掉上一個對話的引用面板（避免幽靈殘留）。
+  //   但 **不再清掉 KB/model 覆寫** —— 使用者選了知識庫應跨對話持續連動，否則一開新對話
+  //   就回「預設」、查不到自己的 KB（v5.12 每次重置是此困擾的根源）。跨帳號的清除仍由
+  //   ChatLayout onMounted 的 reset 處理，不影響安全。
   if (id !== convStore.currentConversation?.id) {
-    chatOverride.reset()
     artifact.close()
   }
   if (!id) { convStore.currentConversation = null; convStore.messages = []; return }
