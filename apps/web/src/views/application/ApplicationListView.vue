@@ -281,7 +281,7 @@
             <div class="grid grid-cols-2 gap-3">
               <div class="col-span-2 sm:col-span-1">
                 <label class="form-label">Key 名稱 <span class="text-rose-500">*</span></label>
-                <input v-model="newKeyForm.name" class="form-input" placeholder="如：生產環境整合" @keyup.enter="createKey"/>
+                <input v-model="newKeyForm.name" class="form-input" placeholder="如：生產環境整合" @keydown.enter="(e) => { if (!(e as any).isComposing) { createKey() } }"/>
               </div>
               <div class="col-span-2 sm:col-span-1">
                 <label class="form-label">有效天數（選填，留空永不過期）</label>
@@ -314,7 +314,7 @@
           <div class="grid grid-cols-2 gap-4">
             <div class="col-span-2">
               <label class="form-label">應用名稱 <span class="text-rose-500">*</span></label>
-              <input v-model="form.name" class="form-input" placeholder="如：人事請假助理" @keyup.enter="form.name && saveApp()"/>
+              <input v-model="form.name" class="form-input" placeholder="如：人事請假助理" @keydown.enter="(e) => { if (!(e as any).isComposing) { form.name && saveApp() } }"/>
             </div>
             <div class="col-span-2">
               <label class="form-label">描述</label>

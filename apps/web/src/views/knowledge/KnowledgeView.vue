@@ -309,7 +309,7 @@
                 type="text"
                 placeholder="例：人事法規、採購規範"
                 class="form-input"
-                @keyup.enter="onNameEnter"
+                @keydown.enter="onNameEnter"
               />
             </div>
             <div>
@@ -474,7 +474,7 @@
             v-model="folderForm.name"
             placeholder="例：人事 / 採購 / 法規"
             class="form-input"
-            @keyup.enter="createFolder"
+            @keydown.enter="createFolder"
           />
           <p v-if="activeFolderId" class="text-[11px] text-neutral-500 mt-2">
             將建立於「{{ activeFolderName }}」之下
@@ -824,7 +824,10 @@ async function load() {
 
 // v5.12: 名稱輸入框按 Enter 送出（只在 manual 模式 + 有名稱 + 非送出中；
 //   web 模式還有 URL/sitemap 等必填欄位，不該在名稱按 Enter 就提前建立）。
-function onNameEnter() {
+function onNameEnter(e) {
+  // v5.13: 中文 IME 選字會按 Enter 確認候選字 → 不可當「提交」，否則選個字就建立並關閉視窗。
+  // keydown 階段組字中：isComposing=true / keyCode=229 → 直接略過。
+  if (e && (e.isComposing || e.keyCode === 229)) return
   if (createMode.value === 'manual' && form.value.name.trim() && !submitting.value) {
     createKB()
   }
@@ -968,7 +971,9 @@ async function batchDelete() {
   await load()
 }
 
-async function createFolder() {
+async function createFolder(e) {
+  // v5.13: 同 onNameEnter — 中文 IME 選字 Enter 不可當提交（按鈕點擊 e 是 MouseEvent、不受影響）
+  if (e && (e.isComposing || e.keyCode === 229)) return
   const name = folderForm.name.trim()
   if (!name) return
   try {

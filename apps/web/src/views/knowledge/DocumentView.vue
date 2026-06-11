@@ -229,7 +229,7 @@
                       <input
                         ref="tagInputRef"
                         v-model="tagDraft"
-                        @keyup.enter="commitTag(doc)"
+                        @keydown.enter="(e) => { if (!(e as any).isComposing) { commitTag(doc) } }"
                         @keyup.esc="closeTagEditor(doc.id)"
                         @blur="onTagBlur(doc)"
                         list="kb-tag-suggest"

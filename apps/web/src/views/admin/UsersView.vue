@@ -11,7 +11,7 @@
           <SIcon name="search" :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-fg-tertiary" />
           <input
             v-model="search"
-            @keyup.enter="reload"
+            @keydown.enter="(e) => { if (!(e as any).isComposing) { reload() } }"
             placeholder="搜尋使用者名稱 / email…"
             class="form-input h-9 pl-9 pr-3 w-72
                    focus:outline-none focus:ring-1 focus:ring-brand-400"
@@ -116,7 +116,7 @@
         <div class="mt-4 space-y-3">
           <div>
             <label class="block text-xs text-fg-secondary mb-1">使用者名稱 *</label>
-            <input v-model="inviteForm.username" class="form-input" @keyup.enter="submitInvite" />
+            <input v-model="inviteForm.username" class="form-input" @keydown.enter="(e) => { if (!(e as any).isComposing) { submitInvite() } }" />
           </div>
           <div>
             <label class="block text-xs text-fg-secondary mb-1">Email</label>

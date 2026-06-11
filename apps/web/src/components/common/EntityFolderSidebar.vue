@@ -54,7 +54,7 @@
               v-model="newName"
               placeholder="例：人事 / 採購 / 法規"
               class="w-full h-9 px-3 text-sm rounded-md border border-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
-              @keyup.enter="onCreate"
+              @keydown.enter="(e) => { if (!(e as any).isComposing) { onCreate() } }"
             />
             <p v-if="activeFolderId" class="text-[11px] text-neutral-500 mt-2">
               將建立於當前資料夾之下

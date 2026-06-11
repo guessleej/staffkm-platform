@@ -129,7 +129,7 @@
                 v-model="draft.name"
                 placeholder="例：人事 SOP 諮詢"
                 class="form-input"
-                @keyup.enter="onSubmit"
+                @keydown.enter="(e) => { if (!(e as any).isComposing) { onSubmit() } }"
               />
             </div>
             <div>
