@@ -10,14 +10,14 @@
     leave-to-class="opacity-0 translate-y-2"
   >
     <div
-      v-if="count > 0"
+      v-if="n > 0"
       class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40
              flex items-center gap-2
              pl-4 pr-2 py-2 rounded-2xl
              bg-neutral-900 text-white shadow-lg"
     >
       <span class="text-sm font-medium">
-        {{ $t('batch.selectedCount', { n: count }) }}
+        {{ $t('batch.selectedCount', { n }) }}
       </span>
 
       <!-- 分隔線 -->
@@ -42,6 +42,11 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ count: number }>()
+import { computed, unref } from 'vue'
+// v5.13 雷修：呼叫端常寫 :count="batch.count"，但 batch 是「plain object」、batch.count 是
+// ComputedRef，作為巢狀屬性傳進 prop 時 Vue 不自動解包 → 子端收到 ref 物件、count>0 永遠
+// false → 工具列從來沒顯示過（文件/知識庫/應用三處全中）。用 unref 同時吃 ref 或數字。
+const props = defineProps<{ count: number }>()
 defineEmits<{ (e: 'clear'): void }>()
+const n = computed(() => Number(unref(props.count as unknown)) || 0)
 </script>
