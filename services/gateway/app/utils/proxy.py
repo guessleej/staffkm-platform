@@ -12,7 +12,14 @@ async def proxy_request(
 ) -> StreamingResponse:
     """將 Gateway 收到的請求代理至指定的下游服務。"""
     headers = dict(request.headers)
-    # 注入使用者資訊供下游服務使用
+    # 🔒 安全（critical）：先剝除 client 自帶的信任 header，再由 gateway 從「驗證過的 JWT」
+    # 設權威值。dict(request.headers) 會把 client 送的 X-User-ID 以小寫 x-user-id 保留；
+    # 若不剝除，它會與下面 gateway 加的大寫 X-User-ID 同時轉給下游，下游 .get() 大小寫不敏感
+    # → 讀到 client 偽造值 → 冒充任意使用者 / 偽造 X-User-Roles 提權成 admin / 跨租戶讀資料。
+    # dict() 一律小寫化 header 名 → pop 小寫即涵蓋所有大小寫變體。
+    for _h in ("x-user-id", "x-user-roles", "x-tenant-id"):
+        headers.pop(_h, None)
+    # 注入使用者資訊供下游服務使用（權威來源：JWT，見 middleware/auth.py）
     headers["X-User-ID"] = str(getattr(request.state, "user_id", ""))
     headers["X-User-Roles"] = ",".join(getattr(request.state, "roles", []))
     headers["X-Tenant-ID"] = str(getattr(request.state, "tenant_id", ""))
