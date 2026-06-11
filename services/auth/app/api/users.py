@@ -14,7 +14,20 @@ from staffkm_core.schemas.response import ApiResponse, PagedResponse, PageMeta
 from staffkm_core.utils.database import get_session
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+
+
+def _require_admin(request: Request) -> None:
+    """🔒 安全（critical）：使用者管理 API（增/刪/改角色/重設密碼/列表）一律限 admin。
+    角色來自 Gateway 從「驗證過的 JWT」注入的 request.state.roles（X-User-Roles，
+    gateway 已剝除 client 偽造值）。缺此守衛 → 任何登入者可 PUT 自己的 role=admin 提權、
+    或重設他人密碼接管帳號。以 router 層級 dependency 套用，涵蓋本檔所有（含未來）端點。"""
+    roles = getattr(request.state, "roles", []) or []
+    if "admin" not in roles and "superuser" not in roles:
+        raise HTTPException(status_code=403, detail="需要管理員權限")
+
+
+# router 層級依賴 → 本檔每個端點進來前都先過 admin 檢查
+router = APIRouter(dependencies=[Depends(_require_admin)])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
