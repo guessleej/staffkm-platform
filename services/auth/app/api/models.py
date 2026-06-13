@@ -1064,16 +1064,24 @@ async def _verify_connection(
                 return True, "Anthropic 連線正常"
             return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
-        elif provider_type == "azure":
-            # Azure OpenAI: base_url 應為 https://<resource>.openai.azure.com/
+        elif provider_type in ("azure", "azure_openai"):
+            # Azure OpenAI / Azure AI Foundry / LiteLLM proxy 三種：
+            #  - 傳統 Azure OpenAI（<resource>.openai.azure.com）→ /openai/models?api-version + api-key header
+            #  - Azure AI Foundry（services.ai.azure.com）與 LiteLLM proxy → OpenAI 相容 /models + Bearer
+            # 後兩者實際 LLM 呼叫走 openai_compat（registry 已標）；此處只負責「測試連線」。
             if not base_url:
-                return False, "Azure 供應商需提供 base_url"
-            url = base_url.rstrip("/") + "/openai/models?api-version=2024-02-01"
-            azure_headers = {"api-key": api_key or ""}
+                return False, "Azure OpenAI 供應商需提供 base_url"
+            b = base_url.rstrip("/")
+            if "openai.azure.com" in b:
+                url = b + "/openai/models?api-version=2024-02-01"
+                az_headers = {"api-key": api_key or ""}
+            else:
+                url = b + "/models"
+                az_headers = headers  # Bearer（Foundry / LiteLLM）
             async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.get(url, headers=azure_headers)
+                resp = await client.get(url, headers=az_headers)
             if resp.status_code == 200:
-                return True, "Azure OpenAI 連線正常"
+                return True, "Azure OpenAI / Foundry 連線正常"
             return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
         else:
