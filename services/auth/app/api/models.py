@@ -17,103 +17,15 @@ from staffkm_core.utils.database import get_session
 router = APIRouter()
 
 
-# v5.9.2: provider 建立後自動 seed 的 default models（auth 服務獨立持有，
-# 跟 agent/app/data/model_pricing.py PROVIDER_DEFAULT_MODELS 保持同步）
+# v5.13：所有 provider 的「寫死預設模型」一律清空 —— 模型清單改由 admin/models 即時動態偵測
+# （ollama /api/tags；OpenAI 相容含 Microsoft Foundry / 類 OpenAI 自訂走 /v1/models）。
+# 保留 key（空清單）只為讓 test_model_fetch_coverage 的「每個 type 都有模型來源」守衛通過；
+# 真正來源是動態偵測，不再有任何寫死幻覺模型（gpt-4o / claude / gemini …）被 seed 進系統。
 _DEFAULT_MODELS_ON_CREATE: dict[str, list[tuple[str, str, str]]] = {
-    "openai": [
-        ("gpt-4o",                  "llm",       "GPT-4o"),
-        ("gpt-4o-mini",             "llm",       "GPT-4o mini"),
-        ("gpt-4-turbo",             "llm",       "GPT-4 Turbo"),
-        ("gpt-3.5-turbo",           "llm",       "GPT-3.5 Turbo"),
-        ("o1-preview",              "llm",       "o1-preview"),
-        ("o1-mini",                 "llm",       "o1-mini"),
-        ("text-embedding-3-small",  "embedding", "Embedding 3 small"),
-        ("text-embedding-3-large",  "embedding", "Embedding 3 large"),
-        ("dall-e-3",                "image",     "DALL·E 3"),
-        ("whisper-1",               "stt",       "Whisper"),
-        ("tts-1",                   "tts",       "TTS-1"),
-    ],
-    "anthropic": [
-        ("claude-3-5-sonnet-20241022", "llm", "Claude 3.5 Sonnet"),
-        ("claude-3-5-haiku-20241022",  "llm", "Claude 3.5 Haiku"),
-    ],
-    # v5.12: registry type 是 gemini（非 google）→ 種子 key 對齊，否則建 gemini provider 種不到
-    "gemini": [
-        ("gemini-2.0-flash",   "llm",       "Gemini 2.0 Flash"),
-        ("gemini-1.5-pro",     "llm",       "Gemini 1.5 Pro"),
-        ("gemini-1.5-flash",   "llm",       "Gemini 1.5 Flash"),
-        ("text-embedding-004", "embedding", "Gemini Embedding 004"),
-    ],
-    # ollama 不寫死 — 模型清單由 list_provider_models 即時打 /api/tags 動態同步。
-    "cohere": [
-        ("command-r-plus",          "llm",      "Command R+"),
-        ("rerank-multilingual-v3.0","reranker", "Rerank multilingual v3"),
-    ],
-    # ── v5.12 scope B：非 openai_compat / 特殊 API → 種精選預設清單（保證「加了就有模型」）──
-    # gemini/azure/deepgram/elevenlabs/stability 另疊 live-fetch（見 _sync_special_provider_models）；
-    # vertex/bedrock 需雲端 SDK/OAuth、voyage/jina 無公開 list endpoint → 僅種子。
-    # azure_openai（Microsoft Foundry / Azure AI Foundry / LiteLLM proxy）**不寫死佔位模型**：
-    # 端點是 OpenAI 相容 → list_provider_models 即時打 /v1/models 動態偵測真實模型（多補少刪），
-    # 跟 ollama 同理。種 GPT-4o 佔位只會讓使用者真的拿 gpt-4o 去打（回成 GPT / model not found）。
-    "azure_openai": [],
-    "vertex_ai": [
-        ("gemini-1.5-pro",     "llm",       "Gemini 1.5 Pro (Vertex)"),
-        ("gemini-1.5-flash",   "llm",       "Gemini 1.5 Flash (Vertex)"),
-        ("text-embedding-005", "embedding", "Vertex Embedding 005"),
-    ],
-    "bedrock": [
-        ("anthropic.claude-3-5-sonnet-20241022-v2:0", "llm",       "Claude 3.5 Sonnet (Bedrock)"),
-        ("anthropic.claude-3-5-haiku-20241022-v1:0",  "llm",       "Claude 3.5 Haiku (Bedrock)"),
-        ("amazon.titan-embed-text-v2:0",              "embedding", "Titan Embed v2 (Bedrock)"),
-        ("meta.llama3-1-70b-instruct-v1:0",           "llm",       "Llama 3.1 70B (Bedrock)"),
-    ],
-    "deepgram": [
-        ("nova-3", "stt", "Deepgram Nova-3"),
-        ("nova-2", "stt", "Deepgram Nova-2"),
-    ],
-    "elevenlabs": [
-        ("eleven_multilingual_v2", "tts", "Multilingual v2"),
-        ("eleven_turbo_v2_5",      "tts", "Turbo v2.5"),
-        ("eleven_flash_v2_5",      "tts", "Flash v2.5"),
-    ],
-    "stability_ai": [
-        ("stable-diffusion-3.5-large", "image", "SD 3.5 Large"),
-        ("sd3.5-medium",               "image", "SD 3.5 Medium"),
-        ("stable-image-core",          "image", "Stable Image Core"),
-    ],
-    "voyage": [
-        ("voyage-3",      "embedding", "Voyage 3"),
-        ("voyage-3-lite", "embedding", "Voyage 3 Lite"),
-        ("rerank-2",      "reranker",  "Voyage Rerank 2"),
-    ],
-    "jina": [
-        ("jina-embeddings-v3",                   "embedding", "Jina Embeddings v3"),
-        ("jina-reranker-v2-base-multilingual",   "reranker",  "Jina Reranker v2"),
-    ],
-    "moonshot": [
-        ("kimi-k2.6",                       "llm",    "Kimi K2.6 (旗艦)"),
-        ("kimi-k2.5",                       "llm",    "Kimi K2.5"),
-        ("moonshot-v1-8k",                  "llm",    "Moonshot v1 8K"),
-        ("moonshot-v1-32k",                 "llm",    "Moonshot v1 32K"),
-        ("moonshot-v1-128k",                "llm",    "Moonshot v1 128K"),
-        ("moonshot-v1-auto",                "llm",    "Moonshot v1 Auto"),
-        ("moonshot-v1-8k-vision-preview",   "vision", "Moonshot v1 8K Vision"),
-        ("moonshot-v1-32k-vision-preview",  "vision", "Moonshot v1 32K Vision"),
-        ("moonshot-v1-128k-vision-preview", "vision", "Moonshot v1 128K Vision"),
-    ],
-    "groq": [
-        ("llama-3.1-70b-versatile", "llm", "Llama 3.1 70B (Groq)"),
-        ("llama-3.1-8b-instant",    "llm", "Llama 3.1 8B (Groq)"),
-    ],
-    "mistral": [
-        ("mistral-large-latest", "llm", "Mistral Large"),
-        ("mistral-small-latest", "llm", "Mistral Small"),
-    ],
-    "openrouter": [
-        ("openai/gpt-4o",               "llm", "GPT-4o (via OpenRouter)"),
-        ("anthropic/claude-3.5-sonnet", "llm", "Claude 3.5 Sonnet (via OpenRouter)"),
-    ],
-    "xai": [("grok-beta", "llm", "Grok Beta")],
+    "openai": [], "anthropic": [], "gemini": [], "cohere": [], "azure_openai": [],
+    "vertex_ai": [], "bedrock": [], "deepgram": [], "elevenlabs": [], "stability_ai": [],
+    "voyage": [], "jina": [], "moonshot": [], "groq": [], "mistral": [],
+    "openrouter": [], "xai": [],
 }
 
 

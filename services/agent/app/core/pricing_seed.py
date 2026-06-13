@@ -10,31 +10,13 @@ log = structlog.get_logger()
 
 
 async def seed_model_pricing(session_factory):
-    """v5.0.4: 對既有 provider INSERT default model row（如果還沒有）+ UPSERT pricing。"""
-    # 0. 先 seed model row（per provider type）— v5.0.4 修：之前只 UPDATE 不 INSERT 導致 admin/models 空
-    async with session_factory() as session:
-        from app.data.model_pricing import PROVIDER_DEFAULT_MODELS
-        seeded = 0
-        # 對每個現有 provider，看它的 type 對應該補哪些 model
-        provider_rows = (await session.execute(
-            text("SELECT id, provider_type FROM model_providers WHERE status = 'active'")
-        )).fetchall()
-        for prov in provider_rows:
-            defaults = PROVIDER_DEFAULT_MODELS.get(prov.provider_type, [])
-            for name, mtype, display in defaults:
-                # v5.0.x: 改 ON CONFLICT DO NOTHING（需要 alembic 0021 加的
-                # UNIQUE INDEX uq_ai_models_provider_model）— 比 WHERE NOT EXISTS
-                # 更原子、不會有 race 寫入重複列
-                r = await session.execute(text("""
-                    INSERT INTO ai_models (provider_id, model_name, model_type, display_name, status, is_default)
-                    VALUES (CAST(:pid AS uuid), CAST(:n AS varchar), CAST(:t AS varchar), CAST(:d AS varchar), 'active', FALSE)
-                    ON CONFLICT (provider_id, model_name) DO NOTHING
-                """), {"pid": str(prov.id), "n": name, "t": mtype, "d": display})
-                seeded += r.rowcount or 0
-        await session.commit()
-        if seeded:
-            log.info("default_models_seeded", count=seeded, providers=len(provider_rows))
+    """UPSERT 已知 model 的價格（只補 NULL 欄位，不覆蓋使用者已設定的價格）。
 
+    v5.13：**移除**「啟動時 seed 預設 model row」那段——它每次開機從寫死的
+    PROVIDER_DEFAULT_MODELS 把幻覺模型（如 azure_openai 的 gpt-4o）INSERT 回 ai_models，
+    使用者刪掉後一重啟又復活。模型清單一律由 admin/models 即時動態偵測（ollama /api/tags、
+    OpenAI 相容 /v1/models），不再寫死任何 seed。本函式只負責「替既有 model row 補價格」。
+    """
     async with session_factory() as session:
         updated = 0
         for model_name, (price_in, price_out) in MODEL_PRICING.items():
