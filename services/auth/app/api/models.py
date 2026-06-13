@@ -52,11 +52,10 @@ _DEFAULT_MODELS_ON_CREATE: dict[str, list[tuple[str, str, str]]] = {
     # ── v5.12 scope B：非 openai_compat / 特殊 API → 種精選預設清單（保證「加了就有模型」）──
     # gemini/azure/deepgram/elevenlabs/stability 另疊 live-fetch（見 _sync_special_provider_models）；
     # vertex/bedrock 需雲端 SDK/OAuth、voyage/jina 無公開 list endpoint → 僅種子。
-    "azure_openai": [
-        ("gpt-4o",                 "llm",       "GPT-4o (Azure 部署名請依實際調整)"),
-        ("gpt-4o-mini",            "llm",       "GPT-4o mini (Azure)"),
-        ("text-embedding-3-large", "embedding", "Embedding 3 large (Azure)"),
-    ],
+    # azure_openai（Microsoft Foundry / Azure AI Foundry / LiteLLM proxy）**不寫死佔位模型**：
+    # 端點是 OpenAI 相容 → list_provider_models 即時打 /v1/models 動態偵測真實模型（多補少刪），
+    # 跟 ollama 同理。種 GPT-4o 佔位只會讓使用者真的拿 gpt-4o 去打（回成 GPT / model not found）。
+    "azure_openai": [],
     "vertex_ai": [
         ("gemini-1.5-pro",     "llm",       "Gemini 1.5 Pro (Vertex)"),
         ("gemini-1.5-flash",   "llm",       "Gemini 1.5 Flash (Vertex)"),
@@ -537,12 +536,19 @@ async def list_provider_models(
     # 失敗（伺服器沒開）時靜默略過，沿用 DB 既有清單。
     #  - ollama：原生 /api/tags
     #  - 所有 OpenAI 相容（雲端 + 自架）：/v1/models（v5.12 scope A 擴大；抓不到 → 保留 DB 既有）
+    # Microsoft Foundry / Azure AI Foundry（services.ai.azure.com）/ LiteLLM proxy 都是 OpenAI
+    # 相容 → 走 /v1/models 動態偵測（多補少刪，會自動清掉建立時的佔位、補上端點實際模型，如
+    # DeepSeek-V4-Pro）。只有「傳統 Azure OpenAI」（*.openai.azure.com）才走 api-version 特殊路徑。
+    _azure_is_openai_compat = (
+        prov.provider_type == "azure_openai"
+        and "openai.azure.com" not in (prov.base_url or "")
+    )
     if prov.provider_type == "ollama":
         await _sync_ollama_models(session, str(provider_id), prov.base_url)
-    elif prov.provider_type in _OPENAI_COMPAT_DEFAULT_BASE:
+    elif prov.provider_type in _OPENAI_COMPAT_DEFAULT_BASE or _azure_is_openai_compat:
         api_key = decrypt_secret(prov.api_key_enc) or "" if prov.api_key_enc else ""
         # 雲端 provider 沒填 base_url → 用 registry 預設（如 together → api.together.xyz/v1）
-        base = prov.base_url or _OPENAI_COMPAT_DEFAULT_BASE[prov.provider_type]
+        base = prov.base_url or _OPENAI_COMPAT_DEFAULT_BASE.get(prov.provider_type, "")
         await _sync_openai_compat_models(session, str(provider_id), base, api_key)
     elif prov.provider_type in _SPECIAL_LIST_FETCH:
         # v5.12 scope B：gemini/azure/deepgram/elevenlabs/stability best-effort live-fetch
