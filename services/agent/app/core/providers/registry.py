@@ -224,10 +224,39 @@ def get_adapter(provider_type: str) -> Type[BaseProvider]:
     return OpenAICompatProvider
 
 
+# ── 賣場精簡：對外 catalog 只暴露三類 ─────────────────────────────────
+# 1) 地端自架（is_local）  2) Microsoft Foundry（雲端各大廠統一入口）  3) 類 OpenAI API（自訂端點）。
+# 其餘大廠 provider_type 仍完整保留在 PROVIDER_REGISTRY（adapter 解析 / 既存供應商 / DB seed 需要），
+# 只是不出現在「新增供應商」下拉與右側 catalog。下列 override 只動「對外顯示」，不動 canonical meta。
+_CATALOG_OVERRIDES: dict[str, dict] = {
+    "azure_openai": {
+        "label": "Microsoft Foundry",
+        "default_base_url": "",
+        "notes": "一個端點接各大廠模型（GPT / DeepSeek / Llama / Mistral …）。base_url 填 Azure AI "
+                 "Foundry 專案端點（…services.ai.azure.com）或相容 proxy；模型名填 Foundry 部署名。"
+                 "傳統 Azure OpenAI（…openai.azure.com）端點亦支援。",
+    },
+    "openai": {
+        "label": "類 OpenAI API（自訂）",
+        "default_base_url": "",
+        "recommended_models": [],
+        "notes": "任何 OpenAI 相容端點（自架 / 第三方 proxy / 內網閘道）。填 base_url（…/v1）與 API key，"
+                 "模型名填該端點實際模型 id。",
+    },
+}
+
+# catalog 內雲端兩項的顯示順序：Foundry 優先、類 OpenAI 次之。
+_CATALOG_CLOUD_ORDER = ["azure_openai", "openai"]
+
+
 def list_providers() -> list[dict]:
-    """給 API/前端用，回傳 JSON-friendly dict 清單。"""
-    return [
-        {
+    """給 API/前端用，回傳 JSON-friendly dict 清單。
+
+    賣場精簡：只暴露「地端自架 + Microsoft Foundry + 類 OpenAI API」三類；其餘大廠仍在
+    PROVIDER_REGISTRY 內可用（adapter 解析 / 既存供應商 / DB seed），只是不上 catalog 下拉。
+    """
+    def _to_dict(m: ProviderMeta) -> dict:
+        d = {
             "type":               m.type,
             "label":              m.label,
             "adapter_type":       m.adapter_type,
@@ -238,5 +267,10 @@ def list_providers() -> list[dict]:
             "capabilities":       m.capabilities,
             "is_local":           m.is_local,
         }
-        for m in PROVIDER_REGISTRY
-    ]
+        d.update(_CATALOG_OVERRIDES.get(m.type, {}))
+        return d
+
+    by_type = {m.type: m for m in PROVIDER_REGISTRY}
+    local = [_to_dict(m) for m in PROVIDER_REGISTRY if m.is_local]
+    cloud = [_to_dict(by_type[t]) for t in _CATALOG_CLOUD_ORDER if t in by_type]
+    return local + cloud

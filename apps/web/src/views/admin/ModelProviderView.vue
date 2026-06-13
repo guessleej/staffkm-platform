@@ -403,7 +403,9 @@ const filteredCatalog = computed(() => {
 const CATALOG_GROUPS = [
   { key: 'local',     label: '地端 self-hosted',
     test: (r: ProviderRegistryEntry) => r.is_local },
-  { key: 'cloud-int', label: '國際雲',
+  // v5.13: 賣場精簡 — 雲端只走 Microsoft Foundry（各大廠統一入口）+ 類 OpenAI API（自訂）。
+  // 其餘大廠由後端 registry 過濾掉（仍在 PROVIDER_REGISTRY 可用，只是不上 catalog）。
+  { key: 'cloud-int', label: '雲端 / 自訂',
     test: (r: ProviderRegistryEntry) => [
       'openai','anthropic','gemini','vertex_ai','bedrock','azure_openai',
       'cohere','mistral','groq','together','fireworks','perplexity',
